@@ -5,7 +5,7 @@ import { useSync } from '../context/SyncContext'
 import {
   LayoutDashboard, Building2, FileText, Banknote,
   Users, ClipboardList, Activity, ShieldAlert,
-  LogOut, Menu, X, Leaf,
+  LogOut, Menu, X, Leaf, Upload,
 } from 'lucide-react'
 
 const NAV_BY_ROLE = {
@@ -15,6 +15,7 @@ const NAV_BY_ROLE = {
     { label: 'Permits',    icon: FileText,         path: '/permits' },
     { label: 'Finance',    icon: Banknote,         path: '/finance' },
     { label: 'Staff',      icon: Users,            path: '/staff' },
+    { label: 'Import Data',icon: Upload,           path: '/import', dividerBefore: true },
   ],
   finance: [
     { label: 'Dashboard',  icon: LayoutDashboard, path: '/' },
@@ -74,18 +75,20 @@ export default function Layout() {
           {navItems.map((item) => {
             const Icon = item.icon
             return (
-              <NavLink
-                key={item.path}
-                to={item.path}
-                end={item.path === '/'}
-                className={({ isActive }) =>
-                  `nav-item${isActive ? ' nav-item--active' : ''}`
-                }
-                onClick={() => setSidebarOpen(false)}
-              >
-                <Icon size={17} />
-                {item.label}
-              </NavLink>
+              <div key={item.path}>
+                {item.dividerBefore && <hr className="nav-divider" />}
+                <NavLink
+                  to={item.path}
+                  end={item.path === '/'}
+                  className={({ isActive }) =>
+                    `nav-item${isActive ? ' nav-item--active' : ''}`
+                  }
+                  onClick={() => setSidebarOpen(false)}
+                >
+                  <Icon size={17} />
+                  {item.label}
+                </NavLink>
+              </div>
             )
           })}
         </nav>

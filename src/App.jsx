@@ -16,6 +16,7 @@ import SiteVerificationForm from './pages/SiteVerificationForm'
 import MonitoringForm from './pages/MonitoringForm'
 import EnforcementForm from './pages/EnforcementForm'
 import CrossRecordsPage from './pages/CrossRecordsPage'
+import ImportPage from './pages/ImportPage'
 
 export default function App() {
   return (
@@ -67,6 +68,9 @@ export default function App() {
 
               {/* Staff (placeholder) */}
               <Route path="staff" element={<ComingSoon />} />
+
+              {/* Admin utilities */}
+              <Route path="import" element={<ImportPage />} />
 
               {/* Cross-facility module views */}
               <Route path=":module" element={<CrossRecordsPage />} />

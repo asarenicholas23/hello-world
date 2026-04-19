@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, MapPin, Loader, AlertCircle, Save, Crosshair, WifiOff } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useSync } from '../context/SyncContext'
+import { useGPS } from '../hooks/useGPS'
 import { createFacility, updateFacility, getFacility } from '../firebase/facilities'
 import { SECTORS, DISTRICTS, REGION } from '../data/constants'
 import Spinner from '../components/Spinner'
@@ -30,12 +31,10 @@ export default function FacilityForm() {
   const { isOnline, addDraft } = useSync()
 
   const [formData, setFormData] = useState(EMPTY_FORM)
-  const [coordinates, setCoordinates] = useState(null)
+  const { coordinates, setCoordinates, loading: gpsLoading, error: gpsError, capture: handleCaptureGPS, clear: clearCoordinates } = useGPS()
   const [initialLoading, setInitialLoading] = useState(isEditing)
   const [submitting, setSubmitting] = useState(false)
-  const [gpsLoading, setGpsLoading] = useState(false)
   const [error, setError] = useState('')
-  const [gpsError, setGpsError] = useState('')
 
   // Load existing facility when editing
   useEffect(() => {
@@ -80,36 +79,6 @@ export default function FacilityForm() {
       sector: name,
       sector_prefix: sector?.prefix ?? '',
     }))
-  }
-
-  function handleCaptureGPS() {
-    if (!navigator.geolocation) {
-      setGpsError('Geolocation is not supported by your browser.')
-      return
-    }
-    setGpsLoading(true)
-    setGpsError('')
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        setCoordinates({ lat: pos.coords.latitude, lng: pos.coords.longitude })
-        setGpsLoading(false)
-      },
-      (err) => {
-        const messages = {
-          1: 'Location access denied. Allow location in your browser settings.',
-          2: 'Location unavailable. Try moving to an open area.',
-          3: 'Location request timed out. Try again.',
-        }
-        setGpsError(messages[err.code] ?? 'Could not get location.')
-        setGpsLoading(false)
-      },
-      { timeout: 15000, enableHighAccuracy: true }
-    )
-  }
-
-  function clearCoordinates() {
-    setCoordinates(null)
-    setGpsError('')
   }
 
   function validate() {

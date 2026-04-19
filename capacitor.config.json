@@ -1,0 +1,17 @@
+{
+  "appId": "gh.gov.epa.ashanti.pms",
+  "appName": "EPA Permit",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "https"
+  },
+  "plugins": {
+    "Camera": {
+      "iosPhotoUsageDescription": "This app uses the camera to capture site photos for compliance records.",
+      "iosPhotoLibraryUsageDescription": "This app accesses your photo library to attach photos to compliance records."
+    },
+    "Geolocation": {
+      "iosLocationWhenInUseUsageDescription": "This app uses your location to tag facility coordinates and field inspection sites."
+    }
+  }
+}

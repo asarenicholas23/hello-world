@@ -118,10 +118,10 @@ facilities/{file_number}              ← facility profiles
 |-------|--------------------------------------|------------|
 | 1     | Foundation & Auth                    | ✅ Complete |
 | 2     | Facility (Entity) Profiles           | ✅ Complete |
-| 3     | Offline Support                      | 🔜 Next     |
-| 4     | Camera + GPS via Capacitor           | Pending    |
-| 5     | Sub-records (Permits, Finance, etc.) | Pending    |
-| 6     | Filters, Search, Dashboard           | Pending    |
+| 3     | Offline Support                      | ✅ Complete |
+| 4     | Camera + GPS via Capacitor           | ✅ Complete |
+| 5     | Sub-records (Permits, Finance, etc.) | ✅ Complete |
+| 6     | Filters, Search, Dashboard           | 🔜 Next     |
 | 7     | Data Migration from Google Drive     | Pending    |
 | 8     | Desktop Polish                       | Pending    |
 

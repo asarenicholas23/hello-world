@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, MapPin, Loader, AlertCircle, Save, Crosshair, WifiOff } from 'lucide-react'
+import { ArrowLeft, Loader, AlertCircle, Save, WifiOff } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useSync } from '../context/SyncContext'
 import { useGPS } from '../hooks/useGPS'
 import { createFacility, updateFacility, getFacility } from '../firebase/facilities'
 import { SECTORS, DISTRICTS, REGION } from '../data/constants'
 import Spinner from '../components/Spinner'
+import GPSField from '../components/GPSField'
 
 const EMPTY_FORM = {
   name: '',
@@ -301,63 +302,13 @@ export default function FacilityForm() {
             </div>
 
             {/* GPS */}
-            <div className="form-group">
-              <label>GPS Coordinates</label>
-              <div className="gps-row">
-                <button
-                  type="button"
-                  className="btn btn--ghost"
-                  onClick={handleCaptureGPS}
-                  disabled={gpsLoading}
-                  style={{ flexShrink: 0 }}
-                >
-                  {gpsLoading ? (
-                    <><Loader size={15} style={{ animation: 'spin 1s linear infinite' }} /> Getting location…</>
-                  ) : (
-                    <><Crosshair size={15} /> Capture GPS</>
-                  )}
-                </button>
-
-                {coordinates ? (
-                  <div className="gps-coords">
-                    <MapPin size={12} style={{ marginRight: 4, color: '#065f46' }} />
-                    {coordinates.lat.toFixed(6)}, {coordinates.lng.toFixed(6)}
-                    <a
-                      href={`https://www.google.com/maps?q=${coordinates.lat},${coordinates.lng}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      style={{ marginLeft: 10 }}
-                    >
-                      View in Maps ↗
-                    </a>
-                    <button
-                      type="button"
-                      onClick={clearCoordinates}
-                      style={{ marginLeft: 10, background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', fontSize: 12 }}
-                    >
-                      ✕ Clear
-                    </button>
-                  </div>
-                ) : (
-                  <span style={{ fontSize: 13, color: '#9ca3af' }}>No coordinates captured</span>
-                )}
-              </div>
-
-              {gpsError && (
-                <div style={{ fontSize: 12, color: '#dc2626', marginTop: 6, display: 'flex', gap: 6, alignItems: 'center' }}>
-                  <AlertCircle size={12} /> {gpsError}
-                </div>
-              )}
-
-              {/* Map preview */}
-              {coordinates && (
-                <iframe
-                  title="Location preview"
-                  src={`https://www.openstreetmap.org/export/embed.html?bbox=${coordinates.lng - 0.005},${coordinates.lat - 0.005},${coordinates.lng + 0.005},${coordinates.lat + 0.005}&layer=mapnik&marker=${coordinates.lat},${coordinates.lng}`}
-                  style={{ width: '100%', height: 200, border: 0, borderRadius: 8, marginTop: 10 }}
-                />
-              )}
-            </div>
+            <GPSField
+              coordinates={coordinates}
+              loading={gpsLoading}
+              error={gpsError}
+              onCapture={handleCaptureGPS}
+              onClear={clearCoordinates}
+            />
           </div>
         </div>
 

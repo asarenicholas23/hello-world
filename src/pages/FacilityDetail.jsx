@@ -1,21 +1,28 @@
 import { useEffect, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams, useLocation } from 'react-router-dom'
 import {
   ArrowLeft, Edit2, Trash2, MapPin, Phone, Mail, User,
   Building2, Hash, FileText, Banknote, ClipboardList,
-  Activity, ShieldAlert, AlertCircle, ExternalLink, Construction,
+  Activity, ShieldAlert, AlertCircle, ExternalLink, CheckSquare,
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { getFacility, deleteFacility } from '../firebase/facilities'
 import { SECTOR_COLORS, DISTRICTS } from '../data/constants'
 import Spinner from '../components/Spinner'
+import PermitsTab from '../components/tabs/PermitsTab'
+import FinanceTab from '../components/tabs/FinanceTab'
+import ScreeningsTab from '../components/tabs/ScreeningsTab'
+import SiteVerificationsTab from '../components/tabs/SiteVerificationsTab'
+import MonitoringTab from '../components/tabs/MonitoringTab'
+import EnforcementTab from '../components/tabs/EnforcementTab'
 
 const SUB_RECORD_TABS = [
-  { key: 'permits',      label: 'Permits',          icon: FileText },
-  { key: 'finance',      label: 'Finance',           icon: Banknote },
-  { key: 'screening',    label: 'Screening',         icon: ClipboardList },
-  { key: 'monitoring',   label: 'Monitoring',        icon: Activity },
-  { key: 'enforcement',  label: 'Enforcement',       icon: ShieldAlert },
+  { key: 'permits',            label: 'Permits',            icon: FileText },
+  { key: 'finance',            label: 'Finance',            icon: Banknote },
+  { key: 'screenings',         label: 'Screening',          icon: ClipboardList },
+  { key: 'site_verifications', label: 'Site Verification',  icon: CheckSquare },
+  { key: 'monitoring',         label: 'Monitoring',         icon: Activity },
+  { key: 'enforcement',        label: 'Enforcement',        icon: ShieldAlert },
 ]
 
 function formatTimestamp(ts) {
@@ -32,11 +39,12 @@ export default function FacilityDetail() {
   const { fileNumber } = useParams()
   const { role } = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
 
   const [facility, setFacility] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [activeTab, setActiveTab] = useState('permits')
+  const [activeTab, setActiveTab] = useState(location.state?.tab ?? 'permits')
   const [deleting, setDeleting] = useState(false)
 
   useEffect(() => {
@@ -48,6 +56,15 @@ export default function FacilityDetail() {
       .catch(() => setError('Failed to load facility.'))
       .finally(() => setLoading(false))
   }, [fileNumber])
+
+  // Activate tab from navigation state without keeping stale state
+  useEffect(() => {
+    if (location.state?.tab) {
+      setActiveTab(location.state.tab)
+      // Clear the state so a back-forward doesn't re-activate
+      window.history.replaceState({}, '')
+    }
+  }, [location.state?.tab])
 
   async function handleDelete() {
     if (
@@ -187,11 +204,10 @@ export default function FacilityDetail() {
         )}
       </div>
 
-      {/* Sub-record tabs (Phase 5) */}
+      {/* Sub-record tabs */}
       <div className="card">
         <div className="card-header">
           <span className="card-title">Records</span>
-          <span className="badge badge--gray" style={{ fontSize: 11 }}>Coming Phase 5</span>
         </div>
 
         <div className="tabs">
@@ -210,14 +226,13 @@ export default function FacilityDetail() {
           })}
         </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '32px 0', gap: 10, color: '#9ca3af', textAlign: 'center' }}>
-          <Construction size={32} color="#d1d5db" />
-          <div style={{ fontSize: 14, fontWeight: 600, color: '#6b7280' }}>
-            {SUB_RECORD_TABS.find((t) => t.key === activeTab)?.label} records
-          </div>
-          <div style={{ fontSize: 13 }}>
-            This module is coming in <strong>Phase 5</strong>.
-          </div>
+        <div style={{ padding: '4px 0 8px' }}>
+          {activeTab === 'permits'            && <PermitsTab           fileNumber={fileNumber} role={role} />}
+          {activeTab === 'finance'            && <FinanceTab           fileNumber={fileNumber} role={role} />}
+          {activeTab === 'screenings'         && <ScreeningsTab        fileNumber={fileNumber} role={role} />}
+          {activeTab === 'site_verifications' && <SiteVerificationsTab fileNumber={fileNumber} role={role} />}
+          {activeTab === 'monitoring'         && <MonitoringTab        fileNumber={fileNumber} role={role} />}
+          {activeTab === 'enforcement'        && <EnforcementTab       fileNumber={fileNumber} role={role} />}
         </div>
       </div>
     </div>

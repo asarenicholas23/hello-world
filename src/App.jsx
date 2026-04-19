@@ -9,6 +9,12 @@ import ComingSoon from './pages/ComingSoon'
 import Facilities from './pages/Facilities'
 import FacilityDetail from './pages/FacilityDetail'
 import FacilityForm from './pages/FacilityForm'
+import PermitForm from './pages/PermitForm'
+import FinanceForm from './pages/FinanceForm'
+import ScreeningForm from './pages/ScreeningForm'
+import SiteVerificationForm from './pages/SiteVerificationForm'
+import MonitoringForm from './pages/MonitoringForm'
+import EnforcementForm from './pages/EnforcementForm'
 
 export default function App() {
   return (
@@ -28,16 +34,40 @@ export default function App() {
             >
               <Route index element={<Home />} />
 
-              {/* Phase 2 — Facilities */}
+              {/* Facilities */}
               <Route path="facilities" element={<Facilities />} />
               <Route path="facilities/new" element={<FacilityForm />} />
               <Route path="facilities/:fileNumber" element={<FacilityDetail />} />
               <Route path="facilities/:fileNumber/edit" element={<FacilityForm />} />
 
-              {/* Phase 2 — Staff (placeholder) */}
+              {/* Permits */}
+              <Route path="facilities/:fileNumber/permits/new" element={<PermitForm />} />
+              <Route path="facilities/:fileNumber/permits/:recordId/edit" element={<PermitForm />} />
+
+              {/* Finance */}
+              <Route path="facilities/:fileNumber/finance/new" element={<FinanceForm />} />
+              <Route path="facilities/:fileNumber/finance/:recordId/edit" element={<FinanceForm />} />
+
+              {/* Screenings */}
+              <Route path="facilities/:fileNumber/screenings/new" element={<ScreeningForm />} />
+              <Route path="facilities/:fileNumber/screenings/:recordId/edit" element={<ScreeningForm />} />
+
+              {/* Site Verifications */}
+              <Route path="facilities/:fileNumber/site-verifications/new" element={<SiteVerificationForm />} />
+              <Route path="facilities/:fileNumber/site-verifications/:recordId/edit" element={<SiteVerificationForm />} />
+
+              {/* Monitoring */}
+              <Route path="facilities/:fileNumber/monitoring/new" element={<MonitoringForm />} />
+              <Route path="facilities/:fileNumber/monitoring/:recordId/edit" element={<MonitoringForm />} />
+
+              {/* Enforcement */}
+              <Route path="facilities/:fileNumber/enforcement/new" element={<EnforcementForm />} />
+              <Route path="facilities/:fileNumber/enforcement/:recordId/edit" element={<EnforcementForm />} />
+
+              {/* Staff (placeholder) */}
               <Route path="staff" element={<ComingSoon />} />
 
-              {/* Phase 5 */}
+              {/* Top-level module pages (placeholder) */}
               <Route path="permits" element={<ComingSoon />} />
               <Route path="finance" element={<ComingSoon />} />
               <Route path="screening" element={<ComingSoon />} />

@@ -1,6 +1,6 @@
 import { initializeApp } from 'firebase/app'
 import { getAuth } from 'firebase/auth'
-import { getFirestore } from 'firebase/firestore'
+import { initializeFirestore, persistentLocalCache } from 'firebase/firestore'
 import { getStorage } from 'firebase/storage'
 
 const firebaseConfig = {
@@ -15,5 +15,12 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig)
 
 export const auth = getAuth(app)
-export const db = getFirestore(app)
+
+// persistentLocalCache stores Firestore data in IndexedDB so reads work
+// offline. Firestore queues writes and flushes them when connection returns.
+// Falls back to memory cache silently in private/incognito browsing.
+export const db = initializeFirestore(app, {
+  localCache: persistentLocalCache(),
+})
+
 export const storage = getStorage(app)

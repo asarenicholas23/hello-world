@@ -1,18 +1,22 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { Building2, MapPin, Phone, Plus, Search, User, AlertCircle } from 'lucide-react'
+import { useNavigate, useLocation } from 'react-router-dom'
+import { Building2, MapPin, Phone, Plus, Search, User, AlertCircle, Clock, Trash2, CheckCircle } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
+import { useSync } from '../context/SyncContext'
 import { listFacilities } from '../firebase/facilities'
 import { SECTORS, SECTOR_COLORS } from '../data/constants'
 import Spinner from '../components/Spinner'
 
 export default function Facilities() {
   const { role } = useAuth()
+  const { drafts, removeDraft } = useSync()
   const navigate = useNavigate()
+  const location = useLocation()
 
   const [facilities, setFacilities] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const draftSaved = location.state?.draftSaved ?? false
   const [search, setSearch] = useState('')
   const [sectorFilter, setSectorFilter] = useState('')
 
@@ -79,6 +83,28 @@ export default function Facilities() {
           </select>
         </div>
       </div>
+
+      {/* Draft-saved success banner */}
+      {draftSaved && (
+        <div className="draft-saved-banner">
+          <CheckCircle size={15} style={{ flexShrink: 0 }} />
+          Facility saved as a draft. It will sync automatically when you&apos;re back online.
+        </div>
+      )}
+
+      {/* Pending drafts */}
+      {drafts.length > 0 && (
+        <div>
+          <div className="home-section-title" style={{ marginBottom: 10 }}>
+            Pending Drafts ({drafts.length}) — awaiting sync
+          </div>
+          <div className="firms-grid" style={{ marginBottom: 8 }}>
+            {drafts.map((draft) => (
+              <DraftCard key={draft._id} draft={draft} onDelete={() => removeDraft(draft._id)} />
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* States */}
       {loading && <Spinner />}
@@ -157,6 +183,54 @@ function FacilityCard({ facility: f, onClick }) {
         <span className="badge badge--gray" style={{ fontSize: 11 }}>
           {f.district ?? '—'}
         </span>
+      </div>
+    </div>
+  )
+}
+
+function DraftCard({ draft, onDelete }) {
+  const colors = SECTOR_COLORS[draft.sector_prefix] ?? { bg: '#fef9c3', text: '#a16207' }
+  const created = new Date(draft._created_at).toLocaleString('en-GH', {
+    day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
+  })
+
+  return (
+    <div className="firm-card draft-card">
+      <div className="firm-card__header">
+        <div>
+          <span className="firm-card__name">{draft.name}</span>
+          <span
+            className="firm-card__industry facility-sector-badge"
+            style={{ background: colors.bg, color: colors.text }}
+          >
+            {draft.sector}
+          </span>
+        </div>
+        <span className="badge badge--yellow" style={{ fontSize: 11 }}>DRAFT</span>
+      </div>
+
+      <div className="firm-card__meta">
+        {draft.location && (
+          <span><MapPin size={12} />{draft.location}</span>
+        )}
+        <span>
+          <Clock size={12} />
+          Saved offline · {created}
+        </span>
+      </div>
+
+      <div className="firm-card__footer">
+        <span style={{ fontSize: 12, color: '#a16207' }}>
+          File number will be assigned on sync
+        </span>
+        <button
+          className="btn btn--ghost btn--sm"
+          style={{ color: '#dc2626', borderColor: '#fecaca', padding: '3px 8px' }}
+          onClick={(e) => { e.stopPropagation(); onDelete() }}
+          title="Discard draft"
+        >
+          <Trash2 size={13} />
+        </button>
       </div>
     </div>
   )

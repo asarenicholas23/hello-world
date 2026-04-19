@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import { useSync } from '../context/SyncContext'
 import {
   LayoutDashboard, Building2, FileText, Banknote,
   Users, ClipboardList, Activity, ShieldAlert,
@@ -40,6 +41,7 @@ export default function Layout() {
   const navigate = useNavigate()
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
+  const { syncStatus } = useSync()
   const navItems = NAV_BY_ROLE[staff?.role] ?? []
   const initials = staff?.name
     ?.split(' ')
@@ -122,6 +124,7 @@ export default function Layout() {
             <Menu size={20} />
           </button>
           <span className="topbar__title">Ashanti Regional Office</span>
+          <SyncIndicator status={syncStatus} />
           <span
             className="badge"
             style={{
@@ -138,6 +141,25 @@ export default function Layout() {
           <Outlet />
         </div>
       </div>
+    </div>
+  )
+}
+
+const SYNC_DOT_COLOR = {
+  synced:  '#16a34a',
+  syncing: '#f59e0b',
+  pending: '#f59e0b',
+  offline: '#ef4444',
+}
+
+function SyncIndicator({ status }) {
+  return (
+    <div className="sync-indicator">
+      <span
+        className="sync-dot"
+        style={{ background: SYNC_DOT_COLOR[status.type] ?? '#9ca3af' }}
+      />
+      <span className="sync-label">{status.label}</span>
     </div>
   )
 }

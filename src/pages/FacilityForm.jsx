@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, MapPin, Loader, AlertCircle, Save, Crosshair } from 'lucide-react'
+import { ArrowLeft, MapPin, Loader, AlertCircle, Save, Crosshair, WifiOff } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
+import { useSync } from '../context/SyncContext'
 import { createFacility, updateFacility, getFacility } from '../firebase/facilities'
 import { SECTORS, DISTRICTS, REGION } from '../data/constants'
 import Spinner from '../components/Spinner'
@@ -26,6 +27,7 @@ export default function FacilityForm() {
   const isEditing = Boolean(fileNumber)
   const navigate = useNavigate()
   const { user } = useAuth()
+  const { isOnline, addDraft } = useSync()
 
   const [formData, setFormData] = useState(EMPTY_FORM)
   const [coordinates, setCoordinates] = useState(null)
@@ -133,6 +135,13 @@ export default function FacilityForm() {
 
     const payload = { ...formData, coordinates: coordinates ?? null }
 
+    // Offline create — file number transaction requires network
+    if (!isEditing && !isOnline) {
+      addDraft(payload, user.uid)
+      navigate('/facilities', { state: { draftSaved: true } })
+      return
+    }
+
     try {
       if (isEditing) {
         await updateFacility(fileNumber, payload, user.uid)
@@ -142,6 +151,12 @@ export default function FacilityForm() {
         navigate(`/facilities/${newFileNumber}`)
       }
     } catch (err) {
+      // Connection dropped mid-save — offer draft fallback for new facilities
+      if (!isEditing && !navigator.onLine) {
+        addDraft(payload, user.uid)
+        navigate('/facilities', { state: { draftSaved: true } })
+        return
+      }
       setError(
         err.message.includes('Counter not found')
           ? 'Could not generate file number. Make sure sector counters are seeded.'
@@ -177,6 +192,14 @@ export default function FacilityForm() {
       </div>
 
       <form onSubmit={handleSubmit}>
+        {!isOnline && !isEditing && (
+          <div className="offline-banner">
+            <WifiOff size={15} style={{ flexShrink: 0 }} />
+            You&apos;re offline. Fill out the form and tap &quot;Save as Draft&quot; — it will sync
+            automatically when you reconnect.
+          </div>
+        )}
+
         {error && (
           <div className="login-error" style={{ marginBottom: 16 }}>
             <AlertCircle size={15} style={{ flexShrink: 0 }} />
@@ -460,7 +483,7 @@ export default function FacilityForm() {
             {submitting ? (
               <><Loader size={15} style={{ animation: 'spin 1s linear infinite' }} /> Saving…</>
             ) : (
-              <><Save size={15} /> {isEditing ? 'Save Changes' : 'Create Facility'}</>
+              <><Save size={15} /> {isEditing ? 'Save Changes' : isOnline ? 'Create Facility' : 'Save as Draft'}</>
             )}
           </button>
         </div>

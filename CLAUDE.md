@@ -117,8 +117,8 @@ facilities/{file_number}              ← facility profiles
 | Phase | Description                          | Status     |
 |-------|--------------------------------------|------------|
 | 1     | Foundation & Auth                    | ✅ Complete |
-| 2     | Facility (Entity) Profiles           | 🔜 Next     |
-| 3     | Offline Support                      | Pending    |
+| 2     | Facility (Entity) Profiles           | ✅ Complete |
+| 3     | Offline Support                      | 🔜 Next     |
 | 4     | Camera + GPS via Capacitor           | Pending    |
 | 5     | Sub-records (Permits, Finance, etc.) | Pending    |
 | 6     | Filters, Search, Dashboard           | Pending    |

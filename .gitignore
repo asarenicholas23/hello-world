@@ -1,3 +1,10 @@
+# Environment variables (contain secrets)
+.env
+.env.local
+
+# Firebase service account key (NEVER commit)
+scripts/serviceAccountKey.json
+
 # Logs
 logs
 *.log

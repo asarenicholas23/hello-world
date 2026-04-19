@@ -1,0 +1,75 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isAuthed() {
+      return request.auth != null;
+    }
+
+    // Staff doc is keyed by Firebase Auth UID — O(1) lookup, no query needed.
+    function staffRole() {
+      return get(/databases/$(database)/documents/staff/$(request.auth.uid)).data.role;
+    }
+
+    function isAdmin()   { return isAuthed() && staffRole() == 'admin';   }
+    function isFinance() { return isAuthed() && staffRole() == 'finance';  }
+    function isOfficer() { return isAuthed() && staffRole() == 'officer';  }
+
+    // ── Staff ──────────────────────────────────────────────────
+    // Any authenticated user can read staff docs (needed for name lookups).
+    // Only admins can create/update/delete staff docs.
+    match /staff/{uid} {
+      allow read:             if isAuthed();
+      allow create, update,
+            delete:           if isAdmin();
+    }
+
+    // ── Counters ───────────────────────────────────────────────
+    // Authenticated users need read+write for the file-number transaction
+    // (Phase 2). Write access tightened to admins+officers in Phase 2.
+    match /counters/{prefix} {
+      allow read, write: if isAuthed();
+    }
+
+    // ── Facilities ─────────────────────────────────────────────
+    match /facilities/{fileNumber} {
+      allow read:          if isAuthed();
+      allow create:        if isAuthed();
+      allow update:        if isAdmin() || isFinance() || isOfficer();
+      allow delete:        if isAdmin();
+
+      // Permits — admin only
+      match /permits/{id} {
+        allow read:        if isAuthed();
+        allow write:       if isAdmin();
+      }
+
+      // Finance — admin or finance role
+      match /finance/{id} {
+        allow read:        if isAuthed();
+        allow write:       if isAdmin() || isFinance();
+      }
+
+      // Field sub-records — admin or officer
+      match /screenings/{id} {
+        allow read:        if isAuthed();
+        allow write:       if isAdmin() || isOfficer();
+      }
+
+      match /site_verifications/{id} {
+        allow read:        if isAuthed();
+        allow write:       if isAdmin() || isOfficer();
+      }
+
+      match /monitoring/{id} {
+        allow read:        if isAuthed();
+        allow write:       if isAdmin() || isOfficer();
+      }
+
+      match /enforcement/{id} {
+        allow read:        if isAuthed();
+        allow write:       if isAdmin() || isOfficer();
+      }
+    }
+  }
+}

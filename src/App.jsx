@@ -5,6 +5,9 @@ import Layout from './components/Layout'
 import Login from './pages/Login'
 import Home from './pages/Home'
 import ComingSoon from './pages/ComingSoon'
+import Facilities from './pages/Facilities'
+import FacilityDetail from './pages/FacilityDetail'
+import FacilityForm from './pages/FacilityForm'
 
 export default function App() {
   return (
@@ -23,8 +26,13 @@ export default function App() {
           >
             <Route index element={<Home />} />
 
-            {/* Phase 2 */}
-            <Route path="facilities" element={<ComingSoon />} />
+            {/* Phase 2 — Facilities */}
+            <Route path="facilities" element={<Facilities />} />
+            <Route path="facilities/new" element={<FacilityForm />} />
+            <Route path="facilities/:fileNumber" element={<FacilityDetail />} />
+            <Route path="facilities/:fileNumber/edit" element={<FacilityForm />} />
+
+            {/* Phase 2 — Staff (placeholder) */}
             <Route path="staff" element={<ComingSoon />} />
 
             {/* Phase 5 */}

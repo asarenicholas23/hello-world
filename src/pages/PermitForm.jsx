@@ -3,7 +3,9 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, AlertCircle, Save, Loader } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { getSubRecord, createSubRecord, updateSubRecord } from '../firebase/subrecords'
+import { uploadFile } from '../firebase/storage'
 import { tsToInput, inputToTs } from '../utils/records'
+import FileAttachmentField from '../components/FileAttachmentField'
 import Spinner from '../components/Spinner'
 
 const EMPTY = {
@@ -15,16 +17,22 @@ const EMPTY = {
   notes: '',
 }
 
+const EMPTY_URLS = { permit_image_url: '', schedule_url: '' }
+const EMPTY_FILES = { permit_image: null, schedule: null }
+
 export default function PermitForm() {
   const { fileNumber, recordId } = useParams()
   const isEditing = Boolean(recordId)
   const navigate = useNavigate()
   const { user } = useAuth()
 
-  const [formData, setFormData] = useState(EMPTY)
+  const [formData, setFormData]       = useState(EMPTY)
+  const [urls, setUrls]               = useState(EMPTY_URLS)
+  const [files, setFiles]             = useState(EMPTY_FILES)
   const [initialLoading, setInitialLoading] = useState(isEditing)
-  const [submitting, setSubmitting] = useState(false)
-  const [error, setError] = useState('')
+  const [submitting, setSubmitting]   = useState(false)
+  const [uploadingSlot, setUploadingSlot] = useState(null)
+  const [error, setError]             = useState('')
 
   useEffect(() => {
     if (!isEditing) return
@@ -39,6 +47,10 @@ export default function PermitForm() {
           issue_location: rec.issue_location ?? '',
           notes:          rec.notes          ?? '',
         })
+        setUrls({
+          permit_image_url: rec.permit_image_url ?? '',
+          schedule_url:     rec.schedule_url     ?? '',
+        })
       })
       .catch(() => setError('Failed to load record.'))
       .finally(() => setInitialLoading(false))
@@ -51,10 +63,33 @@ export default function PermitForm() {
 
   function validate() {
     if (!formData.permit_number.trim()) return 'Permit Number is required.'
-    if (!formData.issue_date)     return 'Issue Date is required.'
-    if (!formData.effective_date) return 'Effective Date is required.'
-    if (!formData.expiry_date)    return 'Expiry Date is required.'
+    if (!formData.issue_date)           return 'Issue Date is required.'
+    if (!formData.effective_date)       return 'Effective Date is required.'
+    if (!formData.expiry_date)          return 'Expiry Date is required.'
     return null
+  }
+
+  async function uploadAttachments(id) {
+    const slots = [
+      { key: 'permit_image', urlKey: 'permit_image_url' },
+      { key: 'schedule',     urlKey: 'schedule_url'     },
+    ]
+    const updates = {}
+    for (const { key, urlKey } of slots) {
+      const file = files[key]
+      if (file) {
+        setUploadingSlot(key)
+        const ext  = file.name.split('.').pop()
+        const path = `facilities/${fileNumber}/permits/${id}/${key}.${ext}`
+        updates[urlKey] = await uploadFile(file, path)
+      } else if (urls[urlKey] === '') {
+        updates[urlKey] = ''
+      }
+    }
+    setUploadingSlot(null)
+    if (Object.keys(updates).length > 0) {
+      await updateSubRecord(fileNumber, 'permits', id, updates, user.uid)
+    }
   }
 
   async function handleSubmit(e) {
@@ -77,13 +112,16 @@ export default function PermitForm() {
     try {
       if (isEditing) {
         await updateSubRecord(fileNumber, 'permits', recordId, payload, user.uid)
+        await uploadAttachments(recordId)
       } else {
-        await createSubRecord(fileNumber, 'permits', payload, user.uid)
+        const newId = await createSubRecord(fileNumber, 'permits', payload, user.uid)
+        await uploadAttachments(newId)
       }
       navigate(`/facilities/${fileNumber}`, { state: { tab: 'permits' } })
     } catch (err) {
       setError(`Failed to save: ${err.message}`)
       setSubmitting(false)
+      setUploadingSlot(null)
     }
   }
 
@@ -163,6 +201,28 @@ export default function PermitForm() {
               />
             </div>
           </div>
+
+          <div className="form-section" style={{ borderTop: '1px solid #f3f4f6', marginTop: 8, paddingTop: 20 }}>
+            <div className="form-section-title">Attachments</div>
+            <div className="attachment-grid">
+              <FileAttachmentField
+                label="Permit Image"
+                existingUrl={urls.permit_image_url}
+                selectedFile={files.permit_image}
+                uploading={uploadingSlot === 'permit_image'}
+                onSelect={(f) => setFiles((p) => ({ ...p, permit_image: f }))}
+                onRemove={() => { setFiles((p) => ({ ...p, permit_image: null })); setUrls((p) => ({ ...p, permit_image_url: '' })) }}
+              />
+              <FileAttachmentField
+                label="Schedule"
+                existingUrl={urls.schedule_url}
+                selectedFile={files.schedule}
+                uploading={uploadingSlot === 'schedule'}
+                onSelect={(f) => setFiles((p) => ({ ...p, schedule: f }))}
+                onRemove={() => { setFiles((p) => ({ ...p, schedule: null })); setUrls((p) => ({ ...p, schedule_url: '' })) }}
+              />
+            </div>
+          </div>
         </div>
 
         <div className="form-actions">
@@ -171,7 +231,7 @@ export default function PermitForm() {
           </button>
           <button type="submit" className="btn btn--primary" disabled={submitting}>
             {submitting
-              ? <><Loader size={15} style={{ animation: 'spin 1s linear infinite' }} /> Saving…</>
+              ? <><Loader size={15} style={{ animation: 'spin 1s linear infinite' }} /> {uploadingSlot ? 'Uploading…' : 'Saving…'}</>
               : <><Save size={15} /> {isEditing ? 'Save Changes' : 'Add Permit'}</>
             }
           </button>

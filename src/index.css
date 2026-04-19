@@ -962,6 +962,108 @@ body {
 }
 .filter-pill button:hover { color: #1d4ed8; }
 
+/* ── File attachments ─────────────────────────────────── */
+.attachment-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+}
+.attachment-field { display: flex; flex-direction: column; gap: 6px; }
+.attachment-field__label { font-size: 12px; font-weight: 600; color: #374151; }
+.attachment-field__preview {
+  display: flex; align-items: center; gap: 6px;
+  background: #f9fafb; border: 1px solid #e5e7eb;
+  border-radius: 6px; padding: 7px 10px; font-size: 12px;
+}
+.attachment-field__filename {
+  flex: 1; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  color: #374151;
+}
+.attachment-field__view {
+  color: #6b7280; display: flex; align-items: center;
+  flex-shrink: 0;
+}
+.attachment-field__view:hover { color: #059669; }
+.attachment-field__remove {
+  background: none; border: none; cursor: pointer;
+  color: #9ca3af; display: flex; align-items: center; padding: 0; flex-shrink: 0;
+}
+.attachment-field__remove:hover { color: #dc2626; }
+.attachment-field__upload-btn {
+  display: inline-flex; align-items: center; gap: 5px;
+  background: #f3f4f6; border: 1px dashed #d1d5db;
+  border-radius: 6px; padding: 7px 12px;
+  font-size: 12px; color: #6b7280; cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.attachment-field__upload-btn:hover { background: #e5e7eb; border-color: #9ca3af; color: #374151; }
+.attachment-field__replace {
+  background: none; border: none; cursor: pointer;
+  font-size: 11px; color: #6b7280; text-decoration: underline;
+  padding: 0; text-align: left;
+}
+.attachment-field__replace:hover { color: #374151; }
+.record-item__attachments { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
+.attachment-link {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 11px; color: #2563eb; text-decoration: none;
+  background: #eff6ff; padding: 2px 8px; border-radius: 4px;
+}
+.attachment-link:hover { background: #dbeafe; }
+
+/* ── View toggle ──────────────────────────────────────── */
+.view-toggle {
+  display: flex; border: 1px solid #e5e7eb; border-radius: 6px; overflow: hidden;
+}
+.view-toggle__btn {
+  display: flex; align-items: center; justify-content: center;
+  padding: 6px 10px; background: #fff; border: none; cursor: pointer; color: #9ca3af;
+  transition: background 0.15s, color 0.15s;
+}
+.view-toggle__btn:hover { background: #f3f4f6; color: #374151; }
+.view-toggle__btn--active { background: #f0fdf4; color: #059669; }
+.view-toggle__btn + .view-toggle__btn { border-left: 1px solid #e5e7eb; }
+
+/* ── Facility table ────────────────────────────────────── */
+.facility-table { width: 100%; border-collapse: collapse; font-size: 13px; white-space: nowrap; }
+.facility-table th {
+  text-align: left; padding: 10px 14px;
+  background: #f9fafb; color: #6b7280; font-weight: 600; font-size: 11px;
+  border-bottom: 1px solid #e5e7eb; white-space: nowrap;
+}
+.facility-table td { padding: 10px 14px; border-bottom: 1px solid #f3f4f6; vertical-align: middle; }
+.facility-table tbody tr:last-child td { border-bottom: none; }
+.facility-table__row { cursor: pointer; }
+.facility-table__row:hover td { background: #f0fdf4; }
+.facility-table__fileno { font-weight: 700; color: #059669; }
+.facility-table__name   { font-weight: 500; color: #111827; white-space: normal; max-width: 220px; }
+
+/* ── Staff table ──────────────────────────────────────── */
+.staff-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.staff-table th {
+  text-align: left; padding: 10px 14px;
+  background: #f9fafb; color: #6b7280; font-weight: 600; font-size: 11px;
+  border-bottom: 1px solid #e5e7eb;
+}
+.staff-table td { padding: 10px 14px; border-bottom: 1px solid #f3f4f6; vertical-align: middle; }
+.staff-table tbody tr:last-child td { border-bottom: none; }
+.staff-table tbody tr:hover td { background: #f9fafb; }
+.staff-table__self td { background: #f0fdf4; }
+.staff-table__id    { font-weight: 600; color: #374151; white-space: nowrap; }
+.staff-table__name  { font-weight: 500; }
+.staff-table__email { color: #6b7280; }
+.staff-table__actions { display: flex; gap: 4px; justify-content: flex-end; }
+.staff-role-badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 3px 8px; border-radius: 999px; font-size: 11px; font-weight: 600;
+}
+.staff-self-badge {
+  display: inline-block; margin-left: 6px;
+  background: #e0f2fe; color: #0369a1;
+  font-size: 10px; font-weight: 600; padding: 1px 6px; border-radius: 999px;
+}
+
 /* ── Nav divider ──────────────────────────────────────── */
 .nav-divider {
   border: none;

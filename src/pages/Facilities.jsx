@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { Building2, MapPin, Phone, Plus, Search, User, AlertCircle, Clock, Trash2, CheckCircle, ChevronDown } from 'lucide-react'
+import { Building2, MapPin, Phone, Plus, Search, User, AlertCircle, Clock, Trash2, CheckCircle, LayoutGrid, Table2 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useSync } from '../context/SyncContext'
 import { listFacilities } from '../firebase/facilities'
@@ -37,6 +37,12 @@ export default function Facilities() {
   const [sectorFilter, setSectorFilter] = useState('')
   const [districtFilter, setDistrictFilter] = useState('')
   const [sort, setSort]               = useState('newest')
+  const [view, setView]               = useState(() => localStorage.getItem('facilities-view') ?? 'table')
+
+  function toggleView(v) {
+    setView(v)
+    localStorage.setItem('facilities-view', v)
+  }
 
   useEffect(() => {
     listFacilities()
@@ -110,10 +116,26 @@ export default function Facilities() {
         </div>
 
         <div className="filter-group">
-          <select className="select" value={sort} onChange={(e) => setSort(e.target.value)}
-            style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          <select className="select" value={sort} onChange={(e) => setSort(e.target.value)}>
             {SORT_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
+        </div>
+
+        <div className="view-toggle">
+          <button
+            className={`view-toggle__btn${view === 'table' ? ' view-toggle__btn--active' : ''}`}
+            onClick={() => toggleView('table')}
+            title="Table view"
+          >
+            <Table2 size={15} />
+          </button>
+          <button
+            className={`view-toggle__btn${view === 'cards' ? ' view-toggle__btn--active' : ''}`}
+            onClick={() => toggleView('cards')}
+            title="Card view"
+          >
+            <LayoutGrid size={15} />
+          </button>
         </div>
       </div>
 
@@ -180,12 +202,61 @@ export default function Facilities() {
       )}
 
       {!loading && !error && filtered.length > 0 && (
-        <div className="firms-grid">
-          {filtered.map((f) => (
-            <FacilityCard key={f.file_number} facility={f} onClick={() => navigate(`/facilities/${f.file_number}`)} />
-          ))}
-        </div>
+        view === 'table' ? (
+          <FacilityTable facilities={filtered} onRowClick={(f) => navigate(`/facilities/${f.file_number}`)} />
+        ) : (
+          <div className="firms-grid">
+            {filtered.map((f) => (
+              <FacilityCard key={f.file_number} facility={f} onClick={() => navigate(`/facilities/${f.file_number}`)} />
+            ))}
+          </div>
+        )
       )}
+    </div>
+  )
+}
+
+function FacilityTable({ facilities, onRowClick }) {
+  return (
+    <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+      <div style={{ overflowX: 'auto' }}>
+        <table className="facility-table">
+          <thead>
+            <tr>
+              <th>File No.</th>
+              <th>Name</th>
+              <th>Sector</th>
+              <th>Type of Undertaking</th>
+              <th>Location</th>
+              <th>District</th>
+              <th>Contact Person</th>
+              <th>Phone</th>
+            </tr>
+          </thead>
+          <tbody>
+            {facilities.map((f) => {
+              const colors   = SECTOR_COLORS[f.sector_prefix] ?? { bg: '#f3f4f6', text: '#374151' }
+              const district = DISTRICTS.find((d) => d.code === f.district)
+              return (
+                <tr key={f.file_number} className="facility-table__row" onClick={() => onRowClick(f)}>
+                  <td className="facility-table__fileno">{f.file_number}</td>
+                  <td className="facility-table__name">{f.name}</td>
+                  <td>
+                    <span className="facility-sector-badge" style={{ background: colors.bg, color: colors.text }}>
+                      {f.sector_prefix}
+                    </span>
+                  </td>
+                  <td>{f.type_of_undertaking || <span style={{ color: '#9ca3af' }}>—</span>}</td>
+                  <td>{f.location || <span style={{ color: '#9ca3af' }}>—</span>}</td>
+                  <td>{district?.name ?? f.district ?? <span style={{ color: '#9ca3af' }}>—</span>}</td>
+                  <td>{f.contact_person || <span style={{ color: '#9ca3af' }}>—</span>}</td>
+                  <td>{f.phone || <span style={{ color: '#9ca3af' }}>—</span>}</td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
     </div>
   )
 }

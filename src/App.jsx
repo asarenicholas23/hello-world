@@ -5,7 +5,8 @@ import ProtectedRoute from './components/ProtectedRoute'
 import Layout from './components/Layout'
 import Login from './pages/Login'
 import Home from './pages/Home'
-import ComingSoon from './pages/ComingSoon'
+import StaffPage from './pages/StaffPage'
+import StaffForm from './pages/StaffForm'
 import Facilities from './pages/Facilities'
 import FacilityDetail from './pages/FacilityDetail'
 import FacilityForm from './pages/FacilityForm'
@@ -66,8 +67,10 @@ export default function App() {
               <Route path="facilities/:fileNumber/enforcement/new" element={<EnforcementForm />} />
               <Route path="facilities/:fileNumber/enforcement/:recordId/edit" element={<EnforcementForm />} />
 
-              {/* Staff (placeholder) */}
-              <Route path="staff" element={<ComingSoon />} />
+              {/* Staff */}
+              <Route path="staff" element={<StaffPage />} />
+              <Route path="staff/new" element={<StaffForm />} />
+              <Route path="staff/:uid/edit" element={<StaffForm />} />
 
               {/* Admin utilities */}
               <Route path="import" element={<ImportPage />} />

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Edit2, Trash2, AlertCircle } from 'lucide-react'
+import { Plus, Edit2, Trash2, AlertCircle, Paperclip } from 'lucide-react'
 import { listSubRecords, deleteSubRecord } from '../../firebase/subrecords'
 import { fmtDate } from '../../utils/records'
 import Spinner from '../Spinner'
@@ -63,6 +63,20 @@ export default function FinanceTab({ fileNumber, role }) {
                 {r.reference_number && <span>Ref: {r.reference_number}</span>}
               </div>
               {r.notes && <div className="record-item__note">{r.notes}</div>}
+              {(r.invoice_url || r.receipt_url) && (
+                <div className="record-item__attachments">
+                  {r.invoice_url && (
+                    <a href={r.invoice_url} target="_blank" rel="noopener noreferrer" className="attachment-link">
+                      <Paperclip size={11} /> Invoice
+                    </a>
+                  )}
+                  {r.receipt_url && (
+                    <a href={r.receipt_url} target="_blank" rel="noopener noreferrer" className="attachment-link">
+                      <Paperclip size={11} /> Receipt
+                    </a>
+                  )}
+                </div>
+              )}
               {canEdit && (
                 <div className="record-item__actions">
                   <button className="btn btn--ghost btn--xs" onClick={() => navigate(`/facilities/${fileNumber}/finance/${r.id}/edit`)}>

@@ -3,8 +3,10 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, AlertCircle, Save, Loader } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { getSubRecord, createSubRecord, updateSubRecord } from '../firebase/subrecords'
+import { uploadFile } from '../firebase/storage'
 import { tsToInput, inputToTs } from '../utils/records'
 import { PAYMENT_TYPES } from '../data/constants'
+import FileAttachmentField from '../components/FileAttachmentField'
 import Spinner from '../components/Spinner'
 
 const EMPTY = {
@@ -16,16 +18,22 @@ const EMPTY = {
   notes: '',
 }
 
+const EMPTY_URLS  = { invoice_url: '', receipt_url: '' }
+const EMPTY_FILES = { invoice: null, receipt: null }
+
 export default function FinanceForm() {
   const { fileNumber, recordId } = useParams()
   const isEditing = Boolean(recordId)
   const navigate = useNavigate()
   const { user } = useAuth()
 
-  const [formData, setFormData] = useState(EMPTY)
+  const [formData, setFormData]           = useState(EMPTY)
+  const [urls, setUrls]                   = useState(EMPTY_URLS)
+  const [files, setFiles]                 = useState(EMPTY_FILES)
   const [initialLoading, setInitialLoading] = useState(isEditing)
-  const [submitting, setSubmitting] = useState(false)
-  const [error, setError] = useState('')
+  const [submitting, setSubmitting]       = useState(false)
+  const [uploadingSlot, setUploadingSlot] = useState(null)
+  const [error, setError]                 = useState('')
 
   useEffect(() => {
     if (!isEditing) return
@@ -39,6 +47,10 @@ export default function FinanceForm() {
           currency:         rec.currency         ?? 'GHS',
           reference_number: rec.reference_number ?? '',
           notes:            rec.notes            ?? '',
+        })
+        setUrls({
+          invoice_url: rec.invoice_url ?? '',
+          receipt_url: rec.receipt_url ?? '',
         })
       })
       .catch(() => setError('Failed to load record.'))
@@ -56,6 +68,29 @@ export default function FinanceForm() {
     if (!formData.amount || isNaN(Number(formData.amount)) || Number(formData.amount) <= 0)
       return 'A valid Amount is required.'
     return null
+  }
+
+  async function uploadAttachments(id) {
+    const slots = [
+      { key: 'invoice', urlKey: 'invoice_url' },
+      { key: 'receipt', urlKey: 'receipt_url' },
+    ]
+    const updates = {}
+    for (const { key, urlKey } of slots) {
+      const file = files[key]
+      if (file) {
+        setUploadingSlot(key)
+        const ext  = file.name.split('.').pop()
+        const path = `facilities/${fileNumber}/finance/${id}/${key}.${ext}`
+        updates[urlKey] = await uploadFile(file, path)
+      } else if (urls[urlKey] === '') {
+        updates[urlKey] = ''
+      }
+    }
+    setUploadingSlot(null)
+    if (Object.keys(updates).length > 0) {
+      await updateSubRecord(fileNumber, 'finance', id, updates, user.uid)
+    }
   }
 
   async function handleSubmit(e) {
@@ -78,13 +113,16 @@ export default function FinanceForm() {
     try {
       if (isEditing) {
         await updateSubRecord(fileNumber, 'finance', recordId, payload, user.uid)
+        await uploadAttachments(recordId)
       } else {
-        await createSubRecord(fileNumber, 'finance', payload, user.uid)
+        const newId = await createSubRecord(fileNumber, 'finance', payload, user.uid)
+        await uploadAttachments(newId)
       }
       navigate(`/facilities/${fileNumber}`, { state: { tab: 'finance' } })
     } catch (err) {
       setError(`Failed to save: ${err.message}`)
       setSubmitting(false)
+      setUploadingSlot(null)
     }
   }
 
@@ -173,6 +211,28 @@ export default function FinanceForm() {
               />
             </div>
           </div>
+
+          <div className="form-section" style={{ borderTop: '1px solid #f3f4f6', marginTop: 8, paddingTop: 20 }}>
+            <div className="form-section-title">Attachments</div>
+            <div className="attachment-grid">
+              <FileAttachmentField
+                label="Invoice"
+                existingUrl={urls.invoice_url}
+                selectedFile={files.invoice}
+                uploading={uploadingSlot === 'invoice'}
+                onSelect={(f) => setFiles((p) => ({ ...p, invoice: f }))}
+                onRemove={() => { setFiles((p) => ({ ...p, invoice: null })); setUrls((p) => ({ ...p, invoice_url: '' })) }}
+              />
+              <FileAttachmentField
+                label="Receipt"
+                existingUrl={urls.receipt_url}
+                selectedFile={files.receipt}
+                uploading={uploadingSlot === 'receipt'}
+                onSelect={(f) => setFiles((p) => ({ ...p, receipt: f }))}
+                onRemove={() => { setFiles((p) => ({ ...p, receipt: null })); setUrls((p) => ({ ...p, receipt_url: '' })) }}
+              />
+            </div>
+          </div>
         </div>
 
         <div className="form-actions">
@@ -181,7 +241,7 @@ export default function FinanceForm() {
           </button>
           <button type="submit" className="btn btn--primary" disabled={submitting}>
             {submitting
-              ? <><Loader size={15} style={{ animation: 'spin 1s linear infinite' }} /> Saving…</>
+              ? <><Loader size={15} style={{ animation: 'spin 1s linear infinite' }} /> {uploadingSlot ? 'Uploading…' : 'Saving…'}</>
               : <><Save size={15} /> {isEditing ? 'Save Changes' : 'Add Record'}</>
             }
           </button>

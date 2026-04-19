@@ -19,6 +19,33 @@ export async function generateFileNumber(sectorPrefix) {
   })
 }
 
+/**
+ * Create a facility with an explicit file number (used during CSV import).
+ * Also bumps the sector counter so future auto-generation won't collide.
+ */
+export async function createFacilityWithId(fileNumber, data, userId) {
+  const prefix = fileNumber.replace(/\d+$/, '')
+  const numPart = parseInt(fileNumber.replace(/^\D+/, ''), 10)
+  const counterRef = doc(db, 'counters', prefix)
+  const facilityRef = doc(db, 'facilities', fileNumber)
+
+  await runTransaction(db, async (tx) => {
+    const counterSnap = await tx.get(counterRef)
+    if (counterSnap.exists() && numPart > counterSnap.data().last_count) {
+      tx.update(counterRef, { last_count: numPart })
+    }
+    tx.set(facilityRef, {
+      ...data,
+      file_number: fileNumber,
+      region: 'Ashanti',
+      created_at: serverTimestamp(),
+      updated_at: serverTimestamp(),
+      created_by: userId,
+    })
+  })
+  return fileNumber
+}
+
 export async function createFacility(data, userId) {
   const fileNumber = await generateFileNumber(data.sector_prefix)
   await setDoc(doc(db, 'facilities', fileNumber), {

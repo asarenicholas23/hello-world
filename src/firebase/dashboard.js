@@ -50,11 +50,20 @@ export async function getCrossRecords(category, facilityMap) {
   const snap = await getDocs(collectionGroup(db, category))
   return snap.docs.map((d) => {
     const fileNumber = d.ref.parent.parent.id
+    const fac = facilityMap[fileNumber] ?? {}
     return {
       id: d.id,
       fileNumber,
-      facilityName: facilityMap[fileNumber]?.name ?? fileNumber,
-      sectorPrefix: facilityMap[fileNumber]?.sector_prefix ?? '',
+      facilityName:        fac.name ?? fileNumber,
+      sectorPrefix:        fac.sector_prefix ?? '',
+      facilitySector:      fac.sector ?? '',
+      facilityUndertaking: fac.type_of_undertaking ?? '',
+      facilityLocation:    fac.location ?? '',
+      facilityDistrict:    fac.district ?? '',
+      facilityContact:     fac.contact_person ?? '',
+      facilityDesignation: fac.designation ?? '',
+      facilityPhone:       fac.phone ?? '',
+      facilityEmail:       fac.email ?? '',
       ...d.data(),
     }
   })
@@ -63,6 +72,18 @@ export async function getCrossRecords(category, facilityMap) {
 export async function buildFacilityMap() {
   const facilities = await listFacilities()
   return Object.fromEntries(
-    facilities.map((f) => [f.file_number, { name: f.name, file_number: f.file_number, sector_prefix: f.sector_prefix }])
+    facilities.map((f) => [f.file_number, {
+      name:                f.name,
+      file_number:         f.file_number,
+      sector_prefix:       f.sector_prefix,
+      sector:              f.sector,
+      type_of_undertaking: f.type_of_undertaking,
+      location:            f.location,
+      district:            f.district,
+      contact_person:      f.contact_person,
+      designation:         f.designation,
+      phone:               f.phone,
+      email:               f.email,
+    }])
   )
 }

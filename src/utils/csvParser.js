@@ -46,17 +46,19 @@ export function detectColumnMapping(headers) {
   const normalize = (s) => s.toLowerCase().replace(/[\s_\-\/]/g, '')
 
   const ALIASES = {
+    file_number:         ['fileno', 'filenumber', 'filenum', 'filecode', 'facilityid'],
     name:                ['name', 'facilityname', 'nameofundertaking', 'undertakingname', 'entityname'],
     sector:              ['sector', 'industry', 'sectorname', 'sectortype'],
     type_of_undertaking: ['typeofundertaking', 'type', 'undertaking', 'businesstype', 'activitytype'],
     location:            ['location', 'physicallocation', 'addressdescription', 'sitelocation', 'area'],
-    district:            ['district', 'districtcode', 'localitydistrict'],
+    district:            ['district', 'districtcode', 'localitydistrict', 'mmda'],
     email:               ['email', 'emailaddress', 'mail'],
     entity_tin:          ['tin', 'entitytin', 'taxpayerid', 'taxid', 'taxidentification'],
     contact_person:      ['contactperson', 'contact', 'contactname', 'representative'],
     designation:         ['designation', 'title', 'position', 'jobtitle', 'role'],
     address:             ['address', 'mailingaddress', 'postaladdress', 'pobox'],
-    phone:               ['phone', 'telephone', 'tel', 'phonenumber', 'mobile'],
+    phone:               ['phone', 'telephone', 'tel', 'phonenumber', 'mobile', 'contactno'],
+    coordinates:         ['coordinates', 'coords', 'gps', 'latlng', 'latlong'],
   }
 
   const mapping = {}

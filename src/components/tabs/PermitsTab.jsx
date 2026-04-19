@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Edit2, Trash2, AlertCircle } from 'lucide-react'
+import { Plus, Edit2, Trash2, AlertCircle, Paperclip } from 'lucide-react'
 import { listSubRecords, deleteSubRecord } from '../../firebase/subrecords'
 import { fmtDate, permitStatus } from '../../utils/records'
 import Spinner from '../Spinner'
@@ -75,6 +75,20 @@ export default function PermitsTab({ fileNumber, role }) {
                 </div>
                 {r.issue_location && <div className="record-item__note">{r.issue_location}</div>}
                 {r.notes && <div className="record-item__note">{r.notes}</div>}
+                {(r.permit_image_url || r.schedule_url) && (
+                  <div className="record-item__attachments">
+                    {r.permit_image_url && (
+                      <a href={r.permit_image_url} target="_blank" rel="noopener noreferrer" className="attachment-link">
+                        <Paperclip size={11} /> Permit Image
+                      </a>
+                    )}
+                    {r.schedule_url && (
+                      <a href={r.schedule_url} target="_blank" rel="noopener noreferrer" className="attachment-link">
+                        <Paperclip size={11} /> Schedule
+                      </a>
+                    )}
+                  </div>
+                )}
                 {canEdit && (
                   <div className="record-item__actions">
                     <button className="btn btn--ghost btn--xs" onClick={() => navigate(`/facilities/${fileNumber}/permits/${r.id}/edit`)}>

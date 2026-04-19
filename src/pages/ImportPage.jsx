@@ -5,7 +5,7 @@ import {
   AlertCircle, FileText, Loader, ChevronRight,
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
-import { createFacility } from '../firebase/facilities'
+import { createFacility, createFacilityWithId } from '../firebase/facilities'
 import { SECTORS, DISTRICTS } from '../data/constants'
 import { parseCSV, detectColumnMapping, buildTemplateCSV } from '../utils/csvParser'
 
@@ -32,6 +32,14 @@ function matchDistrict(value) {
   )
 }
 
+function parseCoordinates(value) {
+  if (!value) return null
+  // Accept "lat, lng" or "lat lng" or "lat/lng"
+  const parts = value.split(/[\s,\/]+/).map(Number).filter((n) => !isNaN(n))
+  if (parts.length === 2) return { lat: parts[0], lng: parts[1] }
+  return null
+}
+
 function rowToFacility(row, mapping) {
   const get = (field) => (mapping[field] != null ? (row[mapping[field]] ?? '').trim() : '')
 
@@ -39,6 +47,7 @@ function rowToFacility(row, mapping) {
   const sector = matchSector(sectorRaw)
 
   return {
+    file_number:         get('file_number') || null,
     name:                get('name'),
     sector:              sector?.name ?? sectorRaw,
     sector_prefix:       sector?.prefix ?? '',
@@ -51,9 +60,11 @@ function rowToFacility(row, mapping) {
     designation:         get('designation'),
     address:             get('address'),
     phone:               get('phone'),
-    coordinates:         null,
+    coordinates:         parseCoordinates(get('coordinates')),
   }
 }
+
+const FILE_NUMBER_RE = /^[A-Z]+\d+$/
 
 function validateFacility(f) {
   const errors = []
@@ -61,6 +72,8 @@ function validateFacility(f) {
   if (!f.sector_prefix)  errors.push(`Unknown sector "${f.sector}" — use sector name or prefix`)
   if (!f.location)       errors.push('Location is required')
   if (!f.district)       errors.push('District is required or unrecognised')
+  if (f.file_number && !FILE_NUMBER_RE.test(f.file_number))
+    errors.push(`Invalid file number "${f.file_number}" — expected format like CI266`)
   return errors
 }
 
@@ -140,7 +153,10 @@ export default function ImportPage() {
     for (let i = 0; i < valid.length; i++) {
       const f = valid[i]
       try {
-        const fn = await createFacility(f, user.uid)
+        const { file_number: explicitId, ...facilityData } = f
+        const fn = explicitId
+          ? await createFacilityWithId(explicitId, facilityData, user.uid)
+          : await createFacility(facilityData, user.uid)
         out.push({ name: f.name, fileNumber: fn, success: true })
       } catch (err) {
         out.push({ name: f.name, error: err.message, success: false })

@@ -10,10 +10,12 @@ export const SECTORS = [
 ]
 
 export const DISTRICTS = [
-  { code: 'KON', name: 'Konongo' },
-  { code: 'KMA', name: 'Kumasi Metro' },
-  { code: 'EJI', name: 'Ejisu' },
-  { code: 'OBU', name: 'Obuasi' },
+  { code: 'AAC', name: 'Asante Akim Central' },
+  { code: 'AAS', name: 'Asante Akim South' },
+  { code: 'AAN', name: 'Asante Akim North' },
+  { code: 'SKW', name: 'Sekyere Kumawu' },
+  { code: 'SAP', name: 'Sekyere Afram Plains' },
+  { code: 'BF', name: 'Bosome Freho' },
 ]
 
 export const REGION = 'Ashanti'

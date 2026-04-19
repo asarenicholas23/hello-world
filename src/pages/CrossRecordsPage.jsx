@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
-import { Search, AlertCircle } from 'lucide-react'
+import { useNavigate, useParams, useLocation } from 'react-router-dom'
+import { Search, AlertCircle, Download } from 'lucide-react'
 import { getCrossRecords, buildFacilityMap } from '../firebase/dashboard'
 import { fmtDate, permitStatus } from '../utils/records'
 import { SECTOR_COLORS, ENFORCEMENT_ACTIONS, COMPLIANCE_STATUS } from '../data/constants'
@@ -139,9 +139,62 @@ const URL_TO_COLLECTION = {
   enforcement:         'enforcement',
 }
 
+function toCSV(rows, category) {
+  const fmt = (ts) => {
+    if (!ts) return ''
+    try { return fmtDate(ts) } catch { return '' }
+  }
+  const esc = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`
+
+  const SCHEMAS = {
+    permits: {
+      headers: ['File No.', 'Entity Name', 'Sector', 'Type of Undertaking', 'Location', 'District', 'Contact Person', 'Designation', 'Phone', 'Email', 'Permit Number', 'Issue Date', 'Effective Date', 'Expiry Date', 'Issue Location', 'Status', 'Notes'],
+      row: (r) => [r.fileNumber, r.facilityName, r.facilitySector, r.facilityUndertaking, r.facilityLocation, r.facilityDistrict, r.facilityContact, r.facilityDesignation, r.facilityPhone, r.facilityEmail, r.permit_number, fmt(r.issue_date), fmt(r.effective_date), fmt(r.expiry_date), r.issue_location, STATUS_LABELS[permitStatus(r.expiry_date)] ?? '', r.notes],
+    },
+    finance: {
+      headers: ['File No.', 'Facility', 'Sector', 'Date', 'Payment Type', 'Amount', 'Currency', 'Reference', 'Notes'],
+      row: (r) => [r.fileNumber, r.facilityName, r.sectorPrefix, fmt(r.date), r.payment_type, r.amount, r.currency, r.reference_number, r.notes],
+    },
+    screenings: {
+      headers: ['File No.', 'Facility', 'Sector', 'Date', 'Officer', 'Notes'],
+      row: (r) => [r.fileNumber, r.facilityName, r.sectorPrefix, fmt(r.date), r.officer_name, r.notes],
+    },
+    site_verifications: {
+      headers: ['File No.', 'Facility', 'Sector', 'Date', 'Officer', 'Notes'],
+      row: (r) => [r.fileNumber, r.facilityName, r.sectorPrefix, fmt(r.date), r.officer_name, r.notes],
+    },
+    monitoring: {
+      headers: ['File No.', 'Facility', 'Sector', 'Date', 'Officer', 'Compliance Status', 'Notes'],
+      row: (r) => [r.fileNumber, r.facilityName, r.sectorPrefix, fmt(r.date), r.officer_name, COMPLIANCE_STATUS.find((s) => s.value === r.compliance_status)?.label ?? r.compliance_status, r.notes],
+    },
+    enforcement: {
+      headers: ['File No.', 'Facility', 'Sector', 'Date', 'Action', 'Officer', 'Follow-up Date', 'Notes'],
+      row: (r) => [r.fileNumber, r.facilityName, r.sectorPrefix, fmt(r.date), ENFORCEMENT_ACTIONS.find((a) => a.value === r.action_taken)?.label ?? r.action_taken, r.officer_name, fmt(r.follow_up_date), r.notes],
+    },
+  }
+
+  const schema = SCHEMAS[category] ?? SCHEMAS.screenings
+  const lines = [
+    schema.headers.map(esc).join(','),
+    ...rows.map((r) => schema.row(r).map(esc).join(',')),
+  ]
+  return lines.join('\n')
+}
+
+function downloadCSV(content, filename) {
+  const blob = new Blob([content], { type: 'text/csv' })
+  const url  = URL.createObjectURL(blob)
+  const a    = document.createElement('a')
+  a.href = url
+  a.download = filename
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
 export default function CrossRecordsPage() {
   const { module } = useParams()
   const navigate = useNavigate()
+  const location = useLocation()
 
   const collection = URL_TO_COLLECTION[module] ?? module
   const config = CATEGORY_CONFIG[collection]
@@ -150,6 +203,7 @@ export default function CrossRecordsPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [search, setSearch] = useState('')
+  const [statusFilter, setStatusFilter] = useState(location.state?.statusFilter ?? '')
 
   useEffect(() => {
     async function load() {
@@ -164,8 +218,9 @@ export default function CrossRecordsPage() {
           return bTs - aTs
         })
         setRecords(recs)
-      } catch {
-        setError(`Failed to load ${config?.label ?? 'records'}.`)
+      } catch (err) {
+        console.error('CrossRecordsPage load error:', err)
+        setError(`Failed to load ${config?.label ?? 'records'}: ${err.message}`)
       } finally {
         setLoading(false)
       }
@@ -174,16 +229,22 @@ export default function CrossRecordsPage() {
   }, [collection, config])
 
   const filtered = useMemo(() => {
-    if (!search.trim()) return records
-    const q = search.toLowerCase()
-    return records.filter(
-      (r) =>
-        r.facilityName?.toLowerCase().includes(q) ||
-        r.fileNumber?.toLowerCase().includes(q) ||
-        (r.permit_number && r.permit_number.toLowerCase().includes(q)) ||
-        (r.officer_name && r.officer_name.toLowerCase().includes(q))
-    )
-  }, [records, search])
+    let result = records
+    if (statusFilter && collection === 'permits') {
+      result = result.filter((r) => permitStatus(r.expiry_date) === statusFilter)
+    }
+    if (search.trim()) {
+      const q = search.toLowerCase()
+      result = result.filter(
+        (r) =>
+          r.facilityName?.toLowerCase().includes(q) ||
+          r.fileNumber?.toLowerCase().includes(q) ||
+          (r.permit_number && r.permit_number.toLowerCase().includes(q)) ||
+          (r.officer_name && r.officer_name.toLowerCase().includes(q))
+      )
+    }
+    return result
+  }, [records, search, statusFilter, collection])
 
   if (!config) return <div className="page"><div className="empty-state">Unknown module.</div></div>
 
@@ -196,6 +257,14 @@ export default function CrossRecordsPage() {
             {loading ? 'Loading…' : `${filtered.length} of ${records.length} records across all facilities`}
           </div>
         </div>
+        {!loading && filtered.length > 0 && (
+          <button
+            className="btn btn--ghost"
+            onClick={() => downloadCSV(toCSV(filtered, collection), `epa-${collection}-${new Date().toISOString().slice(0,10)}.csv`)}
+          >
+            <Download size={14} /> Export CSV
+          </button>
+        )}
       </div>
 
       {/* Search */}
@@ -210,6 +279,15 @@ export default function CrossRecordsPage() {
           />
         </div>
       </div>
+
+      {collection === 'permits' && statusFilter && (
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+          <span className="filter-pill">
+            Status: {STATUS_LABELS[statusFilter]}
+            <button onClick={() => setStatusFilter('')}>✕</button>
+          </span>
+        </div>
+      )}
 
       {loading && <Spinner />}
 

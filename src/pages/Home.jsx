@@ -89,14 +89,14 @@ export default function Home() {
               bg="#dcfce7"
               value={permitStats.active}
               label="Active Permits"
-              onClick={() => navigate('/permits')}
+              onClick={() => navigate('/permits', { state: { statusFilter: 'active' } })}
             />
             <KpiCard
               icon={<AlertTriangle size={20} color="#854d0e" />}
               bg="#fef9c3"
               value={permitStats.expiring}
               label="Expiring ≤60 days"
-              onClick={() => navigate('/permits')}
+              onClick={() => navigate('/permits', { state: { statusFilter: 'expiring' } })}
               highlight={permitStats.expiring > 0}
             />
             <KpiCard
@@ -104,7 +104,7 @@ export default function Home() {
               bg="#fee2e2"
               value={permitStats.expired}
               label="Expired Permits"
-              onClick={() => navigate('/permits')}
+              onClick={() => navigate('/permits', { state: { statusFilter: 'expired' } })}
               highlight={permitStats.expired > 0}
             />
           </>

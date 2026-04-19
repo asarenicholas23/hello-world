@@ -1,4 +1,4 @@
-import { ref, uploadString, getDownloadURL, deleteObject } from 'firebase/storage'
+import { ref, uploadString, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage'
 import { storage } from './config'
 
 /**
@@ -41,4 +41,28 @@ export function makePhotoPath(fileNumber, category, filename) {
 /** Generate a unique photo filename using timestamp + random suffix. */
 export function uniquePhotoName() {
   return `${Date.now()}_${Math.random().toString(36).slice(2)}.jpg`
+}
+
+/**
+ * Upload a File object (from a file input) to Firebase Storage.
+ * @param {File}   file  Browser File object
+ * @param {string} path  Storage path
+ * @returns {Promise<string>} public download URL
+ */
+export async function uploadFile(file, path) {
+  const storageRef = ref(storage, path)
+  const snapshot = await uploadBytes(storageRef, file)
+  return getDownloadURL(snapshot.ref)
+}
+
+/**
+ * Delete a file from Firebase Storage by its storage path.
+ * Silently ignores errors.
+ */
+export async function deleteFile(path) {
+  try {
+    await deleteObject(ref(storage, path))
+  } catch {
+    // no-op
+  }
 }

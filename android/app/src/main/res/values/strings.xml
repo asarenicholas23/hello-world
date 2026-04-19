@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">EPA Permit</string>
+    <string name="title_activity_main">EPA Permit</string>
+    <string name="package_name">gh.gov.epa.ashanti.pms</string>
+    <string name="custom_url_scheme">gh.gov.epa.ashanti.pms</string>
+</resources>

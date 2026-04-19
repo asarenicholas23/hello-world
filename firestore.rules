@@ -71,5 +71,16 @@ service cloud.firestore {
         allow write:       if isAdmin() || isOfficer();
       }
     }
+
+    // ── collectionGroup reads (cross-facility views & dashboard) ──
+    // These wildcard rules allow collectionGroup() queries used on the
+    // dashboard and cross-facility listing pages. Write access is still
+    // governed by the specific subcollection rules above.
+    match /{path=**}/permits/{id}            { allow read: if isAuthed(); }
+    match /{path=**}/finance/{id}            { allow read: if isAuthed(); }
+    match /{path=**}/screenings/{id}         { allow read: if isAuthed(); }
+    match /{path=**}/site_verifications/{id} { allow read: if isAuthed(); }
+    match /{path=**}/monitoring/{id}         { allow read: if isAuthed(); }
+    match /{path=**}/enforcement/{id}        { allow read: if isAuthed(); }
   }
 }

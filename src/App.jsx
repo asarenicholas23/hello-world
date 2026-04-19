@@ -15,6 +15,7 @@ import ScreeningForm from './pages/ScreeningForm'
 import SiteVerificationForm from './pages/SiteVerificationForm'
 import MonitoringForm from './pages/MonitoringForm'
 import EnforcementForm from './pages/EnforcementForm'
+import CrossRecordsPage from './pages/CrossRecordsPage'
 
 export default function App() {
   return (
@@ -67,12 +68,8 @@ export default function App() {
               {/* Staff (placeholder) */}
               <Route path="staff" element={<ComingSoon />} />
 
-              {/* Top-level module pages (placeholder) */}
-              <Route path="permits" element={<ComingSoon />} />
-              <Route path="finance" element={<ComingSoon />} />
-              <Route path="screening" element={<ComingSoon />} />
-              <Route path="monitoring" element={<ComingSoon />} />
-              <Route path="enforcement" element={<ComingSoon />} />
+              {/* Cross-facility module views */}
+              <Route path=":module" element={<CrossRecordsPage />} />
             </Route>
 
             <Route path="*" element={<Navigate to="/" replace />} />

@@ -1,11 +1,26 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { Building2, MapPin, Phone, Plus, Search, User, AlertCircle, Clock, Trash2, CheckCircle } from 'lucide-react'
+import { Building2, MapPin, Phone, Plus, Search, User, AlertCircle, Clock, Trash2, CheckCircle, ChevronDown } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useSync } from '../context/SyncContext'
 import { listFacilities } from '../firebase/facilities'
-import { SECTORS, SECTOR_COLORS } from '../data/constants'
+import { SECTORS, DISTRICTS, SECTOR_COLORS } from '../data/constants'
 import Spinner from '../components/Spinner'
+
+const SORT_OPTIONS = [
+  { value: 'newest',  label: 'Newest first' },
+  { value: 'az',      label: 'Name A–Z' },
+  { value: 'za',      label: 'Name Z–A' },
+  { value: 'sector',  label: 'By sector' },
+]
+
+function sortFacilities(list, sort) {
+  const copy = [...list]
+  if (sort === 'az')     return copy.sort((a, b) => a.name.localeCompare(b.name))
+  if (sort === 'za')     return copy.sort((a, b) => b.name.localeCompare(a.name))
+  if (sort === 'sector') return copy.sort((a, b) => (a.sector_prefix ?? '').localeCompare(b.sector_prefix ?? ''))
+  return copy // newest — already ordered by created_at desc from Firestore
+}
 
 export default function Facilities() {
   const { role } = useAuth()
@@ -17,8 +32,11 @@ export default function Facilities() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const draftSaved = location.state?.draftSaved ?? false
-  const [search, setSearch] = useState('')
+
+  const [search, setSearch]           = useState('')
   const [sectorFilter, setSectorFilter] = useState('')
+  const [districtFilter, setDistrictFilter] = useState('')
+  const [sort, setSort]               = useState('newest')
 
   useEffect(() => {
     listFacilities()
@@ -29,16 +47,21 @@ export default function Facilities() {
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase()
-    return facilities.filter((f) => {
+    const base = facilities.filter((f) => {
       const matchesSearch =
         !q ||
         f.file_number?.toLowerCase().includes(q) ||
         f.name?.toLowerCase().includes(q) ||
-        f.contact_person?.toLowerCase().includes(q)
-      const matchesSector = !sectorFilter || f.sector_prefix === sectorFilter
-      return matchesSearch && matchesSector
+        f.contact_person?.toLowerCase().includes(q) ||
+        f.location?.toLowerCase().includes(q)
+      const matchesSector   = !sectorFilter   || f.sector_prefix === sectorFilter
+      const matchesDistrict = !districtFilter || f.district       === districtFilter
+      return matchesSearch && matchesSector && matchesDistrict
     })
-  }, [facilities, search, sectorFilter])
+    return sortFacilities(base, sort)
+  }, [facilities, search, sectorFilter, districtFilter, sort])
+
+  const activeFilters = [sectorFilter, districtFilter].filter(Boolean).length
 
   return (
     <div className="page">
@@ -51,8 +74,7 @@ export default function Facilities() {
         </div>
         {role === 'admin' && (
           <button className="btn btn--primary" onClick={() => navigate('/facilities/new')}>
-            <Plus size={16} />
-            New Facility
+            <Plus size={16} /> New Facility
           </button>
         )}
       </div>
@@ -63,28 +85,63 @@ export default function Facilities() {
           <Search size={15} className="search-icon" />
           <input
             className="search-input"
-            placeholder="Search by name, file number, contact…"
+            placeholder="Search by name, file number, location, contact…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
+
         <div className="filter-group">
-          <select
-            className="select"
-            value={sectorFilter}
-            onChange={(e) => setSectorFilter(e.target.value)}
-          >
+          <select className="select" value={sectorFilter} onChange={(e) => setSectorFilter(e.target.value)}>
             <option value="">All sectors</option>
             {SECTORS.map((s) => (
-              <option key={s.prefix} value={s.prefix}>
-                {s.name}
-              </option>
+              <option key={s.prefix} value={s.prefix}>{s.name} ({s.prefix})</option>
             ))}
+          </select>
+        </div>
+
+        <div className="filter-group">
+          <select className="select" value={districtFilter} onChange={(e) => setDistrictFilter(e.target.value)}>
+            <option value="">All districts</option>
+            {DISTRICTS.map((d) => (
+              <option key={d.code} value={d.code}>{d.name}</option>
+            ))}
+          </select>
+        </div>
+
+        <div className="filter-group">
+          <select className="select" value={sort} onChange={(e) => setSort(e.target.value)}
+            style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            {SORT_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
         </div>
       </div>
 
-      {/* Draft-saved success banner */}
+      {/* Active filter pills */}
+      {activeFilters > 0 && (
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
+          {sectorFilter && (
+            <span className="filter-pill">
+              Sector: {SECTORS.find((s) => s.prefix === sectorFilter)?.name}
+              <button onClick={() => setSectorFilter('')}>✕</button>
+            </span>
+          )}
+          {districtFilter && (
+            <span className="filter-pill">
+              District: {DISTRICTS.find((d) => d.code === districtFilter)?.name}
+              <button onClick={() => setDistrictFilter('')}>✕</button>
+            </span>
+          )}
+          <button
+            className="btn btn--ghost btn--xs"
+            onClick={() => { setSectorFilter(''); setDistrictFilter(''); setSearch('') }}
+          >
+            Clear all
+          </button>
+        </div>
+      )}
+
+      {/* Draft-saved banner */}
       {draftSaved && (
         <div className="draft-saved-banner">
           <CheckCircle size={15} style={{ flexShrink: 0 }} />
@@ -106,13 +163,11 @@ export default function Facilities() {
         </div>
       )}
 
-      {/* States */}
       {loading && <Spinner />}
 
       {error && (
         <div className="login-error">
-          <AlertCircle size={15} />
-          {error}
+          <AlertCircle size={15} /> {error}
         </div>
       )}
 
@@ -120,11 +175,10 @@ export default function Facilities() {
         <div className="empty-state">
           {facilities.length === 0
             ? 'No facilities registered yet. Click "New Facility" to add the first one.'
-            : 'No facilities match your search.'}
+            : 'No facilities match your search or filters.'}
         </div>
       )}
 
-      {/* Card grid */}
       {!loading && !error && filtered.length > 0 && (
         <div className="firms-grid">
           {filtered.map((f) => (
@@ -138,6 +192,7 @@ export default function Facilities() {
 
 function FacilityCard({ facility: f, onClick }) {
   const colors = SECTOR_COLORS[f.sector_prefix] ?? { bg: '#f3f4f6', text: '#374151' }
+  const district = DISTRICTS.find((d) => d.code === f.district)
 
   return (
     <div className="firm-card" onClick={onClick}>
@@ -158,7 +213,7 @@ function FacilityCard({ facility: f, onClick }) {
         {f.location && (
           <span>
             <MapPin size={12} />
-            {f.location}{f.district ? ` · ${f.district}` : ''}
+            {f.location}{district ? ` · ${district.name}` : f.district ? ` · ${f.district}` : ''}
           </span>
         )}
         {f.contact_person && (
@@ -181,7 +236,7 @@ function FacilityCard({ facility: f, onClick }) {
           {f.type_of_undertaking || <span className="text-muted">—</span>}
         </span>
         <span className="badge badge--gray" style={{ fontSize: 11 }}>
-          {f.district ?? '—'}
+          {district?.name ?? f.district ?? '—'}
         </span>
       </div>
     </div>
@@ -210,19 +265,12 @@ function DraftCard({ draft, onDelete }) {
       </div>
 
       <div className="firm-card__meta">
-        {draft.location && (
-          <span><MapPin size={12} />{draft.location}</span>
-        )}
-        <span>
-          <Clock size={12} />
-          Saved offline · {created}
-        </span>
+        {draft.location && <span><MapPin size={12} />{draft.location}</span>}
+        <span><Clock size={12} />Saved offline · {created}</span>
       </div>
 
       <div className="firm-card__footer">
-        <span style={{ fontSize: 12, color: '#a16207' }}>
-          File number will be assigned on sync
-        </span>
+        <span style={{ fontSize: 12, color: '#a16207' }}>File number assigned on sync</span>
         <button
           className="btn btn--ghost btn--sm"
           style={{ color: '#dc2626', borderColor: '#fecaca', padding: '3px 8px' }}

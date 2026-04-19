@@ -121,8 +121,8 @@ facilities/{file_number}              ← facility profiles
 | 3     | Offline Support                      | ✅ Complete |
 | 4     | Camera + GPS via Capacitor           | ✅ Complete |
 | 5     | Sub-records (Permits, Finance, etc.) | ✅ Complete |
-| 6     | Filters, Search, Dashboard           | 🔜 Next     |
-| 7     | Data Migration from Google Drive     | Pending    |
+| 6     | Filters, Search, Dashboard           | ✅ Complete |
+| 7     | Data Migration from Google Drive     | 🔜 Next     |
 | 8     | Desktop Polish                       | Pending    |
 
 ---

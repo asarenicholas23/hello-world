@@ -864,3 +864,110 @@ body {
   font-size: 12px; margin-left: 24px; padding: 4px 8px;
   height: auto;
 }
+
+/* ── KPI cards ────────────────────────────────────────── */
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 12px;
+}
+
+.kpi-card {
+  background: #fff; border: 1px solid #f3f4f6; border-radius: 12px;
+  padding: 16px; display: flex; align-items: center; gap: 14px;
+  box-shadow: 0 1px 3px rgba(0,0,0,.05);
+  transition: box-shadow 0.15s, transform 0.15s;
+}
+.kpi-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,.08); transform: translateY(-1px); }
+.kpi-card--highlight { border-color: #fca5a5; }
+
+.kpi-card__icon {
+  width: 44px; height: 44px; border-radius: 10px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+}
+.kpi-card__body { flex: 1; min-width: 0; }
+.kpi-card__value { font-size: 26px; font-weight: 800; color: #111827; line-height: 1; }
+.kpi-card__label { font-size: 12px; color: #6b7280; margin-top: 3px; }
+
+/* ── Sector chart ─────────────────────────────────────── */
+.sector-chart { display: flex; flex-direction: column; gap: 10px; }
+
+.sector-row { display: flex; align-items: center; gap: 10px; }
+.sector-row__label {
+  display: flex; align-items: center; gap: 6px;
+  width: 200px; flex-shrink: 0;
+}
+.sector-row__prefix {
+  font-size: 11px; font-weight: 700; padding: 2px 6px; border-radius: 4px;
+  flex-shrink: 0;
+}
+.sector-row__name { font-size: 12.5px; color: #374151; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sector-row__bar-wrap {
+  flex: 1; height: 10px; background: #f3f4f6; border-radius: 5px; overflow: hidden;
+}
+.sector-row__bar {
+  height: 100%; border-radius: 5px;
+  transition: width 0.4s ease;
+  min-width: 4px;
+}
+.sector-row__count { font-size: 13px; font-weight: 600; color: #374151; width: 28px; text-align: right; flex-shrink: 0; }
+
+/* ── Recent facilities list ───────────────────────────── */
+.recent-facility-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 12px 16px; cursor: pointer;
+  transition: background 0.1s;
+}
+.recent-facility-row:hover { background: #f9fafb; }
+.recent-facility-row__name { flex: 1; font-size: 13.5px; font-weight: 500; color: #111827; }
+.recent-facility-row--more {
+  font-size: 13px; color: #059669; font-weight: 500;
+  justify-content: flex-end; border-top: 1px solid #f3f4f6;
+}
+
+/* ── Cross-record list ────────────────────────────────── */
+.cross-record-list { display: flex; flex-direction: column; gap: 8px; }
+
+.cross-record-item {
+  background: #fff; border: 1px solid #f3f4f6; border-radius: 10px;
+  padding: 12px 16px; cursor: pointer;
+  transition: box-shadow 0.15s, border-color 0.15s;
+  display: flex; flex-direction: column; gap: 6px;
+}
+.cross-record-item:hover { box-shadow: 0 4px 12px rgba(0,0,0,.07); border-color: #e5e7eb; }
+
+.cross-record__facility {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+}
+.cross-record__facility-name {
+  font-size: 12.5px; font-weight: 600; color: #374151;
+}
+.cross-record__body {
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
+}
+.cross-record__content { display: flex; flex-direction: column; gap: 3px; flex: 1; }
+.cross-record__primary { font-size: 14px; font-weight: 600; color: #111827; font-family: monospace; }
+.cross-record__meta    { font-size: 12px; color: #6b7280; }
+.cross-record__note    { font-size: 12px; color: #374151; }
+
+/* ── Filter pills ─────────────────────────────────────── */
+.filter-pill {
+  display: inline-flex; align-items: center; gap: 4px;
+  background: #eff6ff; color: #1d4ed8;
+  font-size: 12px; font-weight: 500;
+  padding: 3px 8px; border-radius: 999px;
+}
+.filter-pill button {
+  background: none; border: none; cursor: pointer; color: #6b7280; font-size: 11px; padding: 0;
+}
+.filter-pill button:hover { color: #1d4ed8; }
+
+/* ── Responsive adjustments ───────────────────────────── */
+@media (max-width: 768px) {
+  .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+  .sector-row__label { width: 140px; }
+  .sector-row__name { display: none; }
+}
+@media (max-width: 480px) {
+  .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+}

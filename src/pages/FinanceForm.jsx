@@ -12,6 +12,7 @@ import Spinner from '../components/Spinner'
 const EMPTY = {
   date: '',
   payment_type: '',
+  payment_status: 'paid',
   amount: '',
   currency: 'GHS',
   reference_number: '',
@@ -43,6 +44,7 @@ export default function FinanceForm() {
         setFormData({
           date:             tsToInput(rec.date),
           payment_type:     rec.payment_type     ?? '',
+          payment_status:   rec.payment_status   ?? 'paid',
           amount:           rec.amount != null   ? String(rec.amount) : '',
           currency:         rec.currency         ?? 'GHS',
           reference_number: rec.reference_number ?? '',
@@ -104,6 +106,7 @@ export default function FinanceForm() {
     const payload = {
       date:             inputToTs(formData.date),
       payment_type:     formData.payment_type,
+      payment_status:   formData.payment_status,
       amount:           Number(formData.amount),
       currency:         formData.currency,
       reference_number: formData.reference_number.trim(),
@@ -161,6 +164,16 @@ export default function FinanceForm() {
                 <select className="select" name="payment_type" value={formData.payment_type} onChange={handleChange}>
                   <option value="">Select type…</option>
                   {PAYMENT_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+                </select>
+              </div>
+            </div>
+
+            <div className="form-row">
+              <div className="form-group">
+                <label>Payment Status</label>
+                <select className="select" name="payment_status" value={formData.payment_status} onChange={handleChange}>
+                  <option value="paid">Paid</option>
+                  <option value="unpaid">Unpaid / Outstanding</option>
                 </select>
               </div>
             </div>

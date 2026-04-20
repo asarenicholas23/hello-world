@@ -8,8 +8,10 @@ import {
 } from 'firebase/auth'
 import { initializeApp, getApps } from 'firebase/app'
 import { getAuth } from 'firebase/auth'
-import { db } from './config'
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage'
+import { db, auth, storage } from './config'
 import { firebaseConfig } from './config'
+import { ROLE_LEVEL } from '../data/constants'
 
 function getSecondaryAuth() {
   const existing = getApps().find((a) => a.name === 'secondary')
@@ -36,34 +38,77 @@ export async function getStaffMember(uid) {
   return snap.exists() ? { id: snap.id, ...snap.data() } : null
 }
 
-export async function createStaff({ name, email, password, role, phone }, createdBy) {
+export async function uploadStaffPhoto(uid, file) {
+  const storageRef = ref(storage, `staff-photos/${uid}`)
+  await uploadBytes(storageRef, file)
+  return getDownloadURL(storageRef)
+}
+
+export async function createStaff(
+  { name, email, password, role, phone, designation, qualification,
+    date_of_appointment, date_of_birth, address },
+  createdBy,
+) {
   const secondaryAuth = getSecondaryAuth()
   const { user } = await createUserWithEmailAndPassword(secondaryAuth, email, password)
   await authSignOut(secondaryAuth)
 
   const staffId = await getNextStaffId()
   await setDoc(doc(db, 'staff', user.uid), {
-    uid: user.uid,
-    staff_id: staffId,
+    uid:                 user.uid,
+    staff_id:            staffId,
     name,
     email,
     role,
-    phone: phone ?? '',
-    created_at: serverTimestamp(),
-    created_by: createdBy,
+    role_level:          ROLE_LEVEL[role] ?? null,
+    phone:               phone ?? '',
+    designation:         designation ?? '',
+    qualification:       qualification ?? '',
+    date_of_appointment: date_of_appointment ?? '',
+    date_of_birth:       date_of_birth ?? '',
+    address:             address ?? '',
+    picture_url:         '',
+    created_at:          serverTimestamp(),
+    created_by:          createdBy,
   })
   return user.uid
 }
 
-export async function updateStaff(uid, { name, role, phone }) {
+export async function updateStaff(uid, { name, role, phone, designation, qualification, date_of_appointment, date_of_birth, address }) {
   await updateDoc(doc(db, 'staff', uid), {
     name,
     role,
-    phone: phone ?? '',
-    updated_at: serverTimestamp(),
+    role_level:          ROLE_LEVEL[role] ?? null,
+    phone:               phone ?? '',
+    designation:         designation ?? '',
+    qualification:       qualification ?? '',
+    date_of_appointment: date_of_appointment ?? '',
+    date_of_birth:       date_of_birth ?? '',
+    address:             address ?? '',
+    updated_at:          serverTimestamp(),
   })
 }
 
 export async function deleteStaff(uid) {
   await deleteDoc(doc(db, 'staff', uid))
+}
+
+export async function updateOwnProfile(uid, { name, phone, designation, qualification, date_of_birth, address, picture_url }) {
+  const data = {
+    name,
+    phone:         phone ?? '',
+    designation:   designation ?? '',
+    qualification: qualification ?? '',
+    date_of_birth: date_of_birth ?? '',
+    address:       address ?? '',
+    updated_at:    serverTimestamp(),
+  }
+  if (picture_url !== undefined) data.picture_url = picture_url
+  await updateDoc(doc(db, 'staff', uid), data)
+}
+
+export async function changeOwnPassword(currentPassword, newPassword) {
+  const credential = EmailAuthProvider.credential(auth.currentUser.email, currentPassword)
+  await reauthenticateWithCredential(auth.currentUser, credential)
+  await updatePassword(auth.currentUser, newPassword)
 }

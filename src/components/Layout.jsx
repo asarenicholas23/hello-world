@@ -5,36 +5,58 @@ import { useSync } from '../context/SyncContext'
 import {
   LayoutDashboard, Building2, FileText, Banknote,
   Users, ClipboardList, Activity, ShieldAlert,
-  LogOut, Menu, X, Leaf, Upload,
+  LogOut, Menu, X, Leaf, Upload, Flag, BarChart2,
+  Briefcase, LayoutList, MessageSquare, GraduationCap,
 } from 'lucide-react'
 
+const ADMIN_NAV = [
+  { label: 'Dashboard',        icon: LayoutDashboard, path: '/' },
+  { label: 'Facilities',       icon: Building2,       path: '/facilities' },
+  { label: 'Permits',          icon: FileText,        path: '/permits' },
+  { label: 'Permit Analytics', icon: BarChart2,       path: '/permit-analytics' },
+  { label: 'Finance',          icon: Banknote,        path: '/finance' },
+  { label: 'Staff',            icon: Users,           path: '/staff' },
+  { label: 'All Assignments',  icon: LayoutList,      path: '/all-assignments' },
+  { label: 'Import Data',      icon: Upload,          path: '/import',        dividerBefore: true },
+  { label: 'Field Reports',    icon: Flag,            path: '/field-reports' },
+  { label: 'Complaints',       icon: MessageSquare,   path: '/complaints',    dividerBefore: true },
+  { label: 'Env. Education',   icon: GraduationCap,   path: '/env-education' },
+]
+
+const FIELD_NAV = [
+  { label: 'Dashboard',     icon: LayoutDashboard, path: '/' },
+  { label: 'Facilities',    icon: Building2,       path: '/facilities' },
+  { label: 'Screening',     icon: ClipboardList,   path: '/screening' },
+  { label: 'Monitoring',    icon: Activity,        path: '/monitoring' },
+  { label: 'Enforcement',   icon: ShieldAlert,     path: '/enforcement' },
+  { label: 'My Assignments', icon: Briefcase,       path: '/my-assignments', dividerBefore: true },
+  { label: 'Field Reports',  icon: Flag,            path: '/field-reports' },
+  { label: 'Complaints',     icon: MessageSquare,   path: '/complaints',     dividerBefore: true },
+  { label: 'Env. Education', icon: GraduationCap,   path: '/env-education' },
+]
+
 const NAV_BY_ROLE = {
-  admin: [
-    { label: 'Dashboard',  icon: LayoutDashboard, path: '/' },
-    { label: 'Facilities', icon: Building2,        path: '/facilities' },
-    { label: 'Permits',    icon: FileText,         path: '/permits' },
-    { label: 'Finance',    icon: Banknote,         path: '/finance' },
-    { label: 'Staff',      icon: Users,            path: '/staff' },
-    { label: 'Import Data',icon: Upload,           path: '/import', dividerBefore: true },
-  ],
+  director:          ADMIN_NAV,
+  admin:             ADMIN_NAV,
+  senior_officer:    FIELD_NAV,
+  officer:           FIELD_NAV,
+  assistant_officer: FIELD_NAV,
+  junior_officer:    FIELD_NAV,
   finance: [
     { label: 'Dashboard',  icon: LayoutDashboard, path: '/' },
-    { label: 'Facilities', icon: Building2,        path: '/facilities' },
-    { label: 'Finance',    icon: Banknote,         path: '/finance' },
-  ],
-  officer: [
-    { label: 'Dashboard',   icon: LayoutDashboard, path: '/' },
-    { label: 'Facilities',  icon: Building2,        path: '/facilities' },
-    { label: 'Screening',   icon: ClipboardList,    path: '/screening' },
-    { label: 'Monitoring',  icon: Activity,         path: '/monitoring' },
-    { label: 'Enforcement', icon: ShieldAlert,      path: '/enforcement' },
+    { label: 'Facilities', icon: Building2,       path: '/facilities' },
+    { label: 'Finance',    icon: Banknote,        path: '/finance' },
   ],
 }
 
 const ROLE_COLOR = {
-  admin:   '#1d4ed8',
-  finance: '#065f46',
-  officer: '#c2410c',
+  director:          '#7c3aed',
+  admin:             '#1d4ed8',
+  senior_officer:    '#0369a1',
+  officer:           '#c2410c',
+  assistant_officer: '#b45309',
+  junior_officer:    '#6b7280',
+  finance:           '#065f46',
 }
 
 export default function Layout() {
@@ -97,11 +119,16 @@ export default function Layout() {
           <div className="officer-badge">
             <div
               className="officer-avatar"
-              style={{ background: ROLE_COLOR[staff?.role] ?? '#374151' }}
+              style={{ background: ROLE_COLOR[staff?.role] ?? '#374151', cursor: 'pointer' }}
+              onClick={() => { navigate('/profile'); setSidebarOpen(false) }}
+              title="My Profile"
             >
               {initials}
             </div>
-            <div style={{ flex: 1, minWidth: 0 }}>
+            <div
+              style={{ flex: 1, minWidth: 0, cursor: 'pointer' }}
+              onClick={() => { navigate('/profile'); setSidebarOpen(false) }}
+            >
               <span className="officer-name">{staff?.name}</span>
               <span className="officer-role" style={{ textTransform: 'capitalize' }}>
                 {staff?.role} · {staff?.staff_id}

@@ -1,3 +1,22 @@
+// ── Role system ────────────────────────────────────────
+export const ROLES = [
+  { value: 'director',          label: 'Director',          level: 1 },
+  { value: 'admin',             label: 'Admin',             level: 2 },
+  { value: 'senior_officer',    label: 'Senior Officer',    level: 3 },
+  { value: 'officer',           label: 'Officer',           level: 4 },
+  { value: 'assistant_officer', label: 'Assistant Officer', level: 5 },
+  { value: 'junior_officer',    label: 'Junior Officer',    level: 6 },
+  { value: 'finance',           label: 'Finance',           level: null },
+]
+
+export const ROLE_LEVEL = Object.fromEntries(ROLES.map((r) => [r.value, r.level]))
+
+// Roles that do field work (enforcement, screening, monitoring, etc.)
+export const FIELD_ROLES = new Set(['senior_officer', 'officer', 'assistant_officer', 'junior_officer'])
+
+// Roles with administrative / oversight access
+export const ADMIN_ROLES = new Set(['director', 'admin'])
+
 export const SECTORS = [
   { prefix: 'CU', name: 'Manufacturing' },
   { prefix: 'CI', name: 'Infrastructure' },

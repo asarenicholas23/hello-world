@@ -4,18 +4,38 @@ import { useAuth } from '../context/AuthContext'
 import {
   Building2, FileText, Banknote, Users,
   ClipboardList, Activity, ShieldAlert, ArrowRight,
-  CheckSquare, AlertTriangle, XCircle, TrendingUp,
+  CheckSquare, AlertTriangle, XCircle, BarChart2, Clock,
+  MessageSquare, GraduationCap, TrendingUp,
 } from 'lucide-react'
-import { getDashboardStats, getPermitStats } from '../firebase/dashboard'
-import { SECTORS, SECTOR_COLORS } from '../data/constants'
+import { getDashboardStats, getPermitStats, getFieldStats, getMyActivityStats, getFinanceStats } from '../firebase/dashboard'
+import { SECTORS, SECTOR_COLORS, FIELD_ROLES, ADMIN_ROLES } from '../data/constants'
 
 const ROLE_LABEL = {
-  admin:   'Administrator',
-  finance: 'Finance Officer',
-  officer: 'Field Officer',
+  director:          'Regional Director',
+  admin:             'Administrator',
+  senior_officer:    'Senior Environmental Officer',
+  officer:           'Environmental Officer',
+  assistant_officer: 'Assistant Environmental Officer',
+  junior_officer:    'Junior Environmental Officer',
+  finance:           'Finance Officer',
 }
 
+const FIELD_CARDS = [
+  { icon: Building2,    color: '#1d4ed8', bg: '#eff6ff', title: 'Facilities',        path: '/facilities',         desc: 'Browse registered facilities.' },
+  { icon: ClipboardList,color: '#0369a1', bg: '#f0f9ff', title: 'Screening',         path: '/screening',          desc: 'Pre-permit inspection records with GPS and photos.' },
+  { icon: Activity,     color: '#166534', bg: '#dcfce7', title: 'Monitoring',        path: '/monitoring',         desc: 'Sector-specific environmental monitoring visits.' },
+  { icon: ShieldAlert,  color: '#c2410c', bg: '#fff7ed', title: 'Enforcement',       path: '/enforcement',        desc: 'Log warnings, notices, fines, and closures.' },
+  { icon: CheckSquare,  color: '#0891b2', bg: '#f0fdfa', title: 'Site Verifications',path: '/site-verifications', desc: 'Pre-renewal site verification visits.' },
+]
+
 const CARDS_BY_ROLE = {
+  director: [
+    { icon: Building2,    color: '#1d4ed8', bg: '#eff6ff', title: 'Facilities',  path: '/facilities',       desc: 'All registered entity profiles.' },
+    { icon: FileText,     color: '#7c3aed', bg: '#f5f3ff', title: 'Permits',     path: '/permits',          desc: 'All permits across all facilities.' },
+    { icon: Banknote,     color: '#065f46', bg: '#f0fdf4', title: 'Finance',     path: '/finance',          desc: 'All fee payments.' },
+    { icon: ShieldAlert,  color: '#c2410c', bg: '#fff7ed', title: 'Enforcement', path: '/enforcement',      desc: 'All enforcement actions.' },
+    { icon: Activity,     color: '#166534', bg: '#dcfce7', title: 'Monitoring',  path: '/monitoring',       desc: 'All monitoring visits.' },
+  ],
   admin: [
     { icon: Building2,    color: '#1d4ed8', bg: '#eff6ff', title: 'Facilities',        path: '/facilities',     desc: 'Manage entity profiles and file numbers.' },
     { icon: FileText,     color: '#7c3aed', bg: '#f5f3ff', title: 'Permits',           path: '/permits',        desc: 'All permits across all facilities.' },
@@ -30,30 +50,36 @@ const CARDS_BY_ROLE = {
     { icon: Banknote,     color: '#065f46', bg: '#f0fdf4', title: 'Finance',           path: '/finance',        desc: 'Log and manage fee payments across all facilities.' },
     { icon: FileText,     color: '#7c3aed', bg: '#f5f3ff', title: 'Permits',           path: '/permits',        desc: 'View permits and expiry dates.' },
   ],
-  officer: [
-    { icon: Building2,    color: '#1d4ed8', bg: '#eff6ff', title: 'Facilities',        path: '/facilities',     desc: 'Browse registered facilities.' },
-    { icon: ClipboardList,color: '#0369a1', bg: '#f0f9ff', title: 'Screening',         path: '/screening',      desc: 'Pre-permit inspection records with GPS and photos.' },
-    { icon: Activity,     color: '#166534', bg: '#dcfce7', title: 'Monitoring',        path: '/monitoring',     desc: 'Sector-specific environmental monitoring visits.' },
-    { icon: ShieldAlert,  color: '#c2410c', bg: '#fff7ed', title: 'Enforcement',       path: '/enforcement',    desc: 'Log warnings, notices, fines, and closures.' },
-    { icon: CheckSquare,  color: '#0891b2', bg: '#f0fdfa', title: 'Site Verifications',path: '/site-verifications', desc: 'Pre-renewal site verification visits.' },
-  ],
+  senior_officer:    FIELD_CARDS,
+  officer:           FIELD_CARDS,
+  assistant_officer: FIELD_CARDS,
+  junior_officer:    FIELD_CARDS,
 }
 
 export default function Home() {
-  const { staff, role } = useAuth()
+  const { user, staff, role } = useAuth()
   const navigate = useNavigate()
   const cards = CARDS_BY_ROLE[role] ?? []
 
-  const [stats, setStats] = useState(null)
-  const [permitStats, setPermitStats] = useState(null)
+  const [stats, setStats]               = useState(null)
+  const [permitStats, setPermitStats]   = useState(null)
+  const [fieldStats, setFieldStats]     = useState(null)
+  const [myStats, setMyStats]           = useState(null)
+  const [financeStats, setFinanceStats] = useState(null)
 
   useEffect(() => {
     getDashboardStats().then(setStats).catch(() => {})
-    // Permit stats only for admin and finance (most relevant)
-    if (role === 'admin' || role === 'finance') {
+    if (ADMIN_ROLES.has(role) || role === 'finance') {
       getPermitStats().then(setPermitStats).catch(() => {})
+      getFinanceStats().then(setFinanceStats).catch(() => {})
     }
-  }, [role])
+    if (FIELD_ROLES.has(role)) {
+      getFieldStats().then(setFieldStats).catch(() => {})
+    }
+    if (user?.uid) {
+      getMyActivityStats(user.uid).then(setMyStats).catch(() => {})
+    }
+  }, [role, user?.uid])
 
   const sectorMax = stats
     ? Math.max(...Object.values(stats.bySector), 1)
@@ -72,8 +98,59 @@ export default function Home() {
         </div>
       </div>
 
-      {/* ── KPI row ─────────────────────────────────────── */}
-      <div className="home-section-title">Overview</div>
+      {/* ── My Activity ─────────────────────────────────── */}
+      {myStats && (
+        <>
+          <div className="home-section-title">My Activity · {myStats.quarterLabel}</div>
+          <div className="kpi-grid">
+            <KpiCard
+              icon={<Building2 size={20} color="#1d4ed8" />} bg="#eff6ff"
+              value={myStats.assignedFacilities} label="Assigned Facilities"
+              onClick={() => navigate('/facilities', { state: { officerUid: user.uid } })}
+            />
+            <KpiCard
+              icon={<ClipboardList size={20} color="#0369a1" />} bg="#f0f9ff"
+              value={myStats.screenings} label="Screenings"
+              onClick={() => navigate('/screening', { state: { officerUid: user.uid } })}
+            />
+            <KpiCard
+              icon={<Activity size={20} color="#166534" />} bg="#dcfce7"
+              value={myStats.monitoring} label="Monitoring Visits"
+              onClick={() => navigate('/monitoring', { state: { officerUid: user.uid } })}
+            />
+            <KpiCard
+              icon={<ShieldAlert size={20} color="#c2410c" />} bg="#fff7ed"
+              value={myStats.enforcement} label="Enforcement Actions"
+              onClick={() => navigate('/enforcement', { state: { officerUid: user.uid } })}
+            />
+            <KpiCard
+              icon={<CheckSquare size={20} color="#0891b2" />} bg="#f0fdfa"
+              value={myStats.siteVerifications} label="Site Verifications"
+              onClick={() => navigate('/site-verifications', { state: { officerUid: user.uid } })}
+            />
+            {(ADMIN_ROLES.has(role) || role === 'finance') && (
+              <KpiCard
+                icon={<FileText size={20} color="#7c3aed" />} bg="#f5f3ff"
+                value={myStats.permits} label="Permits Issued"
+                onClick={() => navigate('/permits', { state: { officerUid: user.uid } })}
+              />
+            )}
+            <KpiCard
+              icon={<MessageSquare size={20} color="#0891b2" />} bg="#f0fdfa"
+              value={myStats.complaints} label="Complaints Logged"
+              onClick={() => navigate('/complaints', { state: { officerUid: user.uid } })}
+            />
+            <KpiCard
+              icon={<GraduationCap size={20} color="#166534" />} bg="#dcfce7"
+              value={myStats.envEducation} label="Edu. Sessions"
+              onClick={() => navigate('/env-education', { state: { officerUid: user.uid } })}
+            />
+          </div>
+        </>
+      )}
+
+      {/* ── Office Overview ──────────────────────────────── */}
+      <div className="home-section-title" style={{ marginTop: myStats ? 24 : 0 }}>Office Overview</div>
       <div className="kpi-grid">
         <KpiCard
           icon={<Building2 size={20} color="#1d4ed8" />}
@@ -82,6 +159,16 @@ export default function Home() {
           label="Facilities"
           onClick={() => navigate('/facilities')}
         />
+        {ADMIN_ROLES.has(role) && stats != null && (
+          <KpiCard
+            icon={<FileText size={20} color="#9ca3af" />}
+            bg="#f9fafb"
+            value={stats.withoutPermits ?? '—'}
+            label="No Permit on File"
+            onClick={() => navigate('/facilities')}
+            highlight={stats.withoutPermits > 0}
+          />
+        )}
         {permitStats != null && (
           <>
             <KpiCard
@@ -107,16 +194,49 @@ export default function Home() {
               onClick={() => navigate('/permits', { state: { statusFilter: 'expired' } })}
               highlight={permitStats.expired > 0}
             />
+            {stats?.stuckWorkflow > 0 && (
+              <KpiCard
+                icon={<Clock size={20} color="#b45309" />}
+                bg="#fffbeb"
+                value={stats.stuckWorkflow}
+                label="Stuck Workflows"
+                onClick={() => navigate('/all-assignments')}
+                highlight
+              />
+            )}
           </>
         )}
-        {role === 'officer' && stats && (
-          <KpiCard
-            icon={<TrendingUp size={20} color="#1d4ed8" />}
-            bg="#eff6ff"
-            value={stats.total}
-            label="Registered Facilities"
-            onClick={() => navigate('/facilities')}
-          />
+        {FIELD_ROLES.has(role) && fieldStats && (
+          <>
+            <KpiCard
+              icon={<ClipboardList size={20} color="#0369a1" />}
+              bg="#f0f9ff"
+              value={fieldStats.screenings}
+              label="Screenings"
+              onClick={() => navigate('/screening')}
+            />
+            <KpiCard
+              icon={<Activity size={20} color="#166534" />}
+              bg="#dcfce7"
+              value={fieldStats.monitoring}
+              label="Monitoring Visits"
+              onClick={() => navigate('/monitoring')}
+            />
+            <KpiCard
+              icon={<ShieldAlert size={20} color="#c2410c" />}
+              bg="#fff7ed"
+              value={fieldStats.enforcement}
+              label="Enforcement Actions"
+              onClick={() => navigate('/enforcement')}
+            />
+            <KpiCard
+              icon={<CheckSquare size={20} color="#0891b2" />}
+              bg="#f0fdfa"
+              value={fieldStats.siteVerifications}
+              label="Site Verifications"
+              onClick={() => navigate('/site-verifications')}
+            />
+          </>
         )}
       </div>
 
@@ -183,6 +303,25 @@ export default function Home() {
             </div>
           </div>
         </>
+      )}
+
+      {/* ── Permit Analytics entry (admin only) ─────────── */}
+      {ADMIN_ROLES.has(role) && (
+        <div
+          className="analytics-entry-card"
+          onClick={() => navigate('/permit-analytics')}
+        >
+          <div className="analytics-entry-card__icon">
+            <BarChart2 size={22} color="#7c3aed" />
+          </div>
+          <div className="analytics-entry-card__body">
+            <div className="analytics-entry-card__title">Permit Analytics</div>
+            <div className="analytics-entry-card__desc">
+              Filter permits by sector, district, issue date range, or expiry window. Export results to CSV.
+            </div>
+          </div>
+          <ArrowRight size={18} color="#7c3aed" style={{ flexShrink: 0 }} />
+        </div>
       )}
 
       {/* ── Module cards ─────────────────────────────────── */}

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Plus, Edit2, Trash2, AlertCircle, Paperclip } from 'lucide-react'
+import { useAuth } from '../../context/AuthContext'
 import { listSubRecords, deleteSubRecord } from '../../firebase/subrecords'
 import { fmtDate, permitStatus } from '../../utils/records'
 import Spinner from '../Spinner'
@@ -12,12 +13,16 @@ const STATUS_COLORS = {
   expired:  { bg: '#fee2e2', color: '#991b1b' },
 }
 
-export default function PermitsTab({ fileNumber, role }) {
+export default function PermitsTab({ fileNumber }) {
+  const { role } = useAuth()
   const navigate = useNavigate()
-  const [records, setRecords] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
+
+  const [records, setRecords]       = useState([])
+  const [loading, setLoading]       = useState(true)
+  const [error, setError]           = useState('')
   const [deletingId, setDeletingId] = useState(null)
+
+  const canEdit = role === 'admin'
 
   useEffect(() => { load() }, [fileNumber])
 
@@ -38,10 +43,8 @@ export default function PermitsTab({ fileNumber, role }) {
     finally { setDeletingId(null) }
   }
 
-  const canEdit = role === 'admin'
-
   if (loading) return <div className="tab-loading"><Spinner size={24} /></div>
-  if (error) return <div className="login-error" style={{ margin: '12px 0' }}><AlertCircle size={14} /> {error}</div>
+  if (error)   return <div className="login-error" style={{ margin: '12px 0' }}><AlertCircle size={14} /> {error}</div>
 
   return (
     <div>
@@ -59,14 +62,12 @@ export default function PermitsTab({ fileNumber, role }) {
         <div className="record-list">
           {records.map((r) => {
             const status = permitStatus(r.expiry_date)
-            const sc = status ? STATUS_COLORS[status] : null
+            const sc     = status ? STATUS_COLORS[status] : null
             return (
               <div key={r.id} className="record-item">
                 <div className="record-item__header">
                   <span className="record-item__title">{r.permit_number}</span>
-                  {status && (
-                    <span className="record-badge" style={sc}>{STATUS_LABELS[status]}</span>
-                  )}
+                  {status && <span className="record-badge" style={sc}>{STATUS_LABELS[status]}</span>}
                 </div>
                 <div className="record-item__meta">
                   <span>Issued: {fmtDate(r.issue_date)}</span>
@@ -74,7 +75,7 @@ export default function PermitsTab({ fileNumber, role }) {
                   <span>Expires: {fmtDate(r.expiry_date)}</span>
                 </div>
                 {r.issue_location && <div className="record-item__note">{r.issue_location}</div>}
-                {r.notes && <div className="record-item__note">{r.notes}</div>}
+                {r.notes          && <div className="record-item__note">{r.notes}</div>}
                 {(r.permit_image_url || r.schedule_url) && (
                   <div className="record-item__attachments">
                     {r.permit_image_url && (
@@ -94,7 +95,9 @@ export default function PermitsTab({ fileNumber, role }) {
                     <button className="btn btn--ghost btn--xs" onClick={() => navigate(`/facilities/${fileNumber}/permits/${r.id}/edit`)}>
                       <Edit2 size={12} /> Edit
                     </button>
-                    <button className="btn btn--ghost btn--xs btn--danger" onClick={() => handleDelete(r.id, r.permit_number)} disabled={deletingId === r.id}>
+                    <button className="btn btn--ghost btn--xs btn--danger"
+                      onClick={() => handleDelete(r.id, r.permit_number)}
+                      disabled={deletingId === r.id}>
                       <Trash2 size={12} /> {deletingId === r.id ? 'Deleting…' : 'Delete'}
                     </button>
                   </div>

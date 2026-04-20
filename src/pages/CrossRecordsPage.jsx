@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams, useLocation } from 'react-router-dom'
-import { Search, AlertCircle, Download } from 'lucide-react'
+import { useAuth } from '../context/AuthContext'
+import { Search, AlertCircle, Download, Plus } from 'lucide-react'
 import { getCrossRecords, buildFacilityMap } from '../firebase/dashboard'
 import { fmtDate, permitStatus } from '../utils/records'
-import { SECTOR_COLORS, ENFORCEMENT_ACTIONS, COMPLIANCE_STATUS } from '../data/constants'
+import { SECTOR_COLORS, ENFORCEMENT_ACTIONS, COMPLIANCE_STATUS, FIELD_ROLES, ADMIN_ROLES } from '../data/constants'
 import Spinner from '../components/Spinner'
 
 // ── Per-category configuration ──────────────────────────
@@ -195,6 +196,7 @@ export default function CrossRecordsPage() {
   const { module } = useParams()
   const navigate = useNavigate()
   const location = useLocation()
+  const { staff } = useAuth()
 
   const collection = URL_TO_COLLECTION[module] ?? module
   const config = CATEGORY_CONFIG[collection]
@@ -204,6 +206,13 @@ export default function CrossRecordsPage() {
   const [error, setError] = useState('')
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState(location.state?.statusFilter ?? '')
+  const [officerFilter, setOfficerFilter] = useState(location.state?.officerUid ?? '')
+
+  // Re-sync filters on every navigation (handles same-route re-navigation)
+  useEffect(() => {
+    setStatusFilter(location.state?.statusFilter ?? '')
+    setOfficerFilter(location.state?.officerUid ?? '')
+  }, [location.key])
 
   useEffect(() => {
     async function load() {
@@ -230,6 +239,11 @@ export default function CrossRecordsPage() {
 
   const filtered = useMemo(() => {
     let result = records
+    if (officerFilter) {
+      result = collection === 'permits'
+        ? result.filter((r) => r.facilityOfficer === officerFilter)
+        : result.filter((r) => r.created_by === officerFilter)
+    }
     if (statusFilter && collection === 'permits') {
       result = result.filter((r) => permitStatus(r.expiry_date) === statusFilter)
     }
@@ -244,7 +258,7 @@ export default function CrossRecordsPage() {
       )
     }
     return result
-  }, [records, search, statusFilter, collection])
+  }, [records, search, statusFilter, officerFilter, collection])
 
   if (!config) return <div className="page"><div className="empty-state">Unknown module.</div></div>
 
@@ -257,14 +271,21 @@ export default function CrossRecordsPage() {
             {loading ? 'Loading…' : `${filtered.length} of ${records.length} records across all facilities`}
           </div>
         </div>
-        {!loading && filtered.length > 0 && (
-          <button
-            className="btn btn--ghost"
-            onClick={() => downloadCSV(toCSV(filtered, collection), `epa-${collection}-${new Date().toISOString().slice(0,10)}.csv`)}
-          >
-            <Download size={14} /> Export CSV
-          </button>
-        )}
+        <div style={{ display: 'flex', gap: 8 }}>
+          {collection === 'enforcement' && (ADMIN_ROLES.has(staff?.role) || FIELD_ROLES.has(staff?.role)) && (
+            <button className="btn btn--primary" onClick={() => navigate('/field-reports/new')}>
+              <Plus size={14} /> Field Report
+            </button>
+          )}
+          {!loading && filtered.length > 0 && (
+            <button
+              className="btn btn--ghost"
+              onClick={() => downloadCSV(toCSV(filtered, collection), `epa-${collection}-${new Date().toISOString().slice(0,10)}.csv`)}
+            >
+              <Download size={14} /> Export CSV
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Search */}
@@ -280,12 +301,20 @@ export default function CrossRecordsPage() {
         </div>
       </div>
 
-      {collection === 'permits' && statusFilter && (
-        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-          <span className="filter-pill">
-            Status: {STATUS_LABELS[statusFilter]}
-            <button onClick={() => setStatusFilter('')}>✕</button>
-          </span>
+      {(officerFilter || (collection === 'permits' && statusFilter)) && (
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', marginBottom: 8 }}>
+          {officerFilter && (
+            <span className="filter-pill">
+              Showing: your records only
+              <button onClick={() => setOfficerFilter('')}>✕</button>
+            </span>
+          )}
+          {collection === 'permits' && statusFilter && (
+            <span className="filter-pill">
+              Status: {STATUS_LABELS[statusFilter]}
+              <button onClick={() => setStatusFilter('')}>✕</button>
+            </span>
+          )}
         </div>
       )}
 

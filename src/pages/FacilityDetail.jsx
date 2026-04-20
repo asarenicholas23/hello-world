@@ -4,11 +4,17 @@ import {
   ArrowLeft, Edit2, Trash2, MapPin, Phone, Mail, User,
   Building2, Hash, FileText, Banknote, ClipboardList,
   Activity, ShieldAlert, AlertCircle, ExternalLink, CheckSquare,
+  UserCheck, Clock, AlertTriangle,
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { getFacility, deleteFacility } from '../firebase/facilities'
-import { SECTOR_COLORS, DISTRICTS } from '../data/constants'
+import { assignRecord, unassignRecord, addSupportingOfficerToRecord, getRecordAssignmentHistory } from '../firebase/assignments'
+import { listStaff } from '../firebase/staff'
+import { SECTOR_COLORS, DISTRICTS, FIELD_ROLES, ADMIN_ROLES } from '../data/constants'
+import { workflowSummary, isPermitStuck } from '../data/workflow'
 import Spinner from '../components/Spinner'
+import AssignOfficerDialog from '../components/AssignOfficerDialog'
+import WorkflowPanel from '../components/WorkflowPanel'
 import PermitsTab from '../components/tabs/PermitsTab'
 import FinanceTab from '../components/tabs/FinanceTab'
 import ScreeningsTab from '../components/tabs/ScreeningsTab'
@@ -25,6 +31,13 @@ const SUB_RECORD_TABS = [
   { key: 'enforcement',        label: 'Enforcement',        icon: ShieldAlert },
 ]
 
+const ACTION_LABELS = {
+  assigned:         'Assigned',
+  reassigned:       'Reassigned',
+  unassigned:       'Unassigned',
+  supporting_added: 'Supporting officer added',
+}
+
 function formatTimestamp(ts) {
   if (!ts) return '—'
   const d = ts.toDate ? ts.toDate() : new Date(ts)
@@ -37,15 +50,28 @@ function districtName(code) {
 
 export default function FacilityDetail() {
   const { fileNumber } = useParams()
-  const { role } = useAuth()
+  const { user, role } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
 
-  const [facility, setFacility] = useState(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
-  const [activeTab, setActiveTab] = useState(location.state?.tab ?? 'permits')
-  const [deleting, setDeleting] = useState(false)
+  const [facility, setFacility]     = useState(null)
+  const [loading, setLoading]       = useState(true)
+  const [error, setError]           = useState('')
+  const [activeTab, setActiveTab]   = useState(location.state?.tab ?? 'permits')
+  const [deleting, setDeleting]     = useState(false)
+
+  // Workflow state
+  const [workflowOpen, setWorkflowOpen]     = useState(false)
+
+  // Assignment state
+  const [dialogOpen, setDialogOpen]         = useState(false)
+  const [allStaff, setAllStaff]             = useState(null)
+  const [historyOpen, setHistoryOpen]       = useState(false)
+  const [history, setHistory]               = useState([])
+  const [historyLoading, setHistoryLoading] = useState(false)
+  const [successMsg, setSuccessMsg]         = useState('')
+
+  const canAssign = ADMIN_ROLES.has(role) || FIELD_ROLES.has(role)
 
   useEffect(() => {
     getFacility(fileNumber)
@@ -57,23 +83,63 @@ export default function FacilityDetail() {
       .finally(() => setLoading(false))
   }, [fileNumber])
 
-  // Activate tab from navigation state without keeping stale state
   useEffect(() => {
     if (location.state?.tab) {
       setActiveTab(location.state.tab)
-      // Clear the state so a back-forward doesn't re-activate
       window.history.replaceState({}, '')
     }
   }, [location.state?.tab])
 
-  async function handleDelete() {
-    if (
-      !window.confirm(
-        `Delete "${facility.name}" (${facility.file_number})?\n\nThis is permanent and cannot be undone.`
-      )
-    )
-      return
+  async function openAssignDialog() {
+    setDialogOpen(true)
+    if (!allStaff) setAllStaff(await listStaff())
+  }
 
+  async function handleAssign({ toUid, toName, type }) {
+    if (type === 'supporting') {
+      await addSupportingOfficerToRecord({
+        basePath: 'facilities', recordId: fileNumber,
+        officerUid: toUid, actorUid: user.uid, actorRole: role,
+      })
+      setFacility((f) => ({
+        ...f, supporting_officers: [...(f.supporting_officers ?? []), toUid],
+      }))
+    } else {
+      await assignRecord({
+        basePath: 'facilities', recordId: fileNumber,
+        toUid, toName, actorUid: user.uid, actorRole: role,
+        fromUid: facility.primary_officer ?? null,
+      })
+      setFacility((f) => ({ ...f, primary_officer: toUid, primary_officer_name: toName }))
+    }
+    flash(type === 'supporting' ? `Supporting officer added.` : `Facility assigned to ${toName}.`)
+  }
+
+  async function handleUnassign() {
+    await unassignRecord({
+      basePath: 'facilities', recordId: fileNumber,
+      fromUid: facility.primary_officer,
+      actorUid: user.uid, actorRole: role,
+    })
+    setFacility((f) => ({ ...f, primary_officer: null, primary_officer_name: null }))
+    flash('Facility unassigned.')
+  }
+
+  async function toggleHistory() {
+    if (historyOpen) { setHistoryOpen(false); return }
+    setHistoryOpen(true)
+    setHistoryLoading(true)
+    try { setHistory(await getRecordAssignmentHistory('facilities', fileNumber)) }
+    finally { setHistoryLoading(false) }
+  }
+
+  function flash(msg) {
+    setSuccessMsg(msg)
+    setTimeout(() => setSuccessMsg(''), 3500)
+  }
+
+  async function handleDelete() {
+    if (!window.confirm(`Delete "${facility.name}" (${facility.file_number})?\n\nThis is permanent and cannot be undone.`)) return
     setDeleting(true)
     try {
       await deleteFacility(fileNumber)
@@ -99,11 +165,11 @@ export default function FacilityDetail() {
     )
   }
 
-  const colors = SECTOR_COLORS[facility.sector_prefix] ?? { bg: '#f3f4f6', text: '#374151' }
+  const colors     = SECTOR_COLORS[facility.sector_prefix] ?? { bg: '#f3f4f6', text: '#374151' }
+  const isAssigned = Boolean(facility.primary_officer)
 
   return (
     <div className="page">
-      {/* Back */}
       <button className="btn btn--ghost btn--sm btn--back" onClick={() => navigate('/facilities')}>
         <ArrowLeft size={14} /> Back to Facilities
       </button>
@@ -130,10 +196,7 @@ export default function FacilityDetail() {
 
         {role === 'admin' && (
           <div className="action-buttons">
-            <button
-              className="btn btn--ghost btn--sm"
-              onClick={() => navigate(`/facilities/${fileNumber}/edit`)}
-            >
+            <button className="btn btn--ghost btn--sm" onClick={() => navigate(`/facilities/${fileNumber}/edit`)}>
               <Edit2 size={14} /> Edit
             </button>
             <button
@@ -148,17 +211,97 @@ export default function FacilityDetail() {
         )}
       </div>
 
+      {/* Assignment bar */}
+      {successMsg && (
+        <div className="assign-success-banner">
+          <UserCheck size={14} /> {successMsg}
+        </div>
+      )}
+      <div className="facility-assignment-bar">
+        <UserCheck size={14} style={{ flexShrink: 0, color: isAssigned ? '#1d4ed8' : '#9ca3af' }} />
+        {isAssigned ? (
+          <>
+            <span className="facility-assignment-bar__name">{facility.primary_officer_name}</span>
+            {facility.supporting_officers?.length > 0 && (
+              <span className="facility-assignment-bar__supporting">
+                +{facility.supporting_officers.length} supporting
+              </span>
+            )}
+          </>
+        ) : (
+          <span className="facility-assignment-bar__unassigned">No officer assigned</span>
+        )}
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
+          {canAssign && (
+            <button className="btn btn--ghost btn--xs" onClick={openAssignDialog}>
+              {isAssigned ? 'Reassign' : 'Assign Officer'}
+            </button>
+          )}
+          <button
+            className="btn btn--ghost btn--xs"
+            style={{ color: '#6b7280', fontSize: 11 }}
+            onClick={toggleHistory}
+          >
+            <Clock size={11} /> {historyOpen ? 'Hide history' : 'History'}
+          </button>
+        </div>
+      </div>
+
+      {/* Workflow bar */}
+      {(() => {
+        const wf    = workflowSummary(facility)
+        const stuck = isPermitStuck(facility)
+        return (
+          <div className="facility-workflow-bar">
+            <div className="permit-workflow-track" style={{ flex: 1, maxWidth: 160 }}>
+              <div className="permit-workflow-fill" style={{ width: `${wf.pct}%` }} />
+            </div>
+            <span className="permit-workflow-label">
+              {wf.step === 0 ? 'Workflow not started'
+                : wf.step >= 10 ? '✓ Workflow complete'
+                : `Step ${wf.step}/10 · ${wf.label}`}
+            </span>
+            {stuck && <span className="permit-stuck-badge"><AlertTriangle size={10} /> Stuck</span>}
+            <button
+              className="btn btn--ghost btn--xs"
+              style={{ marginLeft: 'auto' }}
+              onClick={() => setWorkflowOpen(true)}
+            >
+              Open Workflow →
+            </button>
+          </div>
+        )
+      })()}
+
+      {historyOpen && (
+        <div className="assignment-history" style={{ margin: '4px 0 12px' }}>
+          {historyLoading ? (
+            <span style={{ fontSize: 12, color: '#9ca3af' }}>Loading…</span>
+          ) : history.length === 0 ? (
+            <span style={{ fontSize: 12, color: '#9ca3af' }}>No assignment history yet.</span>
+          ) : (
+            history.map((h) => (
+              <div key={h.id} className="assignment-history__item">
+                <span className="assignment-history__action">{ACTION_LABELS[h.action] ?? h.action}</span>
+                {h.to_officer && <span> → {h.to_officer}</span>}
+                <span className="assignment-history__meta">
+                  · {h.actor_role?.replace(/_/g, ' ')}
+                  {h.timestamp && ` · ${new Date(h.timestamp.toMillis()).toLocaleDateString('en-GH', { day: 'numeric', month: 'short', year: 'numeric' })}`}
+                </span>
+              </div>
+            ))
+          )}
+        </div>
+      )}
+
       {/* Info grid */}
       <div className="detail-grid">
-        {/* Location card */}
         <div className="card">
-          <div className="card-header">
-            <span className="card-title">Location</span>
-          </div>
+          <div className="card-header"><span className="card-title">Location</span></div>
           <div className="info-list">
-            <InfoRow icon={MapPin} label="Location" value={facility.location} />
+            <InfoRow icon={MapPin}    label="Location" value={facility.location} />
             <InfoRow icon={Building2} label="District" value={districtName(facility.district)} />
-            <InfoRow icon={Building2} label="Region" value={facility.region} />
+            <InfoRow icon={Building2} label="Region"   value={facility.region} />
             {facility.coordinates ? (
               <div className="info-item">
                 <MapPin size={14} />
@@ -166,8 +309,7 @@ export default function FacilityDetail() {
                   {facility.coordinates.lat.toFixed(6)}, {facility.coordinates.lng.toFixed(6)}
                   <a
                     href={`https://www.google.com/maps?q=${facility.coordinates.lat},${facility.coordinates.lng}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
+                    target="_blank" rel="noopener noreferrer"
                     style={{ marginLeft: 8, color: '#065f46', display: 'inline-flex', alignItems: 'center', gap: 3 }}
                   >
                     Maps <ExternalLink size={10} />
@@ -180,11 +322,8 @@ export default function FacilityDetail() {
           </div>
         </div>
 
-        {/* Contact card */}
         <div className="card">
-          <div className="card-header">
-            <span className="card-title">Contact</span>
-          </div>
+          <div className="card-header"><span className="card-title">Contact</span></div>
           <div className="info-list">
             <InfoRow icon={User}  label="Contact"     value={facility.contact_person} />
             <InfoRow icon={User}  label="Designation" value={facility.designation} />
@@ -196,7 +335,6 @@ export default function FacilityDetail() {
         </div>
       </div>
 
-      {/* Record info */}
       <div style={{ fontSize: 12, color: '#9ca3af', display: 'flex', gap: 16, flexWrap: 'wrap' }}>
         <span>Registered: {formatTimestamp(facility.created_at)}</span>
         {facility.updated_at && facility.updated_at !== facility.created_at && (
@@ -206,10 +344,7 @@ export default function FacilityDetail() {
 
       {/* Sub-record tabs */}
       <div className="card">
-        <div className="card-header">
-          <span className="card-title">Records</span>
-        </div>
-
+        <div className="card-header"><span className="card-title">Records</span></div>
         <div className="tabs">
           {SUB_RECORD_TABS.map((tab) => {
             const TabIcon = tab.icon
@@ -225,9 +360,8 @@ export default function FacilityDetail() {
             )
           })}
         </div>
-
         <div style={{ padding: '4px 0 8px' }}>
-          {activeTab === 'permits'            && <PermitsTab           fileNumber={fileNumber} role={role} />}
+          {activeTab === 'permits'            && <PermitsTab           fileNumber={fileNumber} facilityOfficer={facility.primary_officer ?? null} />}
           {activeTab === 'finance'            && <FinanceTab           fileNumber={fileNumber} role={role} />}
           {activeTab === 'screenings'         && <ScreeningsTab        fileNumber={fileNumber} role={role} />}
           {activeTab === 'site_verifications' && <SiteVerificationsTab fileNumber={fileNumber} role={role} />}
@@ -235,6 +369,26 @@ export default function FacilityDetail() {
           {activeTab === 'enforcement'        && <EnforcementTab       fileNumber={fileNumber} role={role} />}
         </div>
       </div>
+
+      {workflowOpen && (
+        <WorkflowPanel
+          facility={facility}
+          onClose={() => setWorkflowOpen(false)}
+          onUpdated={(updated) => setFacility(updated)}
+        />
+      )}
+
+      <AssignOfficerDialog
+        key={dialogOpen ? fileNumber : 'closed'}
+        open={dialogOpen}
+        onClose={() => setDialogOpen(false)}
+        onAssign={handleAssign}
+        onUnassign={handleUnassign}
+        record={{ ...facility, label: facility.name }}
+        currentUid={user?.uid}
+        currentRole={role}
+        allStaff={allStaff ?? []}
+      />
     </div>
   )
 }

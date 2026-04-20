@@ -1,13 +1,17 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, UserPlus, Pencil, Trash2, Shield, Banknote, Briefcase } from 'lucide-react'
+import { ArrowLeft, UserPlus, Pencil, Trash2, Shield, Banknote, Briefcase, Star, Eye } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { listStaff, deleteStaff } from '../firebase/staff'
 
 const ROLE_META = {
-  admin:   { label: 'Admin',   icon: Shield,   bg: '#eff6ff', color: '#1d4ed8' },
-  finance: { label: 'Finance', icon: Banknote,  bg: '#ecfdf5', color: '#065f46' },
-  officer: { label: 'Officer', icon: Briefcase, bg: '#fff7ed', color: '#c2410c' },
+  director:          { label: 'Director',          icon: Eye,      bg: '#faf5ff', color: '#7c3aed' },
+  admin:             { label: 'Admin',             icon: Shield,   bg: '#eff6ff', color: '#1d4ed8' },
+  senior_officer:    { label: 'Senior Officer',    icon: Star,     bg: '#f0f9ff', color: '#0369a1' },
+  officer:           { label: 'Officer',           icon: Briefcase,bg: '#fff7ed', color: '#c2410c' },
+  assistant_officer: { label: 'Asst. Officer',     icon: Briefcase,bg: '#fffbeb', color: '#b45309' },
+  junior_officer:    { label: 'Junior Officer',    icon: Briefcase,bg: '#f9fafb', color: '#6b7280' },
+  finance:           { label: 'Finance',           icon: Banknote, bg: '#ecfdf5', color: '#065f46' },
 }
 
 export default function StaffPage() {
@@ -82,12 +86,26 @@ export default function StaffPage() {
                 const meta = ROLE_META[m.role] ?? ROLE_META.officer
                 const RoleIcon = meta.icon
                 const isSelf = m.id === currentStaff?.uid
+                const avatarBg = m.picture_url ? 'transparent' : meta.color
                 return (
                   <tr key={m.id} className={isSelf ? 'staff-table__self' : ''}>
                     <td className="staff-table__id">{m.staff_id}</td>
                     <td className="staff-table__name">
-                      {m.name}
-                      {isSelf && <span className="staff-self-badge">you</span>}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <div
+                          className="staff-table__avatar"
+                          style={{ background: avatarBg }}
+                        >
+                          {m.picture_url
+                            ? <img src={m.picture_url} alt={m.name} className="profile-avatar__img" />
+                            : m.name?.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase()
+                          }
+                        </div>
+                        <div>
+                          <div>{m.name}{isSelf && <span className="staff-self-badge">you</span>}</div>
+                          {m.designation && <div style={{ fontSize: 11, color: '#9ca3af' }}>{m.designation}</div>}
+                        </div>
+                      </div>
                     </td>
                     <td>
                       <span className="staff-role-badge" style={{ background: meta.bg, color: meta.color }}>

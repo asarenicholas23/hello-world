@@ -18,6 +18,16 @@ import MonitoringForm from './pages/MonitoringForm'
 import EnforcementForm from './pages/EnforcementForm'
 import CrossRecordsPage from './pages/CrossRecordsPage'
 import ImportPage from './pages/ImportPage'
+import FieldReportsPage from './pages/FieldReportsPage'
+import FieldReportForm from './pages/FieldReportForm'
+import PermitAnalyticsPage from './pages/PermitAnalyticsPage'
+import MyAssignmentsPage from './pages/MyAssignmentsPage'
+import AllAssignmentsPage from './pages/AllAssignmentsPage'
+import MyProfilePage from './pages/MyProfilePage'
+import ComplaintsPage from './pages/ComplaintsPage'
+import ComplaintForm from './pages/ComplaintForm'
+import EnvironmentalEducationPage from './pages/EnvironmentalEducationPage'
+import EnvEducationForm from './pages/EnvEducationForm'
 
 export default function App() {
   return (
@@ -74,6 +84,30 @@ export default function App() {
 
               {/* Admin utilities */}
               <Route path="import" element={<ImportPage />} />
+
+              {/* Field Reports */}
+              <Route path="field-reports" element={<FieldReportsPage />} />
+              <Route path="field-reports/new" element={<FieldReportForm />} />
+
+              {/* Permit Analytics */}
+              <Route path="permit-analytics" element={<PermitAnalyticsPage />} />
+
+              {/* Assignments */}
+              <Route path="my-assignments" element={<MyAssignmentsPage />} />
+              <Route path="all-assignments" element={<AllAssignmentsPage />} />
+
+              {/* Profile */}
+              <Route path="profile" element={<MyProfilePage />} />
+
+              {/* Complaints */}
+              <Route path="complaints" element={<ComplaintsPage />} />
+              <Route path="complaints/new" element={<ComplaintForm />} />
+              <Route path="complaints/:id/edit" element={<ComplaintForm />} />
+
+              {/* Environmental Education */}
+              <Route path="env-education" element={<EnvironmentalEducationPage />} />
+              <Route path="env-education/new" element={<EnvEducationForm />} />
+              <Route path="env-education/:id/edit" element={<EnvEducationForm />} />
 
               {/* Cross-facility module views */}
               <Route path=":module" element={<CrossRecordsPage />} />

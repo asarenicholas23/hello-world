@@ -11,13 +11,22 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/staff/$(request.auth.uid)).data.role;
     }
 
-    function isAdmin()   { return isAuthed() && staffRole() == 'admin';   }
-    function isFinance() { return isAuthed() && staffRole() == 'finance';  }
-    function isOfficer() { return isAuthed() && staffRole() == 'officer';  }
+    function isDirector()         { return isAuthed() && staffRole() == 'director'; }
+    function isAdmin()            { return isAuthed() && staffRole() == 'admin'; }
+    function isSeniorOfficer()    { return isAuthed() && staffRole() == 'senior_officer'; }
+    function isOfficer()          { return isAuthed() && staffRole() == 'officer'; }
+    function isAssistantOfficer() { return isAuthed() && staffRole() == 'assistant_officer'; }
+    function isJuniorOfficer()    { return isAuthed() && staffRole() == 'junior_officer'; }
+    function isFinance()          { return isAuthed() && staffRole() == 'finance'; }
+
+    // Any role that does field work
+    function isFieldRole() {
+      return isSeniorOfficer() || isOfficer() || isAssistantOfficer() || isJuniorOfficer();
+    }
 
     // ── Staff ──────────────────────────────────────────────────
     // Any authenticated user can read staff docs (needed for name lookups).
-    // Only admins can create/update/delete staff docs.
+    // Only admin can create/update/delete staff docs.
     match /staff/{uid} {
       allow read:             if isAuthed();
       allow create, update,
@@ -34,14 +43,21 @@ service cloud.firestore {
     // ── Facilities ─────────────────────────────────────────────
     match /facilities/{fileNumber} {
       allow read:          if isAuthed();
-      allow create:        if isAuthed();
-      allow update:        if isAdmin() || isFinance() || isOfficer();
+      allow create:        if isAdmin() || isFieldRole();
+      allow update:        if isAdmin() || isFinance() || isFieldRole();
       allow delete:        if isAdmin();
 
       // Permits — admin only
       match /permits/{id} {
-        allow read:        if isAuthed();
-        allow write:       if isAdmin();
+        allow read:  if isAuthed();
+        allow write: if isAdmin();
+      }
+
+      // Assignment history on the facility itself (append-only)
+      match /assignment_history/{hid} {
+        allow read:           if isAuthed();
+        allow create:         if isAdmin() || isFieldRole();
+        allow update, delete: if false;
       }
 
       // Finance — admin or finance role
@@ -50,26 +66,56 @@ service cloud.firestore {
         allow write:       if isAdmin() || isFinance();
       }
 
-      // Field sub-records — admin or officer
+      // Field sub-records — admin or any field role
       match /screenings/{id} {
         allow read:        if isAuthed();
-        allow write:       if isAdmin() || isOfficer();
+        allow write:       if isAdmin() || isFieldRole();
       }
 
       match /site_verifications/{id} {
         allow read:        if isAuthed();
-        allow write:       if isAdmin() || isOfficer();
+        allow write:       if isAdmin() || isFieldRole();
       }
 
       match /monitoring/{id} {
         allow read:        if isAuthed();
-        allow write:       if isAdmin() || isOfficer();
+        allow write:       if isAdmin() || isFieldRole();
       }
 
       match /enforcement/{id} {
         allow read:        if isAuthed();
-        allow write:       if isAdmin() || isOfficer();
+        allow write:       if isAdmin() || isFieldRole();
       }
+    }
+
+    // ── Field Reports (top-level collection for unregistered facilities) ──
+    match /field_reports/{id} {
+      allow read:   if isAuthed();
+      allow create: if isAdmin() || isFieldRole();
+      allow update: if isAdmin() || isFieldRole();
+      allow delete: if isAdmin();
+
+      match /assignment_history/{hid} {
+        allow read:           if isAuthed();
+        allow create:         if isAdmin() || isFieldRole();
+        allow update, delete: if false;
+      }
+    }
+
+    // ── Complaints ─────────────────────────────────────────────────
+    match /complaints/{id} {
+      allow read:          if isAuthed();
+      allow create:        if isAdmin() || isFieldRole();
+      allow update:        if isAdmin() || (isFieldRole() && resource.data.created_by == request.auth.uid);
+      allow delete:        if isAdmin();
+    }
+
+    // ── Environmental Education ────────────────────────────────────
+    match /environmental_education/{id} {
+      allow read:          if isAuthed();
+      allow create:        if isAdmin() || isFieldRole();
+      allow update:        if isAdmin() || (isFieldRole() && resource.data.created_by == request.auth.uid);
+      allow delete:        if isAdmin();
     }
 
     // ── collectionGroup reads (cross-facility views & dashboard) ──
@@ -77,6 +123,7 @@ service cloud.firestore {
     // dashboard and cross-facility listing pages. Write access is still
     // governed by the specific subcollection rules above.
     match /{path=**}/permits/{id}            { allow read: if isAuthed(); }
+    match /{path=**}/assignment_history/{id}  { allow read: if isAuthed(); }
     match /{path=**}/finance/{id}            { allow read: if isAuthed(); }
     match /{path=**}/screenings/{id}         { allow read: if isAuthed(); }
     match /{path=**}/site_verifications/{id} { allow read: if isAuthed(); }

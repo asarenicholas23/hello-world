@@ -4,6 +4,7 @@ import { Building2, MapPin, Phone, Plus, Search, User, AlertCircle, Clock, Trash
 import { useAuth } from '../context/AuthContext'
 import { useSync } from '../context/SyncContext'
 import { listFacilities } from '../firebase/facilities'
+import { getPermitStatusMap } from '../firebase/dashboard'
 import { SECTORS, DISTRICTS, SECTOR_COLORS } from '../data/constants'
 import Spinner from '../components/Spinner'
 
@@ -33,11 +34,20 @@ export default function Facilities() {
   const [error, setError] = useState('')
   const draftSaved = location.state?.draftSaved ?? false
 
-  const [search, setSearch]           = useState('')
-  const [sectorFilter, setSectorFilter] = useState('')
+  const [search, setSearch]                 = useState('')
+  const [sectorFilter, setSectorFilter]     = useState('')
   const [districtFilter, setDistrictFilter] = useState('')
-  const [sort, setSort]               = useState('newest')
-  const [view, setView]               = useState(() => localStorage.getItem('facilities-view') ?? 'table')
+  const [permitFilter, setPermitFilter]     = useState('')
+  const [officerFilter, setOfficerFilter]   = useState(location.state?.officerUid ?? '')
+
+  // Re-sync on every navigation (handles same-route re-navigation)
+  useEffect(() => {
+    setOfficerFilter(location.state?.officerUid ?? '')
+  }, [location.key])
+  const [permitStatusMap, setPermitStatusMap] = useState(null)
+  const [permitMapLoading, setPermitMapLoading] = useState(false)
+  const [sort, setSort]   = useState('newest')
+  const [view, setView]   = useState(() => localStorage.getItem('facilities-view') ?? 'table')
 
   function toggleView(v) {
     setView(v)
@@ -51,6 +61,15 @@ export default function Facilities() {
       .finally(() => setLoading(false))
   }, [])
 
+  useEffect(() => {
+    if (!permitFilter || permitStatusMap !== null || permitMapLoading) return
+    setPermitMapLoading(true)
+    getPermitStatusMap()
+      .then(setPermitStatusMap)
+      .catch(() => {})
+      .finally(() => setPermitMapLoading(false))
+  }, [permitFilter, permitStatusMap, permitMapLoading])
+
   const filtered = useMemo(() => {
     const q = search.toLowerCase()
     const base = facilities.filter((f) => {
@@ -62,12 +81,18 @@ export default function Facilities() {
         f.location?.toLowerCase().includes(q)
       const matchesSector   = !sectorFilter   || f.sector_prefix === sectorFilter
       const matchesDistrict = !districtFilter || f.district       === districtFilter
-      return matchesSearch && matchesSector && matchesDistrict
+      const matchesOfficer  = !officerFilter  || f.primary_officer === officerFilter
+      let matchesPermit = true
+      if (permitFilter && permitStatusMap !== null) {
+        const status = permitStatusMap[f.file_number] ?? 'none'
+        matchesPermit = status === permitFilter
+      }
+      return matchesSearch && matchesSector && matchesDistrict && matchesPermit && matchesOfficer
     })
     return sortFacilities(base, sort)
-  }, [facilities, search, sectorFilter, districtFilter, sort])
+  }, [facilities, search, sectorFilter, districtFilter, permitFilter, officerFilter, permitStatusMap, sort])
 
-  const activeFilters = [sectorFilter, districtFilter].filter(Boolean).length
+  const activeFilters = [sectorFilter, districtFilter, permitFilter, officerFilter].filter(Boolean).length
 
   return (
     <div className="page">
@@ -116,6 +141,20 @@ export default function Facilities() {
         </div>
 
         <div className="filter-group">
+          <select
+            className="select"
+            value={permitFilter}
+            onChange={(e) => setPermitFilter(e.target.value)}
+          >
+            <option value="">All permit statuses</option>
+            <option value="active">Active permit</option>
+            <option value="expiring">Expiring ≤60 days</option>
+            <option value="expired">Expired permit</option>
+            <option value="none">No permit on file</option>
+          </select>
+        </div>
+
+        <div className="filter-group">
           <select className="select" value={sort} onChange={(e) => setSort(e.target.value)}>
             {SORT_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
@@ -142,6 +181,12 @@ export default function Facilities() {
       {/* Active filter pills */}
       {activeFilters > 0 && (
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
+          {officerFilter && (
+            <span className="filter-pill">
+              Showing: your assigned facilities
+              <button onClick={() => setOfficerFilter('')}>✕</button>
+            </span>
+          )}
           {sectorFilter && (
             <span className="filter-pill">
               Sector: {SECTORS.find((s) => s.prefix === sectorFilter)?.name}
@@ -154,9 +199,16 @@ export default function Facilities() {
               <button onClick={() => setDistrictFilter('')}>✕</button>
             </span>
           )}
+          {permitFilter && (
+            <span className="filter-pill">
+              Permit: {permitFilter === 'none' ? 'No permit on file' : permitFilter === 'active' ? 'Active' : permitFilter === 'expiring' ? 'Expiring ≤60d' : 'Expired'}
+              {permitMapLoading && ' (loading…)'}
+              <button onClick={() => setPermitFilter('')}>✕</button>
+            </span>
+          )}
           <button
             className="btn btn--ghost btn--xs"
-            onClick={() => { setSectorFilter(''); setDistrictFilter(''); setSearch('') }}
+            onClick={() => { setSectorFilter(''); setDistrictFilter(''); setPermitFilter(''); setOfficerFilter(''); setSearch('') }}
           >
             Clear all
           </button>

@@ -4,6 +4,7 @@ import { Plus, Edit2, Trash2, AlertCircle, Image } from 'lucide-react'
 import { listSubRecords, deleteSubRecord } from '../../firebase/subrecords'
 import { fmtDate } from '../../utils/records'
 import Spinner from '../Spinner'
+import { FIELD_ROLES } from '../../data/constants'
 
 export default function SiteVerificationsTab({ fileNumber, role }) {
   const navigate = useNavigate()
@@ -31,7 +32,7 @@ export default function SiteVerificationsTab({ fileNumber, role }) {
     finally { setDeletingId(null) }
   }
 
-  const canEdit = role === 'admin' || role === 'officer'
+  const canEdit = role === 'admin' || FIELD_ROLES.has(role)
 
   if (loading) return <div className="tab-loading"><Spinner size={24} /></div>
   if (error) return <div className="login-error" style={{ margin: '12px 0' }}><AlertCircle size={14} /> {error}</div>

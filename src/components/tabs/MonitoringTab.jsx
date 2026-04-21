@@ -5,6 +5,7 @@ import { listSubRecords, deleteSubRecord } from '../../firebase/subrecords'
 import { fmtDate } from '../../utils/records'
 import { COMPLIANCE_STATUS } from '../../data/constants'
 import Spinner from '../Spinner'
+import { FIELD_ROLES } from '../../data/constants'
 
 const COMPLIANCE_COLORS = {
   compliant:     { bg: '#dcfce7', color: '#166534' },
@@ -38,7 +39,7 @@ export default function MonitoringTab({ fileNumber, role }) {
     finally { setDeletingId(null) }
   }
 
-  const canEdit = role === 'admin' || role === 'officer'
+  const canEdit = role === 'admin' || FIELD_ROLES.has(role)
   const statusLabel = (val) => COMPLIANCE_STATUS.find((s) => s.value === val)?.label ?? val
 
   if (loading) return <div className="tab-loading"><Spinner size={24} /></div>

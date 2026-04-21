@@ -5,6 +5,7 @@ import { listSubRecords, deleteSubRecord } from '../../firebase/subrecords'
 import { fmtDate } from '../../utils/records'
 import { ENFORCEMENT_ACTIONS } from '../../data/constants'
 import Spinner from '../Spinner'
+import { FIELD_ROLES } from '../../data/constants'
 
 const ACTION_COLORS = {
   warning: { bg: '#fef9c3', color: '#854d0e' },
@@ -40,7 +41,7 @@ export default function EnforcementTab({ fileNumber, role }) {
     finally { setDeletingId(null) }
   }
 
-  const canEdit = role === 'admin' || role === 'officer'
+  const canEdit = role === 'admin' || FIELD_ROLES.has(role)
   const actionLabel = (val) => ENFORCEMENT_ACTIONS.find((a) => a.value === val)?.label ?? val
 
   if (loading) return <div className="tab-loading"><Spinner size={24} /></div>

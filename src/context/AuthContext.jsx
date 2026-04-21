@@ -55,6 +55,12 @@ export function AuthProvider({ children }) {
     setStaffError(null)
   }
 
+  async function refreshStaff() {
+    if (!auth.currentUser) return
+    const snap = await getDoc(doc(db, 'staff', auth.currentUser.uid))
+    if (snap.exists()) setStaff(snap.data())
+  }
+
   const value = {
     user,
     staff,
@@ -64,6 +70,7 @@ export function AuthProvider({ children }) {
     staffError,
     login,
     logout,
+    refreshStaff,
   }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

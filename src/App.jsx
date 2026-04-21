@@ -28,6 +28,7 @@ import ComplaintsPage from './pages/ComplaintsPage'
 import ComplaintForm from './pages/ComplaintForm'
 import EnvironmentalEducationPage from './pages/EnvironmentalEducationPage'
 import EnvEducationForm from './pages/EnvEducationForm'
+import SmsPage from './pages/SmsPage'
 
 export default function App() {
   return (
@@ -108,6 +109,9 @@ export default function App() {
               <Route path="env-education" element={<EnvironmentalEducationPage />} />
               <Route path="env-education/new" element={<EnvEducationForm />} />
               <Route path="env-education/:id/edit" element={<EnvEducationForm />} />
+
+              {/* SMS */}
+              <Route path="sms" element={<SmsPage />} />
 
               {/* Cross-facility module views */}
               <Route path=":module" element={<CrossRecordsPage />} />

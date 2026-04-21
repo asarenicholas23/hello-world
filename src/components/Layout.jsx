@@ -6,7 +6,7 @@ import {
   LayoutDashboard, Building2, FileText, Banknote,
   Users, ClipboardList, Activity, ShieldAlert, CheckSquare,
   LogOut, Menu, X, Leaf, Upload, Flag, BarChart2,
-  Briefcase, LayoutList, MessageSquare, GraduationCap,
+  Briefcase, LayoutList, MessageSquare, GraduationCap, BellRing,
 } from 'lucide-react'
 
 const ADMIN_NAV = [
@@ -21,6 +21,7 @@ const ADMIN_NAV = [
   { label: 'Field Reports',    icon: Flag,            path: '/field-reports' },
   { label: 'Complaints',       icon: MessageSquare,   path: '/complaints',    dividerBefore: true },
   { label: 'Env. Education',   icon: GraduationCap,   path: '/env-education' },
+  { label: 'SMS',              icon: BellRing,        path: '/sms',           dividerBefore: true },
 ]
 
 const FIELD_NAV = [
@@ -68,6 +69,7 @@ const PAGE_TITLE = {
   '/complaints':         'Complaints',
   '/env-education':      'Environmental Education',
   '/profile':            'My Profile',
+  '/sms':               'SMS Notifications',
 }
 
 function usePageTitle() {

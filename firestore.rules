@@ -26,11 +26,16 @@ service cloud.firestore {
 
     // ── Staff ──────────────────────────────────────────────────
     // Any authenticated user can read staff docs (needed for name lookups).
-    // Only admin can create/update/delete staff docs.
+    // Admin can do anything. A user can update their own doc provided they
+    // don't change their role, staff_id, or role_level.
     match /staff/{uid} {
       allow read:             if isAuthed();
-      allow create, update,
-            delete:           if isAdmin();
+      allow create, delete:   if isAdmin();
+      allow update:           if isAdmin()
+                                || (isAuthed() && request.auth.uid == uid
+                                    && request.resource.data.role       == resource.data.role
+                                    && request.resource.data.staff_id   == resource.data.staff_id
+                                    && request.resource.data.role_level == resource.data.role_level);
     }
 
     // ── Counters ───────────────────────────────────────────────
@@ -118,6 +123,15 @@ service cloud.firestore {
       allow create:        if isAdmin() || isFieldRole();
       allow update:        if isAdmin() || (isFieldRole() && resource.data.created_by == request.auth.uid);
       allow delete:        if isAdmin();
+    }
+
+    // ── SMS log (written only by Cloud Functions via Admin SDK) ───
+    match /sms_log/{id} {
+      allow read:  if isAdmin() || isDirector();
+      allow write: if false;
+    }
+    match /sms_dedup/{id} {
+      allow read, write: if false;
     }
 
     // ── collectionGroup reads (cross-facility views & dashboard) ──

@@ -73,11 +73,15 @@ export default function StaffForm() {
     setSaving(true)
     try {
       if (isEdit) {
-        await updateStaff(uid, form)
-        if (photoFile) await uploadStaffPhoto(uid, photoFile)
+        let picture_url
+        if (photoFile) picture_url = await uploadStaffPhoto(uid, photoFile)
+        await updateStaff(uid, { ...form, picture_url })
       } else {
         const newUid = await createStaff(form, user.uid)
-        if (photoFile) await uploadStaffPhoto(newUid, photoFile)
+        if (photoFile) {
+          const picture_url = await uploadStaffPhoto(newUid, photoFile)
+          await updateStaff(newUid, { ...form, role: form.role, picture_url })
+        }
       }
       navigate('/staff')
     } catch (err) {

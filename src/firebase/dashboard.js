@@ -20,8 +20,19 @@ function tsMs(ts) {
   return ts.toMillis ? ts.toMillis() : ts.seconds ? ts.seconds * 1000 : 0
 }
 
-export async function getMyActivityStats(uid) {
-  const { start, end, label } = quarterRange()
+export async function getMyActivityStats(uid, startMs, endMs) {
+  let start, end, label
+  if (startMs != null && endMs != null) {
+    start = startMs
+    end   = endMs
+    const fmt = (ms) => new Date(ms).toLocaleDateString('en-GH', { day: 'numeric', month: 'short', year: 'numeric' })
+    label = `${fmt(startMs)} – ${fmt(endMs)}`
+  } else {
+    const q = quarterRange()
+    start = q.start
+    end   = q.end
+    label = q.label
+  }
 
   const [screenSnap, monSnap, enfSnap, siteSnap, permitSnap, complaintsSnap, envEdSnap, facilities] = await Promise.all([
     getDocs(collectionGroup(db, 'screenings')),
@@ -175,7 +186,7 @@ export async function getPermitStatusMap() {
   return map // { [fileNumber]: 'active' | 'expiring' | 'expired' }
 }
 
-export async function getFinanceStats() {
+export async function getFinanceStats(startMs, endMs) {
   const snap = await getDocs(collectionGroup(db, 'finance'))
 
   const totals = { revenue: 0, unpaid: 0 }
@@ -187,6 +198,11 @@ export async function getFinanceStats() {
 
   snap.docs.forEach((d) => {
     const data = d.data()
+    // Date-range filter (optional)
+    if (startMs != null && endMs != null) {
+      const docMs = tsMs(data.date) || tsMs(data.created_at)
+      if (docMs < startMs || docMs > endMs) return
+    }
     const fileNumber = d.ref.parent.parent.id
     facilitiesWithFinance.add(fileNumber)
     const amount = Number(data.amount) || 0

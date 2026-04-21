@@ -74,8 +74,8 @@ export async function createStaff(
   return user.uid
 }
 
-export async function updateStaff(uid, { name, role, phone, designation, qualification, date_of_appointment, date_of_birth, address }) {
-  await updateDoc(doc(db, 'staff', uid), {
+export async function updateStaff(uid, { name, role, phone, designation, qualification, date_of_appointment, date_of_birth, address, picture_url }) {
+  const data = {
     name,
     role,
     role_level:          ROLE_LEVEL[role] ?? null,
@@ -86,7 +86,9 @@ export async function updateStaff(uid, { name, role, phone, designation, qualifi
     date_of_birth:       date_of_birth ?? '',
     address:             address ?? '',
     updated_at:          serverTimestamp(),
-  })
+  }
+  if (picture_url !== undefined) data.picture_url = picture_url
+  await updateDoc(doc(db, 'staff', uid), data)
 }
 
 export async function deleteStaff(uid) {

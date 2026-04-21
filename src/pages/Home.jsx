@@ -63,19 +63,33 @@ export default function Home() {
   const [myStats, setMyStats]           = useState(null)
   const [financeStats, setFinanceStats] = useState(null)
 
+  const [dateFrom, setDateFrom]     = useState('')
+  const [dateTo, setDateTo]         = useState('')
+  const [activeFrom, setActiveFrom] = useState(null)
+  const [activeTo, setActiveTo]     = useState(null)
+
+  function applyDateFilter() {
+    setActiveFrom(dateFrom ? new Date(dateFrom).getTime() : null)
+    setActiveTo(dateTo   ? new Date(dateTo + 'T23:59:59').getTime() : null)
+  }
+  function clearDateFilter() {
+    setDateFrom(''); setDateTo('')
+    setActiveFrom(null); setActiveTo(null)
+  }
+
   useEffect(() => {
     getDashboardStats().then(setStats).catch(() => {})
     if (ADMIN_ROLES.has(role) || role === 'finance') {
       getPermitStats().then(setPermitStats).catch(() => {})
-      getFinanceStats().then(setFinanceStats).catch(() => {})
+      getFinanceStats(activeFrom, activeTo).then(setFinanceStats).catch(() => {})
     }
     if (FIELD_ROLES.has(role)) {
       getFieldStats().then(setFieldStats).catch(() => {})
     }
     if (user?.uid && role !== 'finance') {
-      getMyActivityStats(user.uid).then(setMyStats).catch(() => {})
+      getMyActivityStats(user.uid, activeFrom, activeTo).then(setMyStats).catch(() => {})
     }
-  }, [role, user?.uid])
+  }, [role, user?.uid, activeFrom, activeTo])
 
   const sectorMax = stats
     ? Math.max(...Object.values(stats.bySector), 1)
@@ -95,6 +109,30 @@ export default function Home() {
           {staff?.designation && <span className="home-welcome__badge">{staff.designation}</span>}
         </div>
       </div>
+
+      {/* ── Date range filter ───────────────────────────── */}
+      {(showMyActivity || showFinanceOverview) && (
+        <div className="dash-date-filter">
+          <span className="dash-date-filter__label">Period:</span>
+          <input
+            type="date" className="filter-select" style={{ width: 140 }}
+            value={dateFrom} onChange={(e) => setDateFrom(e.target.value)}
+            title="From date"
+          />
+          <span style={{ color: '#9ca3af', fontSize: 13 }}>to</span>
+          <input
+            type="date" className="filter-select" style={{ width: 140 }}
+            value={dateTo} onChange={(e) => setDateTo(e.target.value)}
+            title="To date"
+          />
+          <button className="btn btn--primary btn--sm" onClick={applyDateFilter} disabled={!dateFrom && !dateTo}>
+            Apply
+          </button>
+          {(activeFrom || activeTo) && (
+            <button className="btn btn--ghost btn--sm" onClick={clearDateFilter}>Clear</button>
+          )}
+        </div>
+      )}
 
       {/* ── My Activity ─────────────────────────────────── */}
       {showMyActivity && myStats && (

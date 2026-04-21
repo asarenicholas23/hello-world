@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { Search, AlertCircle, Download, Plus } from 'lucide-react'
+import { Search, AlertCircle, Download, Plus, LayoutGrid, Table2 } from 'lucide-react'
 import { getCrossRecords, buildFacilityMap } from '../firebase/dashboard'
 import { fmtDate, permitStatus } from '../utils/records'
-import { SECTOR_COLORS, ENFORCEMENT_ACTIONS, COMPLIANCE_STATUS, FIELD_ROLES, ADMIN_ROLES } from '../data/constants'
+import { SECTOR_COLORS, ENFORCEMENT_ACTIONS, COMPLIANCE_STATUS, FIELD_ROLES, ADMIN_ROLES, PAYMENT_TYPES } from '../data/constants'
 import Spinner from '../components/Spinner'
 
 // ── Per-category configuration ──────────────────────────
@@ -163,8 +163,8 @@ function toCSV(rows, category) {
       row: (r) => [r.fileNumber, r.facilityName, r.facilitySector, r.facilityUndertaking, r.facilityLocation, r.facilityDistrict, r.facilityContact, r.facilityDesignation, r.facilityPhone, r.facilityEmail, r.permit_number, fmt(r.issue_date), fmt(r.effective_date), fmt(r.expiry_date), r.issue_location, STATUS_LABELS[permitStatus(r.expiry_date)] ?? '', r.notes],
     },
     finance: {
-      headers: ['File No.', 'Facility', 'Sector', 'Date', 'Payment Type', 'Amount', 'Currency', 'Reference', 'Notes'],
-      row: (r) => [r.fileNumber, r.facilityName, r.sectorPrefix, fmt(r.date), r.payment_type, r.amount, r.currency, r.reference_number, r.notes],
+      headers: ['File No.', 'Facility', 'Sector', 'Date', 'Payment Type', 'Amount', 'Currency', 'Payment Status', 'Reference', 'Notes'],
+      row: (r) => [r.fileNumber, r.facilityName, r.sectorPrefix, fmt(r.date), r.payment_type, r.amount, r.currency, (r.payment_status ?? 'paid') === 'unpaid' ? 'Unpaid' : 'Paid', r.reference_number, r.notes],
     },
     screenings: {
       headers: ['File No.', 'Facility', 'Sector', 'Date', 'Officer', 'Notes'],
@@ -219,6 +219,10 @@ export default function CrossRecordsPage() {
   const [officerFilter, setOfficerFilter]     = useState(location.state?.officerUid ?? '')
   const [paymentTypeFilter, setPaymentTypeFilter]     = useState(location.state?.paymentType ?? '')
   const [paymentStatusFilter, setPaymentStatusFilter] = useState(location.state?.paymentStatus ?? '')
+  const [viewMode, setViewMode] = useState(() => localStorage.getItem('finance-view') ?? 'cards')
+  const [dateFrom, setDateFrom]           = useState('')
+  const [dateTo, setDateTo]               = useState('')
+  const [permitDateField, setPermitDateField] = useState('expiry_date')
 
   // Re-sync filters on every navigation (handles same-route re-navigation)
   useEffect(() => {
@@ -226,6 +230,8 @@ export default function CrossRecordsPage() {
     setOfficerFilter(location.state?.officerUid ?? '')
     setPaymentTypeFilter(location.state?.paymentType ?? '')
     setPaymentStatusFilter(location.state?.paymentStatus ?? '')
+    setDateFrom('')
+    setDateTo('')
   }, [location.key])
 
   useEffect(() => {
@@ -267,6 +273,23 @@ export default function CrossRecordsPage() {
     if (paymentStatusFilter && collection === 'finance') {
       result = result.filter((r) => (r.payment_status ?? 'paid') === paymentStatusFilter)
     }
+    if (dateFrom || dateTo) {
+      const getRecordDate = (r) => {
+        const raw = collection === 'permits' ? r[permitDateField] : r.date
+        if (!raw) return null
+        const ts = raw?.toDate ? raw.toDate() : new Date(raw)
+        return isNaN(ts) ? null : ts
+      }
+      const from = dateFrom ? new Date(dateFrom) : null
+      const to   = dateTo   ? new Date(dateTo + 'T23:59:59') : null
+      result = result.filter((r) => {
+        const d = getRecordDate(r)
+        if (!d) return false
+        if (from && d < from) return false
+        if (to   && d > to)   return false
+        return true
+      })
+    }
     if (search.trim()) {
       const q = search.toLowerCase()
       result = result.filter(
@@ -278,7 +301,19 @@ export default function CrossRecordsPage() {
       )
     }
     return result
-  }, [records, search, statusFilter, officerFilter, paymentTypeFilter, paymentStatusFilter, collection])
+  }, [records, search, statusFilter, officerFilter, paymentTypeFilter, paymentStatusFilter, dateFrom, dateTo, permitDateField, collection])
+
+  const financeTotals = useMemo(() => {
+    if (collection !== 'finance') return null
+    let total = 0, paid = 0, unpaid = 0
+    filtered.forEach((r) => {
+      const amount = Number(r.amount ?? 0)
+      total += amount
+      if ((r.payment_status ?? 'paid') === 'unpaid') unpaid += amount
+      else paid += amount
+    })
+    return { total, paid, unpaid }
+  }, [filtered, collection])
 
   if (!config) return <div className="page"><div className="empty-state">Unknown module.</div></div>
 
@@ -308,7 +343,7 @@ export default function CrossRecordsPage() {
         </div>
       </div>
 
-      {/* Search */}
+      {/* Search + filters */}
       <div className="filter-bar">
         <div className="search-box" style={{ flex: 1 }}>
           <Search size={15} className="search-icon" />
@@ -319,9 +354,73 @@ export default function CrossRecordsPage() {
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
+        {collection === 'permits' && (
+          <select
+            className="filter-select"
+            value={permitDateField}
+            onChange={(e) => setPermitDateField(e.target.value)}
+          >
+            <option value="expiry_date">Expiry Date</option>
+            <option value="issue_date">Issue Date</option>
+            <option value="effective_date">Effective Date</option>
+          </select>
+        )}
+        <input
+          type="date"
+          className="filter-select"
+          value={dateFrom}
+          onChange={(e) => setDateFrom(e.target.value)}
+          title="From date"
+          style={{ width: 140 }}
+        />
+        <input
+          type="date"
+          className="filter-select"
+          value={dateTo}
+          onChange={(e) => setDateTo(e.target.value)}
+          title="To date"
+          style={{ width: 140 }}
+        />
+        {collection === 'finance' && (
+          <>
+            <select
+              className="filter-select"
+              value={paymentTypeFilter}
+              onChange={(e) => setPaymentTypeFilter(e.target.value)}
+            >
+              <option value="">All Types</option>
+              {PAYMENT_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+            </select>
+            <select
+              className="filter-select"
+              value={paymentStatusFilter}
+              onChange={(e) => setPaymentStatusFilter(e.target.value)}
+            >
+              <option value="">All Status</option>
+              <option value="paid">Paid</option>
+              <option value="unpaid">Unpaid</option>
+            </select>
+            <div className="view-toggle">
+              <button
+                className={`view-toggle__btn${viewMode === 'cards' ? ' view-toggle__btn--active' : ''}`}
+                onClick={() => { setViewMode('cards'); localStorage.setItem('finance-view', 'cards') }}
+                title="Card view"
+              >
+                <LayoutGrid size={15} />
+              </button>
+              <button
+                className={`view-toggle__btn${viewMode === 'table' ? ' view-toggle__btn--active' : ''}`}
+                onClick={() => { setViewMode('table'); localStorage.setItem('finance-view', 'table') }}
+                title="Table view"
+              >
+                <Table2 size={15} />
+              </button>
+            </div>
+          </>
+        )}
       </div>
 
-      {(officerFilter || (collection === 'permits' && statusFilter) || paymentTypeFilter || paymentStatusFilter) && (
+      {(officerFilter || (collection === 'permits' && statusFilter) || paymentTypeFilter || paymentStatusFilter || dateFrom || dateTo) && (
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', marginBottom: 8 }}>
           {officerFilter && (
             <span className="filter-pill">
@@ -347,6 +446,45 @@ export default function CrossRecordsPage() {
               <button onClick={() => setPaymentStatusFilter('')}>✕</button>
             </span>
           )}
+          {(dateFrom || dateTo) && (
+            <span className="filter-pill">
+              {collection === 'permits' && (
+                <span style={{ opacity: 0.7 }}>
+                  {{ expiry_date: 'Expiry', issue_date: 'Issue', effective_date: 'Effective' }[permitDateField]}:&nbsp;
+                </span>
+              )}
+              {dateFrom && dateTo ? `${dateFrom} → ${dateTo}` : dateFrom ? `From ${dateFrom}` : `Until ${dateTo}`}
+              <button onClick={() => { setDateFrom(''); setDateTo('') }}>✕</button>
+            </span>
+          )}
+        </div>
+      )}
+
+      {/* Finance totals summary */}
+      {!loading && financeTotals && filtered.length > 0 && (
+        <div className="finance-totals-bar">
+          <div className="finance-totals-bar__item">
+            <span className="finance-totals-bar__label">Records</span>
+            <span className="finance-totals-bar__value">{filtered.length}</span>
+          </div>
+          <div className="finance-totals-bar__item finance-totals-bar__item--total">
+            <span className="finance-totals-bar__label">Total</span>
+            <span className="finance-totals-bar__value">
+              GH¢ {financeTotals.total.toLocaleString('en-GH', { minimumFractionDigits: 2 })}
+            </span>
+          </div>
+          <div className="finance-totals-bar__item finance-totals-bar__item--paid">
+            <span className="finance-totals-bar__label">Paid</span>
+            <span className="finance-totals-bar__value">
+              GH¢ {financeTotals.paid.toLocaleString('en-GH', { minimumFractionDigits: 2 })}
+            </span>
+          </div>
+          <div className="finance-totals-bar__item finance-totals-bar__item--unpaid">
+            <span className="finance-totals-bar__label">Unpaid</span>
+            <span className="finance-totals-bar__value">
+              GH¢ {financeTotals.unpaid.toLocaleString('en-GH', { minimumFractionDigits: 2 })}
+            </span>
+          </div>
         </div>
       )}
 
@@ -367,38 +505,92 @@ export default function CrossRecordsPage() {
       )}
 
       {!loading && !error && filtered.length > 0 && (
-        <div className="cross-record-list">
-          {filtered.map((r) => {
-            const colors = SECTOR_COLORS[r.sectorPrefix] ?? { bg: '#f3f4f6', text: '#374151' }
-            return (
-              <div
-                key={`${r.fileNumber}-${r.id}`}
-                className="cross-record-item"
-                onClick={() =>
-                  navigate(`/facilities/${r.fileNumber}`, { state: { tab: config.tab } })
-                }
-              >
-                <div className="cross-record__facility">
-                  <span className="file-num" style={{ fontSize: 12 }}>{r.fileNumber}</span>
-                  <span className="cross-record__facility-name">{r.facilityName}</span>
-                  <span
-                    className="record-badge"
-                    style={{ background: colors.bg, color: colors.text, fontSize: 10 }}
-                  >
-                    {r.sectorPrefix}
-                  </span>
-                </div>
-                <div className="cross-record__body">
-                  <div className="cross-record__content">
-                    <RecordSummary record={r} category={collection} />
-                    {r.notes && <span className="cross-record__note">{r.notes}</span>}
+        collection === 'finance' && viewMode === 'table' ? (
+          <div className="facility-table-wrap">
+            <table className="facility-table">
+              <thead>
+                <tr>
+                  <th>File No.</th>
+                  <th>Facility</th>
+                  <th>Sector</th>
+                  <th>Date</th>
+                  <th>Type</th>
+                  <th style={{ textAlign: 'right' }}>Amount (GHS)</th>
+                  <th>Status</th>
+                  <th>Reference</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((r) => {
+                  const isPaid = (r.payment_status ?? 'paid') !== 'unpaid'
+                  const colors = SECTOR_COLORS[r.sectorPrefix] ?? { bg: '#f3f4f6', text: '#374151' }
+                  return (
+                    <tr
+                      key={`${r.fileNumber}-${r.id}`}
+                      className="facility-table__row"
+                      onClick={() => navigate(`/facilities/${r.fileNumber}`, { state: { tab: config.tab } })}
+                    >
+                      <td className="facility-table__fileno">{r.fileNumber}</td>
+                      <td className="facility-table__name">{r.facilityName}</td>
+                      <td>
+                        <span className="record-badge" style={{ background: colors.bg, color: colors.text, fontSize: 10 }}>
+                          {r.sectorPrefix}
+                        </span>
+                      </td>
+                      <td>{fmtDate(r.date)}</td>
+                      <td>{r.payment_type || '—'}</td>
+                      <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                        {Number(r.amount ?? 0).toLocaleString('en-GH', { minimumFractionDigits: 2 })}
+                      </td>
+                      <td>
+                        <span
+                          className="record-badge"
+                          style={isPaid ? { background: '#dcfce7', color: '#166534' } : { background: '#fef9c3', color: '#854d0e' }}
+                        >
+                          {isPaid ? 'Paid' : 'Unpaid'}
+                        </span>
+                      </td>
+                      <td style={{ color: '#6b7280' }}>{r.reference_number || '—'}</td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="cross-record-list">
+            {filtered.map((r) => {
+              const colors = SECTOR_COLORS[r.sectorPrefix] ?? { bg: '#f3f4f6', text: '#374151' }
+              return (
+                <div
+                  key={`${r.fileNumber}-${r.id}`}
+                  className="cross-record-item"
+                  onClick={() =>
+                    navigate(`/facilities/${r.fileNumber}`, { state: { tab: config.tab } })
+                  }
+                >
+                  <div className="cross-record__facility">
+                    <span className="file-num" style={{ fontSize: 12 }}>{r.fileNumber}</span>
+                    <span className="cross-record__facility-name">{r.facilityName}</span>
+                    <span
+                      className="record-badge"
+                      style={{ background: colors.bg, color: colors.text, fontSize: 10 }}
+                    >
+                      {r.sectorPrefix}
+                    </span>
                   </div>
-                  <RecordBadge record={r} category={collection} />
+                  <div className="cross-record__body">
+                    <div className="cross-record__content">
+                      <RecordSummary record={r} category={collection} />
+                      {r.notes && <span className="cross-record__note">{r.notes}</span>}
+                    </div>
+                    <RecordBadge record={r} category={collection} />
+                  </div>
                 </div>
-              </div>
-            )
-          })}
-        </div>
+              )
+            })}
+          </div>
+        )
       )}
     </div>
   )

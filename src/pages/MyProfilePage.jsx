@@ -39,7 +39,7 @@ function fmtJoined(ts) {
 }
 
 export default function MyProfilePage() {
-  const { user, staff, role } = useAuth()
+  const { user, staff, role, refreshStaff } = useAuth()
   const navigate = useNavigate()
   const meta = ROLE_META[role] ?? ROLE_META.officer
   const photoInputRef = useRef()
@@ -61,6 +61,10 @@ export default function MyProfilePage() {
 
   const [stats, setStats]               = useState(null)
   const [statsLoading, setStatsLoading] = useState(true)
+  const [dateFrom, setDateFrom]     = useState('')
+  const [dateTo, setDateTo]         = useState('')
+  const [activeFrom, setActiveFrom] = useState(null)
+  const [activeTo, setActiveTo]     = useState(null)
 
   useEffect(() => {
     if (staff) resetForm()
@@ -68,8 +72,17 @@ export default function MyProfilePage() {
 
   useEffect(() => {
     if (!user) return
-    loadStats()
-  }, [user?.uid])
+    loadStats(activeFrom, activeTo)
+  }, [user?.uid, activeFrom, activeTo])
+
+  function applyDateFilter() {
+    setActiveFrom(dateFrom ? new Date(dateFrom).getTime() : null)
+    setActiveTo(dateTo   ? new Date(dateTo + 'T23:59:59').getTime() : null)
+  }
+  function clearDateFilter() {
+    setDateFrom(''); setDateTo('')
+    setActiveFrom(null); setActiveTo(null)
+  }
 
   function resetForm() {
     setForm({
@@ -84,10 +97,10 @@ export default function MyProfilePage() {
     setPhotoPreview(null)
   }
 
-  async function loadStats() {
+  async function loadStats(startMs, endMs) {
     setStatsLoading(true)
     try {
-      setStats(await getMyActivityStats(user.uid))
+      setStats(await getMyActivityStats(user.uid, startMs, endMs))
     } catch {
       setStats(null)
     } finally {
@@ -109,9 +122,9 @@ export default function MyProfilePage() {
     try {
       const url = await uploadStaffPhoto(user.uid, file)
       await updateOwnProfile(user.uid, { ...form, picture_url: url })
-      flash(setProfileMsg, { type: 'ok', text: 'Photo updated.' })
-      // force AuthContext to reflect new picture_url on next load — for now just set preview
+      await refreshStaff()
       setPhotoPreview(url)
+      flash(setProfileMsg, { type: 'ok', text: 'Photo updated.' })
     } catch {
       flash(setProfileMsg, { type: 'err', text: 'Photo upload failed. Try again.' })
     } finally {
@@ -124,12 +137,17 @@ export default function MyProfilePage() {
     if (!form.name.trim()) { setProfileMsg({ type: 'err', text: 'Name is required.' }); return }
     setSavingProfile(true)
     try {
-      let picture_url = undefined
-      if (photoFile) picture_url = await uploadStaffPhoto(user.uid, photoFile)
+      let picture_url
+      if (photoFile) {
+        picture_url = await uploadStaffPhoto(user.uid, photoFile)
+        setPhotoPreview(picture_url)
+      }
       await updateOwnProfile(user.uid, { ...form, name: form.name.trim(), picture_url })
+      await refreshStaff()
       setEditMode(false)
       flash(setProfileMsg, { type: 'ok', text: 'Profile updated.' })
-    } catch {
+    } catch (err) {
+      console.error('Profile save error:', err)
       setProfileMsg({ type: 'err', text: 'Failed to save. Try again.' })
     } finally { setSavingProfile(false) }
   }
@@ -351,6 +369,27 @@ export default function MyProfilePage() {
       {/* Activity stats */}
       <div className="home-section-title" style={{ marginTop: 24 }}>
         My Activity {stats ? `· ${stats.quarterLabel}` : ''}
+      </div>
+
+      <div className="dash-date-filter" style={{ marginBottom: 12 }}>
+        <span className="dash-date-filter__label">Period:</span>
+        <input
+          type="date" className="filter-select" style={{ width: 140 }}
+          value={dateFrom} onChange={(e) => setDateFrom(e.target.value)}
+          title="From date"
+        />
+        <span style={{ color: '#9ca3af', fontSize: 13 }}>to</span>
+        <input
+          type="date" className="filter-select" style={{ width: 140 }}
+          value={dateTo} onChange={(e) => setDateTo(e.target.value)}
+          title="To date"
+        />
+        <button className="btn btn--primary btn--sm" onClick={applyDateFilter} disabled={!dateFrom && !dateTo}>
+          Apply
+        </button>
+        {(activeFrom || activeTo) && (
+          <button className="btn btn--ghost btn--sm" onClick={clearDateFilter}>Clear</button>
+        )}
       </div>
 
       {statsLoading ? (

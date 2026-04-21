@@ -47,10 +47,12 @@ service cloud.firestore {
       allow update:        if isAdmin() || isFinance() || isFieldRole();
       allow delete:        if isAdmin();
 
-      // Permits — admin only
+      // Permits — admin/director full access; assigned field officer can create
       match /permits/{id} {
-        allow read:  if isAuthed();
-        allow write: if isAdmin();
+        allow read:           if isAuthed();
+        allow create:         if isAdmin() || isDirector()
+                                || (isFieldRole() && get(/databases/$(database)/documents/facilities/$(fileNumber)).data.primary_officer == request.auth.uid);
+        allow update, delete: if isAdmin() || isDirector();
       }
 
       // Assignment history on the facility itself (append-only)
@@ -60,10 +62,10 @@ service cloud.firestore {
         allow update, delete: if false;
       }
 
-      // Finance — admin or finance role
+      // Finance — admin, director, or finance role
       match /finance/{id} {
         allow read:        if isAuthed();
-        allow write:       if isAdmin() || isFinance();
+        allow write:       if isAdmin() || isDirector() || isFinance();
       }
 
       // Field sub-records — admin or any field role

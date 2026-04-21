@@ -1,5 +1,5 @@
 # EPA Permit Management System — CLAUDE.md
-# Ashanti Regional Office, Ghana EPA
+# Konongo Area Office, Ghana EPA
 
 This file gives future Claude sessions full context on this project.
 
@@ -7,7 +7,7 @@ This file gives future Claude sessions full context on this project.
 
 ## What this is
 
-A mobile + desktop app for Ghana EPA's Ashanti Regional Office. Field officers use it on iOS/Android phones; admin and finance staff use it on desktop.
+A mobile + desktop app for Ghana EPA's Konongo Area Office. Field officers use it on iOS/Android phones; admin and finance staff use it on desktop.
 
 - **Web app**: React + Vite (this repo) — wraps with Capacitor for iOS/Android
 - **Same codebase** runs on web (desktop) and mobile
@@ -86,11 +86,14 @@ counters/{CU,CI,CH,CT,CE,PP,CA,CM}   ← sector counters for file number generat
 staff/{uid}                           ← staff profiles (uid = Firebase Auth UID)
 facilities/{file_number}              ← facility profiles
   /permits/{id}
-  /finance/{id}
+  /finance/{id}                       ← payment_status: 'paid'|'unpaid'
   /screenings/{id}
   /site_verifications/{id}
   /monitoring/{id}
   /enforcement/{id}
+complaints/{id}                       ← top-level, not facility-scoped
+environmental_education/{id}          ← top-level, not facility-scoped
+field_reports/{id}                    ← for unregistered facilities
 ```
 
 ---
@@ -123,7 +126,8 @@ facilities/{file_number}              ← facility profiles
 | 5     | Sub-records (Permits, Finance, etc.) | ✅ Complete |
 | 6     | Filters, Search, Dashboard           | ✅ Complete |
 | 7     | Data Migration from Google Drive     | ✅ Complete |
-| 8     | Desktop Polish                       | 🔜 Next     |
+| 8     | Desktop Polish                       | ✅ Complete |
+| 9     | Staff Testing & Bug Fixes            | 🔜 Next     |
 
 ---
 

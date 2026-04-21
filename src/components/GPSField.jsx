@@ -50,8 +50,11 @@ export default function GPSField({ coordinates, loading, error, onCapture, onCle
       {coordinates && (
         <iframe
           title="Location preview"
-          src={`https://www.openstreetmap.org/export/embed.html?bbox=${coordinates.lng - 0.005},${coordinates.lat - 0.005},${coordinates.lng + 0.005},${coordinates.lat + 0.005}&layer=mapnik&marker=${coordinates.lat},${coordinates.lng}`}
-          style={{ width: '100%', height: 200, border: 0, borderRadius: 8, marginTop: 10 }}
+          src={`https://maps.google.com/maps?q=${coordinates.lat},${coordinates.lng}&z=16&output=embed`}
+          style={{ width: '100%', height: 220, border: 0, borderRadius: 8, marginTop: 10 }}
+          allowFullScreen
+          loading="lazy"
+          referrerPolicy="no-referrer-when-downgrade"
         />
       )}
     </div>

@@ -1,14 +1,7 @@
 import { useState } from 'react'
 import { Geolocation } from '@capacitor/geolocation'
+import { Capacitor } from '@capacitor/core'
 
-/**
- * useGPS — wraps @capacitor/geolocation.
- *
- * On native: uses the device's GPS (more accurate, works without browser prompt).
- * On web: Capacitor delegates to navigator.geolocation.
- *
- * Exposes setCoordinates so the caller can pre-fill coordinates (e.g. in edit mode).
- */
 export function useGPS(initial = null) {
   const [coordinates, setCoordinates] = useState(initial)
   const [loading, setLoading] = useState(false)
@@ -19,15 +12,17 @@ export function useGPS(initial = null) {
     setError('')
 
     try {
-      // Request permissions — required on native; no-op on web
-      const perms = await Geolocation.requestPermissions()
-      if (perms.location === 'denied') {
-        setError('Location permission denied. Enable it in your device settings.')
-        return
+      // On native, request permission explicitly first
+      if (Capacitor.isNativePlatform()) {
+        const perms = await Geolocation.requestPermissions()
+        if (perms.location === 'denied') {
+          setError('Location permission denied. Go to Settings → Apps → EPA Permit → Permissions and enable Location.')
+          return
+        }
       }
 
       const pos = await Geolocation.getCurrentPosition({
-        timeout: 15000,
+        timeout: 20000,
         enableHighAccuracy: true,
       })
 
@@ -36,15 +31,23 @@ export function useGPS(initial = null) {
         lng: pos.coords.longitude,
       })
     } catch (err) {
-      const msg = err?.message ?? ''
-      if (msg.includes('denied') || msg.includes('permission')) {
-        setError('Location access denied. Allow location in device settings.')
-      } else if (msg.includes('timeout') || msg.includes('Timeout')) {
-        setError('Location timed out. Move to an open area and try again.')
-      } else if (msg.includes('unavailable') || msg.includes('not available')) {
-        setError('Location unavailable. Try again.')
+      const msg = (err?.message ?? '').toLowerCase()
+      if (msg.includes('denied') || msg.includes('permission') || msg.includes('not authorized')) {
+        setError('Location access denied. Enable Location in device Settings → Apps → EPA Permit → Permissions.')
+      } else if (msg.includes('timeout') || msg.includes('timed out')) {
+        setError('GPS timed out. Move to an open area, ensure Location is on, and try again.')
+      } else if (
+        msg.includes('unavailable') ||
+        msg.includes('not available') ||
+        msg.includes('disabled') ||
+        msg.includes('turned off') ||
+        msg.includes('location services')
+      ) {
+        setError('Location services are off. Turn on Location in device Settings and try again.')
       } else {
-        setError('Could not get location. Try again.')
+        // Catch-all — also covers "Location services are not enabled"
+        setError('Could not get location. Make sure Location is turned on in device Settings, then try again.')
+        console.error('GPS error:', err)
       }
     } finally {
       setLoading(false)

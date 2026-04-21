@@ -180,17 +180,20 @@ export async function getFinanceStats() {
 
   const totals = { revenue: 0, unpaid: 0 }
   const byType = {
-    'Processing Fee': { revenue: 0, unpaid: 0 },
-    'Permit Fee':     { revenue: 0, unpaid: 0 },
+    'Processing Fee': { revenue: 0, unpaid: 0, facilities: new Set() },
+    'Permit Fee':     { revenue: 0, unpaid: 0, facilities: new Set() },
   }
   const facilitiesWithFinance = new Set()
 
   snap.docs.forEach((d) => {
     const data = d.data()
-    facilitiesWithFinance.add(d.ref.parent.parent.id)
+    const fileNumber = d.ref.parent.parent.id
+    facilitiesWithFinance.add(fileNumber)
     const amount = Number(data.amount) || 0
     const isPaid = data.payment_status !== 'unpaid'
     const type   = data.payment_type ?? ''
+
+    if (byType[type]) byType[type].facilities.add(fileNumber)
 
     if (isPaid) {
       totals.revenue += amount
@@ -205,8 +208,16 @@ export async function getFinanceStats() {
     revenue:              totals.revenue,
     unpaid:               totals.unpaid,
     facilitiesWithFinance: facilitiesWithFinance.size,
-    processingFee:        byType['Processing Fee'],
-    permitFee:            byType['Permit Fee'],
+    processingFee: {
+      revenue: byType['Processing Fee'].revenue,
+      unpaid: byType['Processing Fee'].unpaid,
+      facilities: byType['Processing Fee'].facilities.size,
+    },
+    permitFee: {
+      revenue: byType['Permit Fee'].revenue,
+      unpaid: byType['Permit Fee'].unpaid,
+      facilities: byType['Permit Fee'].facilities.size,
+    },
   }
 }
 

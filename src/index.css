@@ -25,6 +25,9 @@ body {
   top: 0; left: 0; bottom: 0;
   z-index: 200;
   transition: transform 0.25s ease;
+  /* iOS safe area: push content below the status bar */
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
 }
 
 .sidebar__brand {
@@ -91,12 +94,13 @@ body {
 
 /* ── Topbar ───────────────────────────────────────────── */
 .topbar {
-  height: 56px;
+  height: calc(56px + env(safe-area-inset-top));
   background: #fff;
   border-bottom: 1px solid #e5e7eb;
   display: flex;
-  align-items: center;
-  padding: 0 24px;
+  align-items: flex-end;
+  padding: 0 24px calc(12px);
+  padding-top: env(safe-area-inset-top);
   gap: 12px;
   position: sticky;
   top: 0;
@@ -107,7 +111,32 @@ body {
   background: none; border: none; cursor: pointer; color: #374151;
   padding: 6px;
 }
-.topbar__title { font-size: 14px; font-weight: 600; color: #374151; flex: 1; }
+.topbar__title {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.topbar__office {
+  font-size: 13px;
+  font-weight: 600;
+  color: #374151;
+  white-space: nowrap;
+}
+.topbar__page-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: #9ca3af;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.topbar__page-title::before {
+  content: '·';
+  margin-right: 8px;
+  color: #d1d5db;
+}
 .topbar__icon-btn {
   background: none; border: none; cursor: pointer; color: #6b7280;
   padding: 6px; border-radius: 6px;
@@ -871,12 +900,16 @@ body {
   grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
   gap: 12px;
 }
+.kpi-grid--finance {
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
 
 .kpi-card {
   background: #fff; border: 1px solid #f3f4f6; border-radius: 12px;
-  padding: 16px; display: flex; align-items: center; gap: 14px;
+  padding: 16px; display: flex; align-items: flex-start; gap: 14px;
   box-shadow: 0 1px 3px rgba(0,0,0,.05);
   transition: box-shadow 0.15s, transform 0.15s;
+  min-width: 0;
 }
 .kpi-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,.08); transform: translateY(-1px); }
 .kpi-card--highlight { border-color: #fca5a5; }
@@ -886,8 +919,26 @@ body {
   display: flex; align-items: center; justify-content: center;
 }
 .kpi-card__body { flex: 1; min-width: 0; }
-.kpi-card__value { font-size: 26px; font-weight: 800; color: #111827; line-height: 1; }
-.kpi-card__label { font-size: 12px; color: #6b7280; margin-top: 3px; }
+.kpi-card__value {
+  font-size: clamp(1.7rem, 1.2rem + 1vw, 2.1rem);
+  font-weight: 800;
+  color: #111827;
+  line-height: 1.05;
+  letter-spacing: -0.03em;
+  min-width: 0;
+}
+.kpi-card__value--money {
+  font-size: clamp(1.35rem, 1.05rem + 0.9vw, 1.95rem);
+  line-height: 1.1;
+  white-space: nowrap;
+}
+.kpi-card__label {
+  font-size: 12px;
+  color: #6b7280;
+  margin-top: 8px;
+  line-height: 1.45;
+  max-width: 12ch;
+}
 
 /* ── Sector chart ─────────────────────────────────────── */
 .sector-chart { display: flex; flex-direction: column; gap: 10px; }
@@ -1599,9 +1650,48 @@ body {
 /* ── Responsive adjustments ───────────────────────────── */
 @media (max-width: 768px) {
   .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+  .kpi-grid--finance { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .sector-row__label { width: 140px; }
   .sector-row__name { display: none; }
 }
 @media (max-width: 480px) {
   .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+  .kpi-grid--finance { grid-template-columns: 1fr; }
+  .kpi-card__value--money { white-space: normal; }
+}
+
+/* ── Desktop polish (Phase 8) ─────────────────────────── */
+@media (min-width: 769px) {
+  /* Hide mobile breadcrumb separator on desktop — show office + page title together */
+  .topbar__office { display: inline; }
+  .topbar__page-title { display: inline; }
+
+  /* Constrain page content width on wide screens */
+  .page-content {
+    max-width: 1320px;
+  }
+
+  /* Forms should never stretch full-width on desktop */
+  .page .form-card {
+    max-width: 800px;
+  }
+
+  /* Facility table wrapper scrolls horizontally if needed */
+  .facility-table-wrap {
+    overflow-x: auto;
+    border-radius: 12px;
+  }
+
+  /* KPI grid: allow up to 5 columns on large screens */
+  .kpi-grid {
+    grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  }
+  .kpi-grid--finance {
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  }
+}
+
+@media (max-width: 768px) {
+  /* On mobile hide the page-title segment to save space */
+  .topbar__page-title { display: none; }
 }

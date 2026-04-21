@@ -4,6 +4,7 @@ import { Plus, Edit2, Trash2, AlertCircle, Paperclip } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { listSubRecords, deleteSubRecord } from '../../firebase/subrecords'
 import { fmtDate, permitStatus } from '../../utils/records'
+import { ADMIN_ROLES, FIELD_ROLES } from '../../data/constants'
 import Spinner from '../Spinner'
 
 const STATUS_LABELS = { active: 'Active', expiring: 'Expiring Soon', expired: 'Expired' }
@@ -13,8 +14,8 @@ const STATUS_COLORS = {
   expired:  { bg: '#fee2e2', color: '#991b1b' },
 }
 
-export default function PermitsTab({ fileNumber }) {
-  const { role } = useAuth()
+export default function PermitsTab({ fileNumber, facilityOfficer }) {
+  const { role, user } = useAuth()
   const navigate = useNavigate()
 
   const [records, setRecords]       = useState([])
@@ -22,7 +23,8 @@ export default function PermitsTab({ fileNumber }) {
   const [error, setError]           = useState('')
   const [deletingId, setDeletingId] = useState(null)
 
-  const canEdit = role === 'admin'
+  const canAdd  = ADMIN_ROLES.has(role) || (FIELD_ROLES.has(role) && user?.uid === facilityOfficer)
+  const canEdit = ADMIN_ROLES.has(role)
 
   useEffect(() => { load() }, [fileNumber])
 
@@ -48,7 +50,7 @@ export default function PermitsTab({ fileNumber }) {
 
   return (
     <div>
-      {canEdit && (
+      {canAdd && (
         <div className="tab-toolbar">
           <button className="btn btn--primary btn--sm" onClick={() => navigate(`/facilities/${fileNumber}/permits/new`)}>
             <Plus size={14} /> Add Permit

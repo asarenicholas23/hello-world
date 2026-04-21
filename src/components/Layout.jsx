@@ -1,10 +1,10 @@
 import { useState } from 'react'
-import { NavLink, Outlet, useNavigate } from 'react-router-dom'
+import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useSync } from '../context/SyncContext'
 import {
   LayoutDashboard, Building2, FileText, Banknote,
-  Users, ClipboardList, Activity, ShieldAlert,
+  Users, ClipboardList, Activity, ShieldAlert, CheckSquare,
   LogOut, Menu, X, Leaf, Upload, Flag, BarChart2,
   Briefcase, LayoutList, MessageSquare, GraduationCap,
 } from 'lucide-react'
@@ -24,15 +24,16 @@ const ADMIN_NAV = [
 ]
 
 const FIELD_NAV = [
-  { label: 'Dashboard',     icon: LayoutDashboard, path: '/' },
-  { label: 'Facilities',    icon: Building2,       path: '/facilities' },
-  { label: 'Screening',     icon: ClipboardList,   path: '/screening' },
-  { label: 'Monitoring',    icon: Activity,        path: '/monitoring' },
-  { label: 'Enforcement',   icon: ShieldAlert,     path: '/enforcement' },
-  { label: 'My Assignments', icon: Briefcase,       path: '/my-assignments', dividerBefore: true },
-  { label: 'Field Reports',  icon: Flag,            path: '/field-reports' },
-  { label: 'Complaints',     icon: MessageSquare,   path: '/complaints',     dividerBefore: true },
-  { label: 'Env. Education', icon: GraduationCap,   path: '/env-education' },
+  { label: 'Dashboard',         icon: LayoutDashboard, path: '/' },
+  { label: 'Facilities',        icon: Building2,       path: '/facilities' },
+  { label: 'Screening',         icon: ClipboardList,   path: '/screening' },
+  { label: 'Monitoring',        icon: Activity,        path: '/monitoring' },
+  { label: 'Enforcement',       icon: ShieldAlert,     path: '/enforcement' },
+  { label: 'Site Verifications',icon: CheckSquare,     path: '/site-verifications' },
+  { label: 'My Assignments',    icon: Briefcase,       path: '/my-assignments', dividerBefore: true },
+  { label: 'Field Reports',     icon: Flag,            path: '/field-reports' },
+  { label: 'Complaints',        icon: MessageSquare,   path: '/complaints',     dividerBefore: true },
+  { label: 'Env. Education',    icon: GraduationCap,   path: '/env-education' },
 ]
 
 const NAV_BY_ROLE = {
@@ -49,6 +50,36 @@ const NAV_BY_ROLE = {
   ],
 }
 
+const PAGE_TITLE = {
+  '/':                   'Dashboard',
+  '/facilities':         'Facilities',
+  '/permits':            'Permits',
+  '/permit-analytics':   'Permit Analytics',
+  '/finance':            'Finance',
+  '/screening':          'Screening',
+  '/monitoring':         'Monitoring',
+  '/enforcement':        'Enforcement',
+  '/site-verifications': 'Site Verifications',
+  '/staff':              'Staff',
+  '/all-assignments':    'All Assignments',
+  '/my-assignments':     'My Assignments',
+  '/import':             'Import Data',
+  '/field-reports':      'Field Reports',
+  '/complaints':         'Complaints',
+  '/env-education':      'Environmental Education',
+  '/profile':            'My Profile',
+}
+
+function usePageTitle() {
+  const { pathname } = useLocation()
+  if (PAGE_TITLE[pathname]) return PAGE_TITLE[pathname]
+  if (pathname.endsWith('/edit')) return 'Edit Record'
+  if (pathname.endsWith('/new')) return 'New Record'
+  if (pathname.startsWith('/facilities/')) return 'Facility Detail'
+  if (pathname.startsWith('/staff/')) return 'Edit Staff'
+  return 'EPA Permit'
+}
+
 const ROLE_COLOR = {
   director:          '#7c3aed',
   admin:             '#1d4ed8',
@@ -62,6 +93,7 @@ const ROLE_COLOR = {
 export default function Layout() {
   const { staff, logout } = useAuth()
   const navigate = useNavigate()
+  const pageTitle = usePageTitle()
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
   const { syncStatus } = useSync()
@@ -153,7 +185,10 @@ export default function Layout() {
           <button className="topbar__menu-btn" onClick={() => setSidebarOpen(true)}>
             <Menu size={20} />
           </button>
-          <span className="topbar__title">Ashanti Regional Office</span>
+          <span className="topbar__title">
+            <span className="topbar__office">Konongo Area Office</span>
+            <span className="topbar__page-title">{pageTitle}</span>
+          </span>
           <SyncIndicator status={syncStatus} />
           <span
             className="badge"

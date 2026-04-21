@@ -28,23 +28,19 @@ const FIELD_CARDS = [
   { icon: CheckSquare,  color: '#0891b2', bg: '#f0fdfa', title: 'Site Verifications',path: '/site-verifications', desc: 'Pre-renewal site verification visits.' },
 ]
 
+const ADMIN_CARDS = [
+  { icon: Building2,    color: '#1d4ed8', bg: '#eff6ff', title: 'Facilities',        path: '/facilities',     desc: 'Manage entity profiles and file numbers.' },
+  { icon: FileText,     color: '#7c3aed', bg: '#f5f3ff', title: 'Permits',           path: '/permits',        desc: 'All permits across all facilities.' },
+  { icon: Banknote,     color: '#065f46', bg: '#f0fdf4', title: 'Finance',           path: '/finance',        desc: 'All fee payments across all facilities.' },
+  { icon: ClipboardList,color: '#0369a1', bg: '#f0f9ff', title: 'Screening',         path: '/screening',      desc: 'All pre-permit screening records.' },
+  { icon: Activity,     color: '#166534', bg: '#dcfce7', title: 'Monitoring',        path: '/monitoring',     desc: 'All monitoring visits and checklists.' },
+  { icon: ShieldAlert,  color: '#c2410c', bg: '#fff7ed', title: 'Enforcement',       path: '/enforcement',    desc: 'All enforcement actions and follow-ups.' },
+  { icon: Users,        color: '#b45309', bg: '#fffbeb', title: 'Staff Management',  path: '/staff',          desc: 'Manage staff accounts and roles.' },
+]
+
 const CARDS_BY_ROLE = {
-  director: [
-    { icon: Building2,    color: '#1d4ed8', bg: '#eff6ff', title: 'Facilities',  path: '/facilities',       desc: 'All registered entity profiles.' },
-    { icon: FileText,     color: '#7c3aed', bg: '#f5f3ff', title: 'Permits',     path: '/permits',          desc: 'All permits across all facilities.' },
-    { icon: Banknote,     color: '#065f46', bg: '#f0fdf4', title: 'Finance',     path: '/finance',          desc: 'All fee payments.' },
-    { icon: ShieldAlert,  color: '#c2410c', bg: '#fff7ed', title: 'Enforcement', path: '/enforcement',      desc: 'All enforcement actions.' },
-    { icon: Activity,     color: '#166534', bg: '#dcfce7', title: 'Monitoring',  path: '/monitoring',       desc: 'All monitoring visits.' },
-  ],
-  admin: [
-    { icon: Building2,    color: '#1d4ed8', bg: '#eff6ff', title: 'Facilities',        path: '/facilities',     desc: 'Manage entity profiles and file numbers.' },
-    { icon: FileText,     color: '#7c3aed', bg: '#f5f3ff', title: 'Permits',           path: '/permits',        desc: 'All permits across all facilities.' },
-    { icon: Banknote,     color: '#065f46', bg: '#f0fdf4', title: 'Finance',           path: '/finance',        desc: 'All fee payments across all facilities.' },
-    { icon: ClipboardList,color: '#0369a1', bg: '#f0f9ff', title: 'Screening',         path: '/screening',      desc: 'All pre-permit screening records.' },
-    { icon: Activity,     color: '#166534', bg: '#dcfce7', title: 'Monitoring',        path: '/monitoring',     desc: 'All monitoring visits and checklists.' },
-    { icon: ShieldAlert,  color: '#c2410c', bg: '#fff7ed', title: 'Enforcement',       path: '/enforcement',    desc: 'All enforcement actions and follow-ups.' },
-    { icon: Users,        color: '#b45309', bg: '#fffbeb', title: 'Staff Management', path: '/staff',          desc: 'Manage staff accounts and roles.' },
-  ],
+  director: ADMIN_CARDS,
+  admin: ADMIN_CARDS,
   finance: [
     { icon: Building2,    color: '#1d4ed8', bg: '#eff6ff', title: 'Facilities',        path: '/facilities',     desc: 'Browse registered facilities.' },
     { icon: Banknote,     color: '#065f46', bg: '#f0fdf4', title: 'Finance',           path: '/finance',        desc: 'Log and manage fee payments across all facilities.' },
@@ -76,7 +72,7 @@ export default function Home() {
     if (FIELD_ROLES.has(role)) {
       getFieldStats().then(setFieldStats).catch(() => {})
     }
-    if (user?.uid) {
+    if (user?.uid && role !== 'finance') {
       getMyActivityStats(user.uid).then(setMyStats).catch(() => {})
     }
   }, [role, user?.uid])
@@ -84,6 +80,8 @@ export default function Home() {
   const sectorMax = stats
     ? Math.max(...Object.values(stats.bySector), 1)
     : 1
+  const showFinanceOverview = ADMIN_ROLES.has(role) || role === 'finance'
+  const showMyActivity = role !== 'finance'
 
   return (
     <div>
@@ -99,7 +97,7 @@ export default function Home() {
       </div>
 
       {/* ── My Activity ─────────────────────────────────── */}
-      {myStats && (
+      {showMyActivity && myStats && (
         <>
           <div className="home-section-title">My Activity · {myStats.quarterLabel}</div>
           <div className="kpi-grid">
@@ -150,7 +148,7 @@ export default function Home() {
       )}
 
       {/* ── Office Overview ──────────────────────────────── */}
-      <div className="home-section-title" style={{ marginTop: myStats ? 24 : 0 }}>Office Overview</div>
+      <div className="home-section-title" style={{ marginTop: showMyActivity && myStats ? 24 : 0 }}>Office Overview</div>
       <div className="kpi-grid">
         <KpiCard
           icon={<Building2 size={20} color="#1d4ed8" />}
@@ -239,6 +237,86 @@ export default function Home() {
           </>
         )}
       </div>
+
+      {showFinanceOverview && financeStats && (
+        <>
+          <div className="home-section-title" style={{ marginTop: 24 }}>Finance Overview</div>
+          <div className="kpi-grid kpi-grid--finance">
+            <KpiCard
+              icon={<TrendingUp size={20} color="#166534" />}
+              bg="#dcfce7"
+              value={formatCompactCurrency(financeStats.revenue)}
+              label="Total Revenue Generated"
+              valueClassName="kpi-card__value--money"
+              onClick={() => navigate('/finance')}
+            />
+            <KpiCard
+              icon={<AlertTriangle size={20} color="#854d0e" />}
+              bg="#fef9c3"
+              value={formatCompactCurrency(financeStats.unpaid)}
+              label="Unpaid Invoices Amount"
+              valueClassName="kpi-card__value--money"
+              onClick={() => navigate('/finance', { state: { paymentStatus: 'unpaid' } })}
+              highlight={financeStats.unpaid > 0}
+            />
+            <KpiCard
+              icon={<Building2 size={20} color="#1d4ed8" />}
+              bg="#eff6ff"
+              value={financeStats.facilitiesWithFinance}
+              label="Facilities with Finance Records"
+              onClick={() => navigate('/finance')}
+            />
+            <KpiCard
+              icon={<Banknote size={20} color="#166534" />}
+              bg="#f0fdf4"
+              value={formatCompactCurrency(financeStats.processingFee.revenue)}
+              label="Processing Fee Revenue"
+              valueClassName="kpi-card__value--money"
+              onClick={() => navigate('/finance', { state: { paymentType: 'Processing Fee' } })}
+            />
+            <KpiCard
+              icon={<AlertTriangle size={20} color="#854d0e" />}
+              bg="#fffbeb"
+              value={formatCompactCurrency(financeStats.processingFee.unpaid)}
+              label="Processing Fee Unpaid"
+              valueClassName="kpi-card__value--money"
+              onClick={() => navigate('/finance', { state: { paymentType: 'Processing Fee', paymentStatus: 'unpaid' } })}
+              highlight={financeStats.processingFee.unpaid > 0}
+            />
+            <KpiCard
+              icon={<Building2 size={20} color="#1d4ed8" />}
+              bg="#eff6ff"
+              value={financeStats.processingFee.facilities}
+              label="Processing Fee Facilities"
+              onClick={() => navigate('/finance', { state: { paymentType: 'Processing Fee' } })}
+            />
+            <KpiCard
+              icon={<Banknote size={20} color="#7c3aed" />}
+              bg="#f5f3ff"
+              value={formatCompactCurrency(financeStats.permitFee.revenue)}
+              label="Permit Fee Revenue"
+              valueClassName="kpi-card__value--money"
+              onClick={() => navigate('/finance', { state: { paymentType: 'Permit Fee' } })}
+            />
+            <KpiCard
+              icon={<AlertTriangle size={20} color="#991b1b" />}
+              bg="#fee2e2"
+              value={formatCompactCurrency(financeStats.permitFee.unpaid)}
+              label="Permit Fee Unpaid"
+              valueClassName="kpi-card__value--money"
+              onClick={() => navigate('/finance', { state: { paymentType: 'Permit Fee', paymentStatus: 'unpaid' } })}
+              highlight={financeStats.permitFee.unpaid > 0}
+            />
+            <KpiCard
+              icon={<Building2 size={20} color="#7c3aed" />}
+              bg="#f5f3ff"
+              value={financeStats.permitFee.facilities}
+              label="Permit Fee Facilities"
+              onClick={() => navigate('/finance', { state: { paymentType: 'Permit Fee' } })}
+            />
+          </div>
+        </>
+      )}
 
       {/* ── Sector breakdown ─────────────────────────────── */}
       {stats && Object.keys(stats.bySector).length > 0 && (
@@ -352,7 +430,7 @@ export default function Home() {
   )
 }
 
-function KpiCard({ icon, bg, value, label, onClick, highlight }) {
+function KpiCard({ icon, bg, value, label, onClick, highlight, valueClassName = '' }) {
   return (
     <div
       className={`kpi-card${highlight ? ' kpi-card--highlight' : ''}`}
@@ -361,9 +439,37 @@ function KpiCard({ icon, bg, value, label, onClick, highlight }) {
     >
       <div className="kpi-card__icon" style={{ background: bg }}>{icon}</div>
       <div className="kpi-card__body">
-        <div className="kpi-card__value">{value}</div>
+        <div className={`kpi-card__value${valueClassName ? ` ${valueClassName}` : ''}`}>{value}</div>
         <div className="kpi-card__label">{label}</div>
       </div>
     </div>
   )
+}
+
+function formatCompactCurrency(amount) {
+  const value = Number(amount) || 0
+  const abs = Math.abs(value)
+
+  if (abs < 10000) {
+    return new Intl.NumberFormat('en-GH', {
+      style: 'currency',
+      currency: 'GHS',
+      maximumFractionDigits: 0,
+    }).format(value)
+  }
+
+  const units = [
+    { threshold: 1_000_000_000, suffix: 'B' },
+    { threshold: 1_000_000, suffix: 'M' },
+    { threshold: 1_000, suffix: 'K' },
+  ]
+
+  for (const unit of units) {
+    if (abs >= unit.threshold) {
+      const compact = (value / unit.threshold).toFixed(abs >= unit.threshold * 10 ? 0 : 1)
+      return `GH¢${compact.replace(/\.0$/, '')}${unit.suffix}`
+    }
+  }
+
+  return `GH¢${value}`
 }

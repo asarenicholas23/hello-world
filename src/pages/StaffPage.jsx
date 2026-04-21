@@ -55,7 +55,7 @@ export default function StaffPage() {
       <div className="page-header" style={{ marginTop: 12 }}>
         <div>
           <div className="page-title">Staff</div>
-          <div className="page-subtitle">Manage EPA Ashanti Regional Office staff accounts.</div>
+          <div className="page-subtitle">Manage EPA Konongo Area Office staff accounts.</div>
         </div>
         <button className="btn btn--primary" onClick={() => navigate('/staff/new')}>
           <UserPlus size={14} /> Add Staff

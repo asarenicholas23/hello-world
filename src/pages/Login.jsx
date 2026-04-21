@@ -40,7 +40,7 @@ export default function Login() {
             <Leaf size={32} color="#4ade80" />
           </div>
           <div className="login-brand__title">EPA Permit Management</div>
-          <div className="login-brand__sub">Ashanti Regional Office · Ghana EPA</div>
+          <div className="login-brand__sub">Konongo Area Office · Ghana EPA</div>
         </div>
 
         <form className="login-form" onSubmit={handleSubmit}>
@@ -105,7 +105,7 @@ export default function Login() {
         </form>
 
         <div className="login-footer">
-          Ghana Environmental Protection Agency — Ashanti Region
+          Ghana Environmental Protection Agency — Konongo Area Office
         </div>
       </div>
     </div>

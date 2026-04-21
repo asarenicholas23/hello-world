@@ -45,8 +45,18 @@ function RecordBadge({ record, category }) {
     const label = ENFORCEMENT_ACTIONS.find((a) => a.value === record.action_taken)?.label
     return <span className="record-badge" style={ac}>{label}</span>
   }
-  if (category === 'finance' && record.payment_type) {
-    return <span className="record-badge" style={{ bg: '#f0fdf4', color: '#166534' }}>{record.payment_type}</span>
+  if (category === 'finance') {
+    const isPaid = (record.payment_status ?? 'paid') !== 'unpaid'
+    return (
+      <>
+        {record.payment_type && (
+          <span className="record-badge" style={{ background: '#f0fdf4', color: '#166534' }}>{record.payment_type}</span>
+        )}
+        <span className="record-badge" style={isPaid ? { background: '#dcfce7', color: '#166534' } : { background: '#fef9c3', color: '#854d0e' }}>
+          {isPaid ? 'Paid' : 'Unpaid'}
+        </span>
+      </>
+    )
   }
   return null
 }
@@ -205,13 +215,17 @@ export default function CrossRecordsPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [search, setSearch] = useState('')
-  const [statusFilter, setStatusFilter] = useState(location.state?.statusFilter ?? '')
-  const [officerFilter, setOfficerFilter] = useState(location.state?.officerUid ?? '')
+  const [statusFilter, setStatusFilter]       = useState(location.state?.statusFilter ?? '')
+  const [officerFilter, setOfficerFilter]     = useState(location.state?.officerUid ?? '')
+  const [paymentTypeFilter, setPaymentTypeFilter]     = useState(location.state?.paymentType ?? '')
+  const [paymentStatusFilter, setPaymentStatusFilter] = useState(location.state?.paymentStatus ?? '')
 
   // Re-sync filters on every navigation (handles same-route re-navigation)
   useEffect(() => {
     setStatusFilter(location.state?.statusFilter ?? '')
     setOfficerFilter(location.state?.officerUid ?? '')
+    setPaymentTypeFilter(location.state?.paymentType ?? '')
+    setPaymentStatusFilter(location.state?.paymentStatus ?? '')
   }, [location.key])
 
   useEffect(() => {
@@ -247,6 +261,12 @@ export default function CrossRecordsPage() {
     if (statusFilter && collection === 'permits') {
       result = result.filter((r) => permitStatus(r.expiry_date) === statusFilter)
     }
+    if (paymentTypeFilter && collection === 'finance') {
+      result = result.filter((r) => r.payment_type === paymentTypeFilter)
+    }
+    if (paymentStatusFilter && collection === 'finance') {
+      result = result.filter((r) => (r.payment_status ?? 'paid') === paymentStatusFilter)
+    }
     if (search.trim()) {
       const q = search.toLowerCase()
       result = result.filter(
@@ -258,7 +278,7 @@ export default function CrossRecordsPage() {
       )
     }
     return result
-  }, [records, search, statusFilter, officerFilter, collection])
+  }, [records, search, statusFilter, officerFilter, paymentTypeFilter, paymentStatusFilter, collection])
 
   if (!config) return <div className="page"><div className="empty-state">Unknown module.</div></div>
 
@@ -301,7 +321,7 @@ export default function CrossRecordsPage() {
         </div>
       </div>
 
-      {(officerFilter || (collection === 'permits' && statusFilter)) && (
+      {(officerFilter || (collection === 'permits' && statusFilter) || paymentTypeFilter || paymentStatusFilter) && (
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', marginBottom: 8 }}>
           {officerFilter && (
             <span className="filter-pill">
@@ -313,6 +333,18 @@ export default function CrossRecordsPage() {
             <span className="filter-pill">
               Status: {STATUS_LABELS[statusFilter]}
               <button onClick={() => setStatusFilter('')}>✕</button>
+            </span>
+          )}
+          {paymentTypeFilter && (
+            <span className="filter-pill">
+              Type: {paymentTypeFilter}
+              <button onClick={() => setPaymentTypeFilter('')}>✕</button>
+            </span>
+          )}
+          {paymentStatusFilter && (
+            <span className="filter-pill">
+              {paymentStatusFilter === 'unpaid' ? 'Unpaid / Outstanding' : 'Paid'}
+              <button onClick={() => setPaymentStatusFilter('')}>✕</button>
             </span>
           )}
         </div>

@@ -2,16 +2,26 @@ import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, AlertCircle, Save, Loader } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
-import { getSubRecord, createSubRecord, updateSubRecord } from '../firebase/subrecords'
+import { getSubRecord, createSubRecord, updateSubRecord, listSubRecords } from '../firebase/subrecords'
 import { tsToInput, inputToTs } from '../utils/records'
-import { MONITORING_CHECKLIST, COMPLIANCE_STATUS } from '../data/constants'
+import { DISTRICTS } from '../data/constants'
+import { MONITORING_CHECKLISTS, CHECKLIST_OPTIONS } from '../data/monitoringChecklists'
 import PhotoCapture from '../components/PhotoCapture'
+import GPSField from '../components/GPSField'
 import Spinner from '../components/Spinner'
 
-const EMPTY_FORM = { date: '', compliance_status: '', notes: '' }
-
-function buildEmptyChecklist(items) {
-  return Object.fromEntries(items.map((item) => [item.key, { ok: false, note: '' }]))
+function buildDefaults(checklist) {
+  const defaults = {}
+  if (!checklist) return defaults
+  for (const section of checklist.sections) {
+    for (const item of section.items) {
+      defaults[item.key] = ''
+    }
+  }
+  for (const field of checklist.extraFields ?? []) {
+    defaults[field.key] = ''
+  }
+  return defaults
 }
 
 export default function MonitoringForm() {
@@ -20,10 +30,18 @@ export default function MonitoringForm() {
   const navigate = useNavigate()
   const { user, staff } = useAuth()
 
-  const [formData, setFormData] = useState(EMPTY_FORM)
-  const [checklist, setChecklist] = useState({})
+  const sectorPrefix = fileNumber.replace(/\d+$/, '')
+  const checklist = MONITORING_CHECKLISTS[sectorPrefix] ?? MONITORING_CHECKLISTS.CI
+
+  const [formData, setFormData] = useState({
+    date: '',
+    officer_name: '',
+    notes: '',
+    gps: null,
+    ...buildDefaults(checklist),
+  })
   const [photos, setPhotos] = useState([])
-  const [sectorPrefix, setSectorPrefix] = useState('')
+  const [monId, setMonId] = useState('')
   const [initialLoading, setInitialLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
@@ -31,24 +49,28 @@ export default function MonitoringForm() {
   useEffect(() => {
     async function load() {
       try {
-        // Derive sector prefix from fileNumber (leading letters)
-        const prefix = fileNumber.replace(/\d+$/, '')
-        setSectorPrefix(prefix)
-        const items = MONITORING_CHECKLIST[prefix] ?? []
-
         if (isEditing) {
           const rec = await getSubRecord(fileNumber, 'monitoring', recordId)
           if (!rec) { setError('Record not found.'); return }
-          setFormData({
-            date:              tsToInput(rec.date),
-            compliance_status: rec.compliance_status ?? '',
-            notes:             rec.notes ?? '',
-          })
+          setMonId(rec.mon_id ?? '')
           setPhotos(rec.photos ?? [])
-          // Merge saved checklist over empty defaults so new items get defaults
-          setChecklist({ ...buildEmptyChecklist(items), ...(rec.checklist ?? {}) })
+          const defaults = buildDefaults(checklist)
+          const merged = { ...defaults }
+          for (const key of Object.keys(defaults)) {
+            if (rec[key] !== undefined) merged[key] = rec[key]
+          }
+          setFormData({
+            date:         tsToInput(rec.date),
+            officer_name: rec.officer_name ?? '',
+            notes:        rec.notes ?? '',
+            gps:          rec.gps ?? null,
+            ...merged,
+          })
         } else {
-          setChecklist(buildEmptyChecklist(items))
+          const existing = await listSubRecords(fileNumber, 'monitoring')
+          const next = String(existing.length + 1).padStart(3, '0')
+          setMonId(`MON-${fileNumber}-${next}`)
+          setFormData((p) => ({ ...p, officer_name: staff?.name ?? '' }))
         }
       } catch {
         setError('Failed to load data.')
@@ -57,32 +79,46 @@ export default function MonitoringForm() {
       }
     }
     load()
-  }, [fileNumber, recordId, isEditing])
+  }, [fileNumber, recordId, isEditing]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  function toggleCheck(key) {
-    setChecklist((p) => ({ ...p, [key]: { ...p[key], ok: !p[key].ok } }))
+  function set(key, value) {
+    setFormData((p) => ({ ...p, [key]: value }))
   }
 
-  function setCheckNote(key, note) {
-    setChecklist((p) => ({ ...p, [key]: { ...p[key], note } }))
+  function isVisible(item) {
+    if (!item.conditional) return true
+    return formData[item.conditional.key] === item.conditional.value
   }
 
   async function handleSubmit(e) {
     e.preventDefault()
     if (!formData.date) { setError('Date is required.'); return }
-    if (!formData.compliance_status) { setError('Compliance Status is required.'); return }
 
     setSubmitting(true)
     setError('')
 
     const payload = {
-      date:              inputToTs(formData.date),
-      officer_id:        user.uid,
-      officer_name:      staff?.name ?? '',
-      compliance_status: formData.compliance_status,
-      checklist,
+      mon_id:       monId,
+      date:         inputToTs(formData.date),
+      officer_id:   user.uid,
+      officer_name: staff?.name ?? formData.officer_name,
+      notes:        formData.notes.trim(),
       photos,
-      notes:             formData.notes.trim(),
+      sector_prefix: sectorPrefix,
+    }
+
+    if (formData.gps) payload.gps = formData.gps
+
+    // Store all checklist and extra field values flat
+    for (const section of checklist.sections) {
+      for (const item of section.items) {
+        if (isVisible(item)) {
+          payload[item.key] = formData[item.key] ?? ''
+        }
+      }
+    }
+    for (const field of checklist.extraFields ?? []) {
+      payload[field.key] = formData[field.key] ?? ''
     }
 
     try {
@@ -100,17 +136,19 @@ export default function MonitoringForm() {
 
   if (initialLoading) return <Spinner size={40} />
 
-  const checklistItems = MONITORING_CHECKLIST[sectorPrefix] ?? []
-
   return (
     <div className="page">
-      <button className="btn btn--ghost btn--sm btn--back" onClick={() => navigate(`/facilities/${fileNumber}`, { state: { tab: 'monitoring' } })}>
+      <button className="btn btn--ghost btn--sm btn--back"
+        onClick={() => navigate(`/facilities/${fileNumber}`, { state: { tab: 'monitoring' } })}>
         <ArrowLeft size={14} /> Back to Facility
       </button>
 
       <div className="page-header" style={{ marginTop: 12 }}>
         <div className="page-title">{isEditing ? 'Edit Monitoring Visit' : 'New Monitoring Visit'}</div>
-        <div className="page-subtitle">File Number: <span className="file-num">{fileNumber}</span></div>
+        <div className="page-subtitle">
+          File Number: <span className="file-num">{fileNumber}</span>
+          {monId && <span style={{ marginLeft: 10, color: '#6b7280', fontSize: 13 }}>{monId}</span>}
+        </div>
       </div>
 
       <form onSubmit={handleSubmit}>
@@ -120,58 +158,47 @@ export default function MonitoringForm() {
           </div>
         )}
 
+        {/* ── Visit Details ── */}
         <div className="form-card">
           <div className="form-section">
             <div className="form-section-title">Visit Details</div>
-
             <div className="form-row">
               <div className="form-group">
                 <label>Date <span style={{ color: '#ef4444' }}>*</span></label>
-                <input className="input" type="date" name="date" value={formData.date}
-                  onChange={(e) => setFormData((p) => ({ ...p, date: e.target.value }))} />
+                <input className="input" type="date" value={formData.date}
+                  onChange={(e) => set('date', e.target.value)} />
               </div>
               <div className="form-group">
                 <label>Officer</label>
-                <input className="input" value={staff?.name ?? '—'} readOnly
+                <input className="input" value={staff?.name ?? formData.officer_name ?? '—'} readOnly
                   style={{ background: '#f9fafb', color: '#6b7280', cursor: 'not-allowed' }} />
               </div>
             </div>
-
-            <div className="form-group">
-              <label>Compliance Status <span style={{ color: '#ef4444' }}>*</span></label>
-              <select className="select" name="compliance_status" value={formData.compliance_status}
-                onChange={(e) => setFormData((p) => ({ ...p, compliance_status: e.target.value }))}>
-                <option value="">Select status…</option>
-                {COMPLIANCE_STATUS.map((s) => (
-                  <option key={s.value} value={s.value}>{s.label}</option>
-                ))}
-              </select>
-            </div>
+            <GPSField value={formData.gps} onChange={(v) => set('gps', v)} />
           </div>
         </div>
 
-        {checklistItems.length > 0 && (
+        {/* ── Extra Fields (sector-specific) ── */}
+        {(checklist.extraFields?.length > 0) && (
           <div className="form-card">
             <div className="form-section">
-              <div className="form-section-title">Environmental Checklist</div>
-              <div className="checklist">
-                {checklistItems.map((item) => (
-                  <div key={item.key} className="checklist-item">
-                    <label className="checklist-item__label">
-                      <input
-                        type="checkbox"
-                        checked={checklist[item.key]?.ok ?? false}
-                        onChange={() => toggleCheck(item.key)}
-                        className="checklist-item__checkbox"
-                      />
-                      <span>{item.label}</span>
-                    </label>
-                    <input
-                      className="input checklist-item__note"
-                      placeholder="Note (optional)"
-                      value={checklist[item.key]?.note ?? ''}
-                      onChange={(e) => setCheckNote(item.key, e.target.value)}
-                    />
+              <div className="form-section-title">Facility Information</div>
+              <div className="form-row form-row--wrap">
+                {checklist.extraFields.map((field) => (
+                  <div key={field.key} className="form-group">
+                    <label>{field.label}</label>
+                    {field.type === 'district' ? (
+                      <select className="select" value={formData[field.key] ?? ''}
+                        onChange={(e) => set(field.key, e.target.value)}>
+                        <option value="">Select district…</option>
+                        {DISTRICTS.map((d) => (
+                          <option key={d.code} value={d.code}>{d.name}</option>
+                        ))}
+                      </select>
+                    ) : (
+                      <input className="input" type="text" value={formData[field.key] ?? ''}
+                        onChange={(e) => set(field.key, e.target.value)} />
+                    )}
                   </div>
                 ))}
               </div>
@@ -179,14 +206,57 @@ export default function MonitoringForm() {
           </div>
         )}
 
+        {/* ── Checklist Sections ── */}
+        {checklist.sections.map((section) => (
+          <div key={section.title} className="form-card">
+            <div className="form-section">
+              <div className="form-section-title">{section.title}</div>
+              <div className="monitoring-checklist">
+                {section.items.map((item) => {
+                  if (!isVisible(item)) return null
+                  return (
+                    <div key={item.key} className="monitoring-checklist__row">
+                      <span className="monitoring-checklist__label">{item.label}</span>
+                      {item.type === 'text' ? (
+                        <input className="input monitoring-checklist__input"
+                          type="text"
+                          value={formData[item.key] ?? ''}
+                          onChange={(e) => set(item.key, e.target.value)}
+                          placeholder="Enter…" />
+                      ) : item.type === 'select' ? (
+                        <select className="select monitoring-checklist__select"
+                          value={formData[item.key] ?? ''}
+                          onChange={(e) => set(item.key, e.target.value)}>
+                          {(item.options ?? CHECKLIST_OPTIONS).map((o) => (
+                            <option key={o} value={o}>{o || '— Select —'}</option>
+                          ))}
+                        </select>
+                      ) : (
+                        <select className="select monitoring-checklist__select"
+                          value={formData[item.key] ?? ''}
+                          onChange={(e) => set(item.key, e.target.value)}>
+                          {CHECKLIST_OPTIONS.map((o) => (
+                            <option key={o} value={o}>{o || '— Select —'}</option>
+                          ))}
+                        </select>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          </div>
+        ))}
+
+        {/* ── Notes & Photos ── */}
         <div className="form-card">
           <div className="form-section">
-            <div className="form-section-title">Additional Notes &amp; Photos</div>
+            <div className="form-section-title">Notes &amp; Photos</div>
             <div className="form-group">
-              <label>Notes</label>
-              <textarea className="input textarea" name="notes" value={formData.notes}
-                onChange={(e) => setFormData((p) => ({ ...p, notes: e.target.value }))}
-                rows={3} placeholder="Overall observations and recommendations…" />
+              <label>Overall Observations &amp; Recommendations</label>
+              <textarea className="input textarea" value={formData.notes}
+                onChange={(e) => set('notes', e.target.value)}
+                rows={3} placeholder="Overall observations, findings and recommendations…" />
             </div>
             <PhotoCapture
               photos={photos}
@@ -198,7 +268,9 @@ export default function MonitoringForm() {
         </div>
 
         <div className="form-actions">
-          <button type="button" className="btn btn--ghost" onClick={() => navigate(`/facilities/${fileNumber}`, { state: { tab: 'monitoring' } })} disabled={submitting}>
+          <button type="button" className="btn btn--ghost"
+            onClick={() => navigate(`/facilities/${fileNumber}`, { state: { tab: 'monitoring' } })}
+            disabled={submitting}>
             Cancel
           </button>
           <button type="submit" className="btn btn--primary" disabled={submitting}>

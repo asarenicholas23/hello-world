@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useSync } from '../context/SyncContext'
+import { ADMIN_VIEW_ROLES } from '../data/constants'
 import {
   LayoutDashboard, Building2, FileText, Banknote,
   Users, ClipboardList, Activity, ShieldAlert, CheckSquare,
@@ -40,8 +41,8 @@ const FIELD_NAV = [
 const NAV_BY_ROLE = {
   director:          ADMIN_NAV,
   admin:             ADMIN_NAV,
-  senior_officer:    FIELD_NAV,
-  officer:           FIELD_NAV,
+  senior_officer:    ADMIN_NAV,
+  officer:           ADMIN_NAV,
   assistant_officer: FIELD_NAV,
   junior_officer:    FIELD_NAV,
   finance: [
@@ -99,7 +100,7 @@ export default function Layout() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
   const { syncStatus } = useSync()
-  const navItems = NAV_BY_ROLE[staff?.role] ?? []
+  const navItems = ADMIN_VIEW_ROLES.has(staff?.role) ? ADMIN_NAV : (NAV_BY_ROLE[staff?.role] ?? [])
   const initials = staff?.name
     ?.split(' ')
     .map((n) => n[0])

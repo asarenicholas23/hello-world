@@ -43,22 +43,23 @@ function parseLine(line) {
  * Returns { fieldKey: columnIndex } for matched columns.
  */
 export function detectColumnMapping(headers) {
-  const normalize = (s) => s.toLowerCase().replace(/[\s_\-\/]/g, '')
+  const normalize = (s) => s.toLowerCase().replace(/[\s_\-\/\.]/g, '')
 
   const ALIASES = {
     file_number:         ['fileno', 'filenumber', 'filenum', 'filecode', 'facilityid'],
-    name:                ['name', 'facilityname', 'nameofundertaking', 'undertakingname', 'entityname'],
+    name:                ['entityname', 'facilityname', 'nameofundertaking', 'undertakingname', 'name'],
     sector:              ['sector', 'industry', 'sectorname', 'sectortype'],
-    type_of_undertaking: ['typeofundertaking', 'type', 'undertaking', 'businesstype', 'activitytype'],
+    type_of_undertaking: ['typeofundertaking', 'undertaking', 'businesstype', 'activitytype'],
     location:            ['location', 'physicallocation', 'addressdescription', 'sitelocation', 'area'],
     district:            ['district', 'districtcode', 'localitydistrict', 'mmda'],
-    email:               ['email', 'emailaddress', 'mail'],
-    entity_tin:          ['tin', 'entitytin', 'taxpayerid', 'taxid', 'taxidentification'],
-    contact_person:      ['contactperson', 'contact', 'contactname', 'representative'],
-    designation:         ['designation', 'title', 'position', 'jobtitle', 'role'],
-    address:             ['address', 'mailingaddress', 'postaladdress', 'pobox'],
-    phone:               ['phone', 'telephone', 'tel', 'phonenumber', 'mobile', 'contactno'],
-    coordinates:         ['coordinates', 'coords', 'gps', 'latlng', 'latlong'],
+    email:               ['emailaddress', 'email', 'mail'],
+    entity_tin:          ['entitytin', 'tin', 'taxpayerid', 'taxid', 'taxidentification'],
+    // phone before contact_person so "Contact No." matches phone not contact_person
+    phone:               ['phonenumber', 'phone', 'telephone', 'telnumber', 'mobilenumber', 'contactnumber', 'contactno', 'tel', 'mobile'],
+    contact_person:      ['contactperson', 'contactname', 'representative', 'contact'],
+    designation:         ['designation', 'jobtitle', 'position', 'title', 'role'],
+    address:             ['mailingaddress', 'postaladdress', 'pobox', 'address'],
+    coordinates:         ['gpscoordinates', 'coordinates', 'cordinates', 'gpslocation', 'latlong', 'latlng', 'coords', 'gps'],
   }
 
   const mapping = {}
@@ -66,8 +67,46 @@ export function detectColumnMapping(headers) {
     const norm = normalize(header)
     for (const [field, aliases] of Object.entries(ALIASES)) {
       if (aliases.some((a) => norm === a || norm.includes(a))) {
-        if (!(field in mapping)) mapping[field] = idx
-        break
+        // Only assign if not yet mapped; if already mapped keep looking for this header's field
+        if (!(field in mapping)) {
+          mapping[field] = idx
+          break  // header successfully assigned — stop
+        }
+        // field already taken — continue to next field to find another match
+      }
+    }
+  })
+  return mapping
+}
+
+/**
+ * Auto-detect which CSV header maps to which permit field.
+ */
+export function detectPermitMapping(headers) {
+  const normalize = (s) => s.toLowerCase().replace(/[\s_\-\/\.]/g, '')
+
+  const ALIASES = {
+    permit_id:       ['permid', 'permitid', 'id'],
+    entity_name:     ['entityname', 'facilityname', 'nameofundertaking', 'undertakingname', 'name'],
+    file_number:    ['fileno', 'filenumber', 'filenum', 'filecode', 'facilityid'],
+    permit_number:  ['permitnumber', 'permitno', 'permit', 'eapermit', 'eano', 'licensenumber', 'licenseno'],
+    issue_date:     ['issuedate', 'dateissued', 'dateofissue', 'dategranted', 'grantdate', 'issued'],
+    effective_date: ['effectivedate', 'startdate', 'commencementdate', 'dateeffective', 'effective'],
+    expiry_date:    ['expirydate', 'expirationdate', 'dateofexpiry', 'expiry', 'expiration', 'expires', 'validuntil', 'validto', 'duedate'],
+    issue_location: ['issuelocation', 'placeofissue', 'issuedlocation', 'issuedby', 'office', 'issuingoffice'],
+    permit_image_url: ['permitimage', 'permitimagelink', 'permitimageurl', 'permitlink', 'imageurl', 'drivelink', 'googledrivelink'],
+    notes:          ['notes', 'remarks', 'comments', 'description', 'details'],
+  }
+
+  const mapping = {}
+  headers.forEach((header, idx) => {
+    const norm = normalize(header)
+    for (const [field, aliases] of Object.entries(ALIASES)) {
+      if (aliases.some((a) => norm === a || norm.includes(a))) {
+        if (!(field in mapping)) {
+          mapping[field] = idx
+          break
+        }
       }
     }
   })
@@ -77,16 +116,18 @@ export function detectColumnMapping(headers) {
 /** Generate template CSV content for facilities. */
 export function buildTemplateCSV() {
   const headers = [
-    'name', 'sector', 'type_of_undertaking', 'location',
-    'district', 'email', 'entity_tin', 'contact_person',
+    'file_number', 'name', 'sector', 'type_of_undertaking', 'location',
+    'district', 'coordinates', 'email', 'entity_tin', 'contact_person',
     'designation', 'address', 'phone',
   ]
   const example = [
+    'CI266',
     'Kumasi Plastic Industries Ltd',
     'Manufacturing',
     'Plastic Products Manufacturing',
     'Industrial Area, Suame, Kumasi',
-    'KMA',
+    'AAC',
+    '6.6885, -1.6244',
     'env@kumaplastic.gh',
     'C0012345678',
     'Yaw Owusu',
@@ -94,5 +135,12 @@ export function buildTemplateCSV() {
     'P.O. Box KS 500, Kumasi',
     '+233 322 041 100',
   ]
+  return [headers.join(','), example.map((v) => `"${v}"`).join(',')].join('\n')
+}
+
+/** Generate template CSV content for permits. */
+export function buildPermitTemplateCSV() {
+  const headers = ['PermID', 'Entity Name', 'File No.', 'PERMIT NO.', 'Date of Issue', 'Effective Date', 'Date of Expiry', 'Place of Issue', 'Permit Image', 'Notes']
+  const example = ['P-001', 'Kumasi Plastic Industries Ltd', 'CI266', 'EPA/ASH/KON/EA1/CI266/25/00266', '2025-01-15', '2025-02-01', '2028-01-31', 'Konongo', 'https://drive.google.com/file/d/example/view', '']
   return [headers.join(','), example.map((v) => `"${v}"`).join(',')].join('\n')
 }

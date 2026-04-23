@@ -27,7 +27,10 @@ export function AuthProvider({ children }) {
       try {
         const staffSnap = await getDoc(doc(db, 'staff', firebaseUser.uid))
         if (staffSnap.exists()) {
-          setStaff(staffSnap.data())
+          const data = staffSnap.data()
+          // Normalise role to lowercase so all comparisons are case-insensitive
+          if (data.role) data.role = data.role.toLowerCase()
+          setStaff(data)
           setStaffError(null)
         } else {
           setStaff(null)
@@ -58,7 +61,11 @@ export function AuthProvider({ children }) {
   async function refreshStaff() {
     if (!auth.currentUser) return
     const snap = await getDoc(doc(db, 'staff', auth.currentUser.uid))
-    if (snap.exists()) setStaff(snap.data())
+    if (snap.exists()) {
+      const data = snap.data()
+      if (data.role) data.role = data.role.toLowerCase()
+      setStaff(data)
+    }
   }
 
   const value = {

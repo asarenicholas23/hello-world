@@ -7,8 +7,15 @@ import {
   CheckSquare, AlertTriangle, XCircle, BarChart2, Clock,
   MessageSquare, GraduationCap, TrendingUp,
 } from 'lucide-react'
-import { getDashboardStats, getPermitStats, getFieldStats, getMyActivityStats, getFinanceStats } from '../firebase/dashboard'
-import { SECTORS, SECTOR_COLORS, FIELD_ROLES, ADMIN_ROLES } from '../data/constants'
+import { getDashboardStats, getPermitStats, getMyActivityStats, getFinanceStats } from '../firebase/dashboard'
+import {
+  SECTORS,
+  SECTOR_COLORS,
+  FIELD_ROLES,
+  ADMIN_ROLES,
+  ADMIN_VIEW_ROLES,
+  OFFICE_OVERVIEW_ROLES,
+} from '../data/constants'
 
 const ROLE_LABEL = {
   director:          'Regional Director',
@@ -41,13 +48,13 @@ const ADMIN_CARDS = [
 const CARDS_BY_ROLE = {
   director: ADMIN_CARDS,
   admin: ADMIN_CARDS,
+  senior_officer: ADMIN_CARDS,
+  officer: ADMIN_CARDS,
   finance: [
     { icon: Building2,    color: '#1d4ed8', bg: '#eff6ff', title: 'Facilities',        path: '/facilities',     desc: 'Browse registered facilities.' },
     { icon: Banknote,     color: '#065f46', bg: '#f0fdf4', title: 'Finance',           path: '/finance',        desc: 'Log and manage fee payments across all facilities.' },
     { icon: FileText,     color: '#7c3aed', bg: '#f5f3ff', title: 'Permits',           path: '/permits',        desc: 'View permits and expiry dates.' },
   ],
-  senior_officer:    FIELD_CARDS,
-  officer:           FIELD_CARDS,
   assistant_officer: FIELD_CARDS,
   junior_officer:    FIELD_CARDS,
 }
@@ -59,7 +66,6 @@ export default function Home() {
 
   const [stats, setStats]               = useState(null)
   const [permitStats, setPermitStats]   = useState(null)
-  const [fieldStats, setFieldStats]     = useState(null)
   const [myStats, setMyStats]           = useState(null)
   const [financeStats, setFinanceStats] = useState(null)
 
@@ -79,12 +85,11 @@ export default function Home() {
 
   useEffect(() => {
     getDashboardStats().then(setStats).catch(() => {})
-    if (ADMIN_ROLES.has(role) || role === 'finance') {
+    if (OFFICE_OVERVIEW_ROLES.has(role)) {
       getPermitStats().then(setPermitStats).catch(() => {})
-      getFinanceStats(activeFrom, activeTo).then(setFinanceStats).catch(() => {})
     }
-    if (FIELD_ROLES.has(role)) {
-      getFieldStats().then(setFieldStats).catch(() => {})
+    if (ADMIN_VIEW_ROLES.has(role) || role === 'finance') {
+      getFinanceStats(activeFrom, activeTo).then(setFinanceStats).catch(() => {})
     }
     if (user?.uid && role !== 'finance') {
       getMyActivityStats(user.uid, activeFrom, activeTo).then(setMyStats).catch(() => {})
@@ -94,8 +99,9 @@ export default function Home() {
   const sectorMax = stats
     ? Math.max(...Object.values(stats.bySector), 1)
     : 1
-  const showFinanceOverview = ADMIN_ROLES.has(role) || role === 'finance'
+  const showFinanceOverview = ADMIN_VIEW_ROLES.has(role) || role === 'finance'
   const showMyActivity = role !== 'finance'
+  const showAdminOfficeOverview = OFFICE_OVERVIEW_ROLES.has(role)
 
   return (
     <div>
@@ -164,7 +170,7 @@ export default function Home() {
               value={myStats.siteVerifications} label="Site Verifications"
               onClick={() => navigate('/site-verifications', { state: { officerUid: user.uid } })}
             />
-            {(ADMIN_ROLES.has(role) || role === 'finance') && (
+            {ADMIN_VIEW_ROLES.has(role) && (
               <KpiCard
                 icon={<FileText size={20} color="#7c3aed" />} bg="#f5f3ff"
                 value={myStats.permits} label="Permits Issued"
@@ -195,7 +201,7 @@ export default function Home() {
           label="Facilities"
           onClick={() => navigate('/facilities')}
         />
-        {ADMIN_ROLES.has(role) && stats != null && (
+        {showAdminOfficeOverview && stats != null && (
           <KpiCard
             icon={<FileText size={20} color="#9ca3af" />}
             bg="#f9fafb"
@@ -240,38 +246,6 @@ export default function Home() {
                 highlight
               />
             )}
-          </>
-        )}
-        {FIELD_ROLES.has(role) && fieldStats && (
-          <>
-            <KpiCard
-              icon={<ClipboardList size={20} color="#0369a1" />}
-              bg="#f0f9ff"
-              value={fieldStats.screenings}
-              label="Screenings"
-              onClick={() => navigate('/screening')}
-            />
-            <KpiCard
-              icon={<Activity size={20} color="#166534" />}
-              bg="#dcfce7"
-              value={fieldStats.monitoring}
-              label="Monitoring Visits"
-              onClick={() => navigate('/monitoring')}
-            />
-            <KpiCard
-              icon={<ShieldAlert size={20} color="#c2410c" />}
-              bg="#fff7ed"
-              value={fieldStats.enforcement}
-              label="Enforcement Actions"
-              onClick={() => navigate('/enforcement')}
-            />
-            <KpiCard
-              icon={<CheckSquare size={20} color="#0891b2" />}
-              bg="#f0fdfa"
-              value={fieldStats.siteVerifications}
-              label="Site Verifications"
-              onClick={() => navigate('/site-verifications')}
-            />
           </>
         )}
       </div>
@@ -422,7 +396,7 @@ export default function Home() {
       )}
 
       {/* ── Permit Analytics entry (admin only) ─────────── */}
-      {ADMIN_ROLES.has(role) && (
+      {ADMIN_VIEW_ROLES.has(role) && (
         <div
           className="analytics-entry-card"
           onClick={() => navigate('/permit-analytics')}

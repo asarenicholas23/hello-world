@@ -60,6 +60,7 @@ export default function FinanceTab({ fileNumber, role }) {
               </div>
               <div className="record-item__meta">
                 <span>Date: {fmtDate(r.date)}</span>
+                {r.permit_number && <span>Permit: {r.permit_number}</span>}
                 {r.reference_number && <span>Ref: {r.reference_number}</span>}
               </div>
               {r.notes && <div className="record-item__note">{r.notes}</div>}

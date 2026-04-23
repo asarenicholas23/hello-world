@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, AlertCircle, Save, Loader } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
-import { getSubRecord, createSubRecord, updateSubRecord } from '../firebase/subrecords'
+import { getSubRecord, createSubRecord, updateSubRecord, listSubRecords } from '../firebase/subrecords'
 import { uploadFile } from '../firebase/storage'
 import { tsToInput, inputToTs } from '../utils/records'
 import { PAYMENT_TYPES } from '../data/constants'
@@ -15,6 +15,8 @@ const EMPTY = {
   payment_status: 'paid',
   amount: '',
   currency: 'GHS',
+  permit_id: '',
+  permit_number: '',
   reference_number: '',
   notes: '',
 }
@@ -35,6 +37,26 @@ export default function FinanceForm() {
   const [submitting, setSubmitting]       = useState(false)
   const [uploadingSlot, setUploadingSlot] = useState(null)
   const [error, setError]                 = useState('')
+  const [permits, setPermits]             = useState([])
+  const [permitsLoading, setPermitsLoading] = useState(true)
+
+  useEffect(() => {
+    let cancelled = false
+
+    setPermitsLoading(true)
+    listSubRecords(fileNumber, 'permits')
+      .then((rows) => {
+        if (!cancelled) setPermits(rows)
+      })
+      .catch(() => {
+        if (!cancelled) setPermits([])
+      })
+      .finally(() => {
+        if (!cancelled) setPermitsLoading(false)
+      })
+
+    return () => { cancelled = true }
+  }, [fileNumber])
 
   useEffect(() => {
     if (!isEditing) return
@@ -47,6 +69,8 @@ export default function FinanceForm() {
           payment_status:   rec.payment_status   ?? 'paid',
           amount:           rec.amount != null   ? String(rec.amount) : '',
           currency:         rec.currency         ?? 'GHS',
+          permit_id:        rec.permit_id        ?? '',
+          permit_number:    rec.permit_number    ?? '',
           reference_number: rec.reference_number ?? '',
           notes:            rec.notes            ?? '',
         })
@@ -62,6 +86,16 @@ export default function FinanceForm() {
   function handleChange(e) {
     const { name, value } = e.target
     setFormData((p) => ({ ...p, [name]: value }))
+  }
+
+  function handlePermitChange(e) {
+    const permitId = e.target.value
+    const permit = permits.find((row) => row.id === permitId)
+    setFormData((p) => ({
+      ...p,
+      permit_id: permitId,
+      permit_number: permit?.permit_number ?? '',
+    }))
   }
 
   function validate() {
@@ -109,6 +143,8 @@ export default function FinanceForm() {
       payment_status:   formData.payment_status,
       amount:           Number(formData.amount),
       currency:         formData.currency,
+      permit_id:        formData.permit_id || '',
+      permit_number:    formData.permit_number || '',
       reference_number: formData.reference_number.trim(),
       notes:            formData.notes.trim(),
     }
@@ -174,6 +210,23 @@ export default function FinanceForm() {
                 <select className="select" name="payment_status" value={formData.payment_status} onChange={handleChange}>
                   <option value="paid">Paid</option>
                   <option value="unpaid">Unpaid / Outstanding</option>
+                </select>
+              </div>
+              <div className="form-group">
+                <label>Linked Permit</label>
+                <select className="select" value={formData.permit_id} onChange={handlePermitChange} disabled={permitsLoading}>
+                  <option value="">
+                    {permitsLoading
+                      ? 'Loading permits…'
+                      : permits.length
+                        ? 'Select permit…'
+                        : 'No permits available'}
+                  </option>
+                  {permits.map((permit) => (
+                    <option key={permit.id} value={permit.id}>
+                      {permit.permit_number}
+                    </option>
+                  ))}
                 </select>
               </div>
             </div>

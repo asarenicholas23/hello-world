@@ -17,6 +17,20 @@ export const FIELD_ROLES = new Set(['senior_officer', 'officer', 'assistant_offi
 // Roles with administrative / oversight access
 export const ADMIN_ROLES = new Set(['director', 'admin'])
 
+// Roles that should see the full admin-style dashboard and navigation.
+export const ADMIN_VIEW_ROLES = new Set(['director', 'admin', 'senior_officer', 'officer'])
+
+// Roles that should see the full office-wide KPI breakdown on the dashboard.
+export const OFFICE_OVERVIEW_ROLES = new Set([
+  'director',
+  'admin',
+  'senior_officer',
+  'officer',
+  'assistant_officer',
+  'junior_officer',
+  'finance',
+])
+
 export const SECTORS = [
   { prefix: 'CU', name: 'Manufacturing' },
   { prefix: 'CI', name: 'Infrastructure' },

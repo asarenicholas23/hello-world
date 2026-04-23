@@ -3,9 +3,9 @@ import { useNavigate, useLocation } from 'react-router-dom'
 import { Building2, MapPin, Phone, Plus, Search, User, AlertCircle, Clock, Trash2, CheckCircle, LayoutGrid, Table2 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useSync } from '../context/SyncContext'
-import { listFacilities } from '../firebase/facilities'
+import { listFacilities, deleteFacility } from '../firebase/facilities'
 import { getPermitStatusMap } from '../firebase/dashboard'
-import { SECTORS, DISTRICTS, SECTOR_COLORS } from '../data/constants'
+import { SECTORS, DISTRICTS, SECTOR_COLORS, ADMIN_ROLES } from '../data/constants'
 import Spinner from '../components/Spinner'
 
 const SORT_OPTIONS = [
@@ -32,6 +32,7 @@ export default function Facilities() {
   const [facilities, setFacilities] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [actionError, setActionError] = useState('')
   const draftSaved = location.state?.draftSaved ?? false
 
   const [search, setSearch]                 = useState('')
@@ -48,6 +49,8 @@ export default function Facilities() {
   const [permitMapLoading, setPermitMapLoading] = useState(false)
   const [sort, setSort]   = useState('newest')
   const [view, setView]   = useState(() => localStorage.getItem('facilities-view') ?? 'table')
+  const [selectedIds, setSelectedIds] = useState([])
+  const [deletingSelected, setDeletingSelected] = useState(false)
 
   function toggleView(v) {
     setView(v)
@@ -93,6 +96,55 @@ export default function Facilities() {
   }, [facilities, search, sectorFilter, districtFilter, permitFilter, officerFilter, permitStatusMap, sort])
 
   const activeFilters = [sectorFilter, districtFilter, permitFilter, officerFilter].filter(Boolean).length
+  const canBulkManage = ADMIN_ROLES.has(role)
+  const selectedIdSet = useMemo(() => new Set(selectedIds), [selectedIds])
+  const visibleFacilityIds = filtered.map((f) => f.file_number)
+  const allVisibleSelected = visibleFacilityIds.length > 0 && visibleFacilityIds.every((id) => selectedIdSet.has(id))
+
+  function toggleFacilitySelection(fileNumber) {
+    setSelectedIds((prev) => (
+      prev.includes(fileNumber)
+        ? prev.filter((id) => id !== fileNumber)
+        : [...prev, fileNumber]
+    ))
+  }
+
+  function toggleSelectAllVisible() {
+    setSelectedIds((prev) => {
+      if (allVisibleSelected) {
+        return prev.filter((id) => !visibleFacilityIds.includes(id))
+      }
+      return [...new Set([...prev, ...visibleFacilityIds])]
+    })
+  }
+
+  function clearSelection() {
+    setSelectedIds([])
+  }
+
+  async function handleDeleteSelected() {
+    if (selectedIds.length === 0 || deletingSelected) return
+    const label = selectedIds.length === 1 ? 'facility' : 'facilities'
+    if (!window.confirm(`Delete ${selectedIds.length} selected ${label}? This cannot be undone.`)) return
+
+    setDeletingSelected(true)
+    setActionError('')
+
+    const results = await Promise.allSettled(selectedIds.map((fileNumber) => deleteFacility(fileNumber)))
+    const deletedIds = selectedIds.filter((_, index) => results[index].status === 'fulfilled')
+    const failedCount = results.length - deletedIds.length
+
+    if (deletedIds.length > 0) {
+      setFacilities((prev) => prev.filter((facility) => !deletedIds.includes(facility.file_number)))
+      setSelectedIds((prev) => prev.filter((id) => !deletedIds.includes(id)))
+    }
+
+    if (failedCount > 0) {
+      setActionError(`Deleted ${deletedIds.length} ${label}, but ${failedCount} failed. Please try again.`)
+    }
+
+    setDeletingSelected(false)
+  }
 
   return (
     <div className="page">
@@ -103,11 +155,38 @@ export default function Facilities() {
             {loading ? 'Loading…' : `${filtered.length} of ${facilities.length} registered`}
           </div>
         </div>
-        {role === 'admin' && (
-          <button className="btn btn--primary" onClick={() => navigate('/facilities/new')}>
-            <Plus size={16} /> New Facility
-          </button>
-        )}
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+          {canBulkManage && filtered.length > 0 && (
+            <>
+              <button
+                className="btn btn--ghost"
+                onClick={toggleSelectAllVisible}
+                disabled={deletingSelected}
+              >
+                {allVisibleSelected ? 'Unselect Visible' : 'Select Visible'}
+              </button>
+              <button
+                className="btn btn--ghost"
+                onClick={clearSelection}
+                disabled={selectedIds.length === 0 || deletingSelected}
+              >
+                Clear ({selectedIds.length})
+              </button>
+              <button
+                className="btn btn--ghost btn--danger"
+                onClick={handleDeleteSelected}
+                disabled={selectedIds.length === 0 || deletingSelected}
+              >
+                <Trash2 size={14} /> {deletingSelected ? 'Deleting…' : `Delete Selected (${selectedIds.length})`}
+              </button>
+            </>
+          )}
+          {role === 'admin' && (
+            <button className="btn btn--primary" onClick={() => navigate('/facilities/new')}>
+              <Plus size={16} /> New Facility
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Filters */}
@@ -237,11 +316,48 @@ export default function Facilities() {
         </div>
       )}
 
+      {canBulkManage && filtered.length > 0 && (
+        <div className="bulk-actions-bar">
+          <span className="bulk-actions-bar__hint">Admin bulk actions are enabled. Use the checkboxes below to select facilities.</span>
+          <label className="bulk-actions-bar__checkbox">
+            <input
+              type="checkbox"
+              checked={allVisibleSelected}
+              onChange={toggleSelectAllVisible}
+            />
+            <span>Select all visible</span>
+          </label>
+          <span className="bulk-actions-bar__count">
+            {selectedIds.length} selected
+          </span>
+          <button
+            className="btn btn--ghost btn--xs"
+            onClick={clearSelection}
+            disabled={selectedIds.length === 0 || deletingSelected}
+          >
+            Clear
+          </button>
+          <button
+            className="btn btn--ghost btn--xs btn--danger"
+            onClick={handleDeleteSelected}
+            disabled={selectedIds.length === 0 || deletingSelected}
+          >
+            <Trash2 size={13} /> {deletingSelected ? 'Deleting…' : 'Delete Selected'}
+          </button>
+        </div>
+      )}
+
       {loading && <Spinner />}
 
       {error && (
         <div className="login-error">
           <AlertCircle size={15} /> {error}
+        </div>
+      )}
+
+      {!error && actionError && (
+        <div className="login-error">
+          <AlertCircle size={15} /> {actionError}
         </div>
       )}
 
@@ -255,11 +371,26 @@ export default function Facilities() {
 
       {!loading && !error && filtered.length > 0 && (
         view === 'table' ? (
-          <FacilityTable facilities={filtered} onRowClick={(f) => navigate(`/facilities/${f.file_number}`)} />
+          <FacilityTable
+            facilities={filtered}
+            onRowClick={(f) => navigate(`/facilities/${f.file_number}`)}
+            canSelect={canBulkManage}
+            selectedIdSet={selectedIdSet}
+            onToggleSelect={toggleFacilitySelection}
+            allVisibleSelected={allVisibleSelected}
+            onToggleSelectAll={toggleSelectAllVisible}
+          />
         ) : (
           <div className="firms-grid">
             {filtered.map((f) => (
-              <FacilityCard key={f.file_number} facility={f} onClick={() => navigate(`/facilities/${f.file_number}`)} />
+              <FacilityCard
+                key={f.file_number}
+                facility={f}
+                onClick={() => navigate(`/facilities/${f.file_number}`)}
+                selectable={canBulkManage}
+                selected={selectedIdSet.has(f.file_number)}
+                onToggleSelect={() => toggleFacilitySelection(f.file_number)}
+              />
             ))}
           </div>
         )
@@ -268,13 +399,31 @@ export default function Facilities() {
   )
 }
 
-function FacilityTable({ facilities, onRowClick }) {
+function FacilityTable({
+  facilities,
+  onRowClick,
+  canSelect,
+  selectedIdSet,
+  onToggleSelect,
+  allVisibleSelected,
+  onToggleSelectAll,
+}) {
   return (
     <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
       <div style={{ overflowX: 'auto' }}>
         <table className="facility-table">
           <thead>
             <tr>
+              {canSelect && (
+                <th style={{ width: 42 }}>
+                  <input
+                    type="checkbox"
+                    checked={allVisibleSelected}
+                    onChange={onToggleSelectAll}
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                </th>
+              )}
               <th>File No.</th>
               <th>Name</th>
               <th>Sector</th>
@@ -290,7 +439,20 @@ function FacilityTable({ facilities, onRowClick }) {
               const colors   = SECTOR_COLORS[f.sector_prefix] ?? { bg: '#f3f4f6', text: '#374151' }
               const district = DISTRICTS.find((d) => d.code === f.district)
               return (
-                <tr key={f.file_number} className="facility-table__row" onClick={() => onRowClick(f)}>
+                <tr
+                  key={f.file_number}
+                  className={`facility-table__row${selectedIdSet?.has(f.file_number) ? ' facility-table__row--selected' : ''}`}
+                  onClick={() => onRowClick(f)}
+                >
+                  {canSelect && (
+                    <td onClick={(e) => e.stopPropagation()}>
+                      <input
+                        type="checkbox"
+                        checked={selectedIdSet.has(f.file_number)}
+                        onChange={() => onToggleSelect(f.file_number)}
+                      />
+                    </td>
+                  )}
                   <td className="facility-table__fileno">{f.file_number}</td>
                   <td className="facility-table__name">{f.name}</td>
                   <td>
@@ -313,12 +475,12 @@ function FacilityTable({ facilities, onRowClick }) {
   )
 }
 
-function FacilityCard({ facility: f, onClick }) {
+function FacilityCard({ facility: f, onClick, selectable, selected, onToggleSelect }) {
   const colors = SECTOR_COLORS[f.sector_prefix] ?? { bg: '#f3f4f6', text: '#374151' }
   const district = DISTRICTS.find((d) => d.code === f.district)
 
   return (
-    <div className="firm-card" onClick={onClick}>
+    <div className={`firm-card${selected ? ' firm-card--selected' : ''}`} onClick={onClick}>
       <div className="firm-card__header">
         <div>
           <span className="firm-card__name">{f.name}</span>
@@ -329,7 +491,19 @@ function FacilityCard({ facility: f, onClick }) {
             {f.sector}
           </span>
         </div>
-        <span className="file-num">{f.file_number}</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {selectable && (
+            <label className="bulk-card-checkbox bulk-card-checkbox--header" onClick={(e) => e.stopPropagation()}>
+              <input
+                type="checkbox"
+                checked={selected}
+                onChange={onToggleSelect}
+              />
+              <span>Select</span>
+            </label>
+          )}
+          <span className="file-num">{f.file_number}</span>
+        </div>
       </div>
 
       <div className="firm-card__meta">

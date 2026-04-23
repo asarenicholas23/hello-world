@@ -4,6 +4,7 @@ import { Plus, Edit2, Trash2, AlertCircle, Paperclip } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { listSubRecords, deleteSubRecord } from '../../firebase/subrecords'
 import { fmtDate, permitStatus } from '../../utils/records'
+import { normalizeAttachmentUrl } from '../../utils/attachments'
 import { ADMIN_ROLES, FIELD_ROLES } from '../../data/constants'
 import Spinner from '../Spinner'
 
@@ -81,12 +82,12 @@ export default function PermitsTab({ fileNumber, facilityOfficer }) {
                 {(r.permit_image_url || r.schedule_url) && (
                   <div className="record-item__attachments">
                     {r.permit_image_url && (
-                      <a href={r.permit_image_url} target="_blank" rel="noopener noreferrer" className="attachment-link">
+                      <a href={normalizeAttachmentUrl(r.permit_image_url)} target="_blank" rel="noopener noreferrer" className="attachment-link">
                         <Paperclip size={11} /> Permit Image
                       </a>
                     )}
                     {r.schedule_url && (
-                      <a href={r.schedule_url} target="_blank" rel="noopener noreferrer" className="attachment-link">
+                      <a href={normalizeAttachmentUrl(r.schedule_url)} target="_blank" rel="noopener noreferrer" className="attachment-link">
                         <Paperclip size={11} /> Schedule
                       </a>
                     )}

@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { Search, AlertCircle, Download, Plus, LayoutGrid, Table2 } from 'lucide-react'
+import { Search, AlertCircle, Download, Plus, LayoutGrid, Table2, Trash2 } from 'lucide-react'
 import { getCrossRecords, buildFacilityMap } from '../firebase/dashboard'
+import { deleteSubRecord } from '../firebase/subrecords'
 import { fmtDate, permitStatus } from '../utils/records'
 import { SECTOR_COLORS, ENFORCEMENT_ACTIONS, COMPLIANCE_STATUS, FIELD_ROLES, ADMIN_ROLES, PAYMENT_TYPES } from '../data/constants'
 import Spinner from '../components/Spinner'
@@ -80,6 +81,7 @@ function RecordSummary({ record, category }) {
         </span>
         <span className="cross-record__meta">
           {record.payment_type} · {fmtDate(record.date)}
+          {record.permit_number ? ` · Permit: ${record.permit_number}` : ''}
           {record.reference_number ? ` · Ref: ${record.reference_number}` : ''}
         </span>
       </>
@@ -163,8 +165,8 @@ function toCSV(rows, category) {
       row: (r) => [r.fileNumber, r.facilityName, r.facilitySector, r.facilityUndertaking, r.facilityLocation, r.facilityDistrict, r.facilityContact, r.facilityDesignation, r.facilityPhone, r.facilityEmail, r.permit_number, fmt(r.issue_date), fmt(r.effective_date), fmt(r.expiry_date), r.issue_location, STATUS_LABELS[permitStatus(r.expiry_date)] ?? '', r.notes],
     },
     finance: {
-      headers: ['File No.', 'Facility', 'Sector', 'Date', 'Payment Type', 'Amount', 'Currency', 'Payment Status', 'Reference', 'Notes'],
-      row: (r) => [r.fileNumber, r.facilityName, r.sectorPrefix, fmt(r.date), r.payment_type, r.amount, r.currency, (r.payment_status ?? 'paid') === 'unpaid' ? 'Unpaid' : 'Paid', r.reference_number, r.notes],
+      headers: ['File No.', 'Facility', 'Sector', 'Date', 'Payment Type', 'Amount', 'Currency', 'Payment Status', 'Permit Number', 'Reference', 'Notes'],
+      row: (r) => [r.fileNumber, r.facilityName, r.sectorPrefix, fmt(r.date), r.payment_type, r.amount, r.currency, (r.payment_status ?? 'paid') === 'unpaid' ? 'Unpaid' : 'Paid', r.permit_number, r.reference_number, r.notes],
     },
     screenings: {
       headers: ['File No.', 'Facility', 'Sector', 'Date', 'Officer', 'Notes'],
@@ -214,6 +216,7 @@ export default function CrossRecordsPage() {
   const [records, setRecords] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [actionError, setActionError] = useState('')
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter]       = useState(location.state?.statusFilter ?? '')
   const [officerFilter, setOfficerFilter]     = useState(location.state?.officerUid ?? '')
@@ -223,6 +226,8 @@ export default function CrossRecordsPage() {
   const [dateFrom, setDateFrom]           = useState('')
   const [dateTo, setDateTo]               = useState('')
   const [permitDateField, setPermitDateField] = useState('expiry_date')
+  const [selectedKeys, setSelectedKeys] = useState([])
+  const [deletingSelected, setDeletingSelected] = useState(false)
 
   // Re-sync filters on every navigation (handles same-route re-navigation)
   useEffect(() => {
@@ -314,6 +319,60 @@ export default function CrossRecordsPage() {
     })
     return { total, paid, unpaid }
   }, [filtered, collection])
+  const canBulkManage = ADMIN_ROLES.has(staff?.role)
+  const selectedKeySet = useMemo(() => new Set(selectedKeys), [selectedKeys])
+  const visibleRecordKeys = filtered.map((r) => `${r.fileNumber}::${r.id}`)
+  const allVisibleSelected = visibleRecordKeys.length > 0 && visibleRecordKeys.every((key) => selectedKeySet.has(key))
+
+  function toggleRecordSelection(recordKey) {
+    setSelectedKeys((prev) => (
+      prev.includes(recordKey)
+        ? prev.filter((key) => key !== recordKey)
+        : [...prev, recordKey]
+    ))
+  }
+
+  function toggleSelectAllVisible() {
+    setSelectedKeys((prev) => {
+      if (allVisibleSelected) {
+        return prev.filter((key) => !visibleRecordKeys.includes(key))
+      }
+      return [...new Set([...prev, ...visibleRecordKeys])]
+    })
+  }
+
+  function clearSelection() {
+    setSelectedKeys([])
+  }
+
+  async function handleDeleteSelected() {
+    if (selectedKeys.length === 0 || deletingSelected) return
+    const label = selectedKeys.length === 1 ? 'record' : 'records'
+    if (!window.confirm(`Delete ${selectedKeys.length} selected ${label} from ${config.label}? This cannot be undone.`)) return
+
+    setDeletingSelected(true)
+    setActionError('')
+
+    const selectedRecords = records.filter((record) => selectedKeySet.has(`${record.fileNumber}::${record.id}`))
+    const results = await Promise.allSettled(
+      selectedRecords.map((record) => deleteSubRecord(record.fileNumber, collection, record.id))
+    )
+    const deletedKeys = selectedRecords
+      .filter((_, index) => results[index].status === 'fulfilled')
+      .map((record) => `${record.fileNumber}::${record.id}`)
+    const failedCount = results.length - deletedKeys.length
+
+    if (deletedKeys.length > 0) {
+      setRecords((prev) => prev.filter((record) => !deletedKeys.includes(`${record.fileNumber}::${record.id}`)))
+      setSelectedKeys((prev) => prev.filter((key) => !deletedKeys.includes(key)))
+    }
+
+    if (failedCount > 0) {
+      setActionError(`Deleted ${deletedKeys.length} ${label}, but ${failedCount} failed. Please try again.`)
+    }
+
+    setDeletingSelected(false)
+  }
 
   if (!config) return <div className="page"><div className="empty-state">Unknown module.</div></div>
 
@@ -327,6 +386,31 @@ export default function CrossRecordsPage() {
           </div>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
+          {canBulkManage && filtered.length > 0 && (
+            <>
+              <button
+                className="btn btn--ghost"
+                onClick={toggleSelectAllVisible}
+                disabled={deletingSelected}
+              >
+                {allVisibleSelected ? 'Unselect Visible' : 'Select Visible'}
+              </button>
+              <button
+                className="btn btn--ghost"
+                onClick={clearSelection}
+                disabled={selectedKeys.length === 0 || deletingSelected}
+              >
+                Clear ({selectedKeys.length})
+              </button>
+              <button
+                className="btn btn--ghost btn--danger"
+                onClick={handleDeleteSelected}
+                disabled={selectedKeys.length === 0 || deletingSelected}
+              >
+                <Trash2 size={14} /> {deletingSelected ? 'Deleting…' : `Delete Selected (${selectedKeys.length})`}
+              </button>
+            </>
+          )}
           {collection === 'enforcement' && (ADMIN_ROLES.has(staff?.role) || FIELD_ROLES.has(staff?.role)) && (
             <button className="btn btn--primary" onClick={() => navigate('/field-reports/new')}>
               <Plus size={14} /> Field Report
@@ -342,6 +426,35 @@ export default function CrossRecordsPage() {
           )}
         </div>
       </div>
+
+      {canBulkManage && filtered.length > 0 && (
+        <div className="bulk-actions-bar">
+          <span className="bulk-actions-bar__hint">Admin bulk actions are enabled. Use the checkboxes below to select records.</span>
+          <label className="bulk-actions-bar__checkbox">
+            <input
+              type="checkbox"
+              checked={allVisibleSelected}
+              onChange={toggleSelectAllVisible}
+            />
+            <span>Select all visible</span>
+          </label>
+          <span className="bulk-actions-bar__count">{selectedKeys.length} selected</span>
+          <button
+            className="btn btn--ghost btn--xs"
+            onClick={clearSelection}
+            disabled={selectedKeys.length === 0 || deletingSelected}
+          >
+            Clear
+          </button>
+          <button
+            className="btn btn--ghost btn--xs btn--danger"
+            onClick={handleDeleteSelected}
+            disabled={selectedKeys.length === 0 || deletingSelected}
+          >
+            <Trash2 size={13} /> {deletingSelected ? 'Deleting…' : 'Delete Selected'}
+          </button>
+        </div>
+      )}
 
       {/* Search + filters */}
       <div className="filter-bar">
@@ -496,6 +609,12 @@ export default function CrossRecordsPage() {
         </div>
       )}
 
+      {!error && actionError && (
+        <div className="login-error">
+          <AlertCircle size={15} /> {actionError}
+        </div>
+      )}
+
       {!loading && !error && filtered.length === 0 && (
         <div className="empty-state">
           {records.length === 0
@@ -510,11 +629,22 @@ export default function CrossRecordsPage() {
             <table className="facility-table">
               <thead>
                 <tr>
+                  {canBulkManage && (
+                    <th style={{ width: 42 }}>
+                      <input
+                        type="checkbox"
+                        checked={allVisibleSelected}
+                        onChange={toggleSelectAllVisible}
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                    </th>
+                  )}
                   <th>File No.</th>
                   <th>Facility</th>
                   <th>Sector</th>
                   <th>Date</th>
                   <th>Type</th>
+                  <th>Permit</th>
                   <th style={{ textAlign: 'right' }}>Amount (GHS)</th>
                   <th>Status</th>
                   <th>Reference</th>
@@ -524,12 +654,22 @@ export default function CrossRecordsPage() {
                 {filtered.map((r) => {
                   const isPaid = (r.payment_status ?? 'paid') !== 'unpaid'
                   const colors = SECTOR_COLORS[r.sectorPrefix] ?? { bg: '#f3f4f6', text: '#374151' }
+                  const recordKey = `${r.fileNumber}::${r.id}`
                   return (
                     <tr
                       key={`${r.fileNumber}-${r.id}`}
-                      className="facility-table__row"
+                      className={`facility-table__row${selectedKeySet.has(recordKey) ? ' facility-table__row--selected' : ''}`}
                       onClick={() => navigate(`/facilities/${r.fileNumber}`, { state: { tab: config.tab } })}
                     >
+                      {canBulkManage && (
+                        <td onClick={(e) => e.stopPropagation()}>
+                          <input
+                            type="checkbox"
+                            checked={selectedKeySet.has(recordKey)}
+                            onChange={() => toggleRecordSelection(recordKey)}
+                          />
+                        </td>
+                      )}
                       <td className="facility-table__fileno">{r.fileNumber}</td>
                       <td className="facility-table__name">{r.facilityName}</td>
                       <td>
@@ -539,6 +679,7 @@ export default function CrossRecordsPage() {
                       </td>
                       <td>{fmtDate(r.date)}</td>
                       <td>{r.payment_type || '—'}</td>
+                      <td style={{ color: '#6b7280' }}>{r.permit_number || '—'}</td>
                       <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
                         {Number(r.amount ?? 0).toLocaleString('en-GH', { minimumFractionDigits: 2 })}
                       </td>
@@ -561,14 +702,27 @@ export default function CrossRecordsPage() {
           <div className="cross-record-list">
             {filtered.map((r) => {
               const colors = SECTOR_COLORS[r.sectorPrefix] ?? { bg: '#f3f4f6', text: '#374151' }
+              const recordKey = `${r.fileNumber}::${r.id}`
               return (
                 <div
                   key={`${r.fileNumber}-${r.id}`}
-                  className="cross-record-item"
+                  className={`cross-record-item${selectedKeySet.has(recordKey) ? ' cross-record-item--selected' : ''}`}
                   onClick={() =>
                     navigate(`/facilities/${r.fileNumber}`, { state: { tab: config.tab } })
                   }
                 >
+                  <div className="cross-record__topbar">
+                    {canBulkManage && (
+                      <label className="bulk-card-checkbox bulk-card-checkbox--header" onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          checked={selectedKeySet.has(recordKey)}
+                          onChange={() => toggleRecordSelection(recordKey)}
+                        />
+                        <span>Select</span>
+                      </label>
+                    )}
+                  </div>
                   <div className="cross-record__facility">
                     <span className="file-num" style={{ fontSize: 12 }}>{r.fileNumber}</span>
                     <span className="cross-record__facility-name">{r.facilityName}</span>

@@ -1,5 +1,6 @@
 import { useRef } from 'react'
 import { Paperclip, Upload, X, ExternalLink, Loader } from 'lucide-react'
+import { normalizeAttachmentUrl } from '../utils/attachments'
 
 /**
  * A single file attachment slot.
@@ -28,7 +29,7 @@ export default function FileAttachmentField({
 
   function filenameFromUrl(url) {
     try {
-      const decoded = decodeURIComponent(url.split('/').pop().split('?')[0])
+      const decoded = decodeURIComponent(normalizeAttachmentUrl(url).split('/').pop().split('?')[0])
       // strip Firebase storage path prefix up to last slash
       return decoded.split('/').pop()
     } catch {
@@ -49,7 +50,7 @@ export default function FileAttachmentField({
 
           {existingUrl && !selectedFile && (
             <a
-              href={existingUrl}
+              href={normalizeAttachmentUrl(existingUrl)}
               target="_blank"
               rel="noopener noreferrer"
               className="attachment-field__view"

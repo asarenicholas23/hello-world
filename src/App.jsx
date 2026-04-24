@@ -89,6 +89,7 @@ export default function App() {
               {/* Field Reports */}
               <Route path="field-reports" element={<FieldReportsPage />} />
               <Route path="field-reports/new" element={<FieldReportForm />} />
+              <Route path="field-reports/:id/edit" element={<FieldReportForm />} />
 
               {/* Permit Analytics */}
               <Route path="permit-analytics" element={<PermitAnalyticsPage />} />

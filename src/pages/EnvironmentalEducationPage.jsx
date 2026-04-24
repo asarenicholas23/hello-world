@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { Plus, Search, Edit2, Trash2, AlertCircle, ChevronDown, ChevronUp, Users } from 'lucide-react'
+import { Plus, Search, Edit2, Trash2, AlertCircle, ChevronDown, ChevronUp, Users, Image } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { listEnvEducation, deleteEnvEducation } from '../firebase/envEducation'
-import { ADMIN_ROLES, FIELD_ROLES } from '../data/constants'
+import { ADMIN_ROLES, FIELD_ROLES, ADMIN_VIEW_ROLES } from '../data/constants'
 import { fmtDate } from '../utils/records'
 import Spinner from '../components/Spinner'
 
@@ -31,6 +31,7 @@ export default function EnvironmentalEducationPage() {
 
   const canWrite = ADMIN_ROLES.has(role) || FIELD_ROLES.has(role)
   const isAdmin  = ADMIN_ROLES.has(role)
+  const canEditAllEntries = ADMIN_VIEW_ROLES.has(role)
 
   const [records, setRecords]       = useState([])
   const [loading, setLoading]       = useState(true)
@@ -79,7 +80,7 @@ export default function EnvironmentalEducationPage() {
     finally { setDeletingId(null) }
   }
 
-  const canEdit = (r) => isAdmin || r.created_by === user?.uid
+  const canEdit = (r) => canEditAllEntries || r.created_by === user?.uid
 
   return (
     <div className="page">
@@ -185,6 +186,20 @@ export default function EnvironmentalEducationPage() {
                       <div style={{ marginBottom: 6 }}>
                         <span style={{ fontSize: 11, fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Notes</span>
                         <div style={{ fontSize: 13, color: '#374151', marginTop: 2 }}>{r.notes}</div>
+                      </div>
+                    )}
+                    {r.photos?.length > 0 && (
+                      <div style={{ marginBottom: 8 }}>
+                        <span style={{ fontSize: 11, fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                          <Image size={11} style={{ display: 'inline', marginRight: 3 }} />Photos
+                        </span>
+                        <div className="attachment-grid" style={{ marginTop: 6 }}>
+                          {r.photos.map((url, i) => (
+                            <a key={i} href={url} target="_blank" rel="noreferrer" className="attachment-link">
+                              Photo {i + 1}
+                            </a>
+                          ))}
+                        </div>
                       </div>
                     )}
                     {canEdit(r) && (

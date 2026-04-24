@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Plus, Edit2, Trash2, AlertCircle, Paperclip } from 'lucide-react'
 import { listSubRecords, deleteSubRecord } from '../../firebase/subrecords'
 import { fmtDate } from '../../utils/records'
+import { ADMIN_ROLES, ADMIN_VIEW_ROLES } from '../../data/constants'
 import Spinner from '../Spinner'
 
 export default function FinanceTab({ fileNumber, role }) {
@@ -31,7 +32,8 @@ export default function FinanceTab({ fileNumber, role }) {
     finally { setDeletingId(null) }
   }
 
-  const canEdit = role === 'admin' || role === 'finance'
+  const canEdit = ADMIN_VIEW_ROLES.has(role) || role === 'finance'
+  const canDelete = ADMIN_ROLES.has(role) || role === 'finance'
 
   if (loading) return <div className="tab-loading"><Spinner size={24} /></div>
   if (error) return <div className="login-error" style={{ margin: '12px 0' }}><AlertCircle size={14} /> {error}</div>
@@ -83,9 +85,11 @@ export default function FinanceTab({ fileNumber, role }) {
                   <button className="btn btn--ghost btn--xs" onClick={() => navigate(`/facilities/${fileNumber}/finance/${r.id}/edit`)}>
                     <Edit2 size={12} /> Edit
                   </button>
-                  <button className="btn btn--ghost btn--xs btn--danger" onClick={() => handleDelete(r.id)} disabled={deletingId === r.id}>
-                    <Trash2 size={12} /> {deletingId === r.id ? 'Deleting…' : 'Delete'}
-                  </button>
+                  {canDelete && (
+                    <button className="btn btn--ghost btn--xs btn--danger" onClick={() => handleDelete(r.id)} disabled={deletingId === r.id}>
+                      <Trash2 size={12} /> {deletingId === r.id ? 'Deleting…' : 'Delete'}
+                    </button>
+                  )}
                 </div>
               )}
             </div>

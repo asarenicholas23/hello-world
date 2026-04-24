@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom'
 import { Plus, Search, Edit2, Trash2, AlertCircle, ChevronDown, ChevronUp } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { listComplaints, deleteComplaint } from '../firebase/complaints'
-import { ADMIN_ROLES, FIELD_ROLES, DISTRICTS } from '../data/constants'
+import { ADMIN_ROLES, FIELD_ROLES, DISTRICTS, ADMIN_VIEW_ROLES } from '../data/constants'
 import { fmtDate } from '../utils/records'
 import Spinner from '../components/Spinner'
 
@@ -29,6 +29,7 @@ export default function ComplaintsPage() {
 
   const canWrite  = ADMIN_ROLES.has(role) || FIELD_ROLES.has(role)
   const isAdmin   = ADMIN_ROLES.has(role)
+  const canEditAllEntries = ADMIN_VIEW_ROLES.has(role)
 
   const [records, setRecords]     = useState([])
   const [loading, setLoading]     = useState(true)
@@ -77,7 +78,7 @@ export default function ComplaintsPage() {
     finally { setDeletingId(null) }
   }
 
-  const canEdit = (r) => isAdmin || r.created_by === user?.uid
+  const canEdit = (r) => canEditAllEntries || r.created_by === user?.uid
 
   return (
     <div className="page">

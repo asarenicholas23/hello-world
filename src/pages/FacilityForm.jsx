@@ -4,7 +4,7 @@ import { ArrowLeft, Loader, AlertCircle, Save, WifiOff } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useSync } from '../context/SyncContext'
 import { useGPS } from '../hooks/useGPS'
-import { createFacility, updateFacility, getFacility } from '../firebase/facilities'
+import { createFacility, updateFacility, getFacility, renameFacilityFileNumber } from '../firebase/facilities'
 import { SECTORS, DISTRICTS, REGION } from '../data/constants'
 import Spinner from '../components/Spinner'
 import GPSField from '../components/GPSField'
@@ -32,6 +32,7 @@ export default function FacilityForm() {
   const { isOnline, addDraft } = useSync()
 
   const [formData, setFormData] = useState(EMPTY_FORM)
+  const [fileNumberInput, setFileNumberInput] = useState(fileNumber ?? '')
   const { coordinates, setCoordinates, loading: gpsLoading, error: gpsError, capture: handleCaptureGPS, clear: clearCoordinates } = useGPS()
   const [initialLoading, setInitialLoading] = useState(isEditing)
   const [submitting, setSubmitting] = useState(false)
@@ -61,6 +62,7 @@ export default function FacilityForm() {
           address: rest.address ?? '',
           phone: rest.phone ?? '',
         })
+        setFileNumberInput(rest.file_number ?? fileNumber)
         setCoordinates(coords ?? null)
       })
       .catch(() => setError('Failed to load facility data.'))
@@ -75,11 +77,19 @@ export default function FacilityForm() {
   function handleSectorChange(e) {
     const name = e.target.value
     const sector = SECTORS.find((s) => s.name === name)
+    const nextPrefix = sector?.prefix ?? ''
     setFormData((prev) => ({
       ...prev,
       sector: name,
-      sector_prefix: sector?.prefix ?? '',
+      sector_prefix: nextPrefix,
     }))
+    if (isEditing && nextPrefix) {
+      setFileNumberInput((prev) => {
+        const current = prev || fileNumber || ''
+        const numberPart = current.replace(/^\D+/, '')
+        return numberPart ? `${nextPrefix}${numberPart}` : current
+      })
+    }
   }
 
   function validate() {
@@ -88,6 +98,7 @@ export default function FacilityForm() {
     if (!formData.type_of_undertaking.trim()) return 'Type of Undertaking is required.'
     if (!formData.location.trim()) return 'Location is required.'
     if (!formData.district) return 'District is required.'
+    if (isEditing && !fileNumberInput.trim()) return 'File number is required.'
     return null
   }
 
@@ -103,7 +114,12 @@ export default function FacilityForm() {
     setSubmitting(true)
     setError('')
 
-    const payload = { ...formData, coordinates: coordinates ?? null }
+    const nextFileNumber = fileNumberInput.trim().toUpperCase()
+    const payload = {
+      ...formData,
+      ...(isEditing ? { file_number: nextFileNumber } : {}),
+      coordinates: coordinates ?? null,
+    }
 
     // Offline create — file number transaction requires network
     if (!isEditing && !isOnline) {
@@ -114,8 +130,13 @@ export default function FacilityForm() {
 
     try {
       if (isEditing) {
-        await updateFacility(fileNumber, payload, user.uid)
-        navigate(`/facilities/${fileNumber}`)
+        if (nextFileNumber !== fileNumber) {
+          await renameFacilityFileNumber(fileNumber, nextFileNumber, payload, user.uid)
+          navigate(`/facilities/${nextFileNumber}`)
+        } else {
+          await updateFacility(fileNumber, payload, user.uid)
+          navigate(`/facilities/${fileNumber}`)
+        }
       } else {
         const newFileNumber = await createFacility(payload, user.uid)
         navigate(`/facilities/${newFileNumber}`)
@@ -196,50 +217,48 @@ export default function FacilityForm() {
             <div className="form-row">
               <div className="form-group">
                 <label>Sector <span style={{ color: '#ef4444' }}>*</span></label>
-                {isEditing ? (
-                  <input
-                    className="input"
-                    value={`${formData.sector} (${formData.sector_prefix})`}
-                    readOnly
-                    style={{ background: '#f9fafb', color: '#6b7280', cursor: 'not-allowed' }}
-                    title="Sector cannot be changed after creation"
-                  />
-                ) : (
-                  <select
-                    className="select"
-                    name="sector"
-                    value={formData.sector}
-                    onChange={handleSectorChange}
-                  >
-                    <option value="">Select sector…</option>
-                    {SECTORS.map((s) => (
-                      <option key={s.prefix} value={s.name}>
-                        {s.name} ({s.prefix})
-                      </option>
-                    ))}
-                  </select>
-                )}
+                <select
+                  className="select"
+                  name="sector"
+                  value={formData.sector}
+                  onChange={handleSectorChange}
+                >
+                  <option value="">Select sector…</option>
+                  {SECTORS.map((s) => (
+                    <option key={s.prefix} value={s.name}>
+                      {s.name} ({s.prefix})
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div className="form-group">
-                <label>File Number</label>
-                <input
-                  className="input"
-                  value={
-                    isEditing
-                      ? fileNumber
-                      : formData.sector_prefix
-                      ? `Will be: ${formData.sector_prefix}[auto]`
-                      : 'Select a sector first'
-                  }
-                  readOnly
-                  style={{
-                    background: '#f9fafb',
-                    color: '#6b7280',
-                    cursor: 'not-allowed',
-                    fontFamily: formData.sector_prefix ? 'monospace' : 'inherit',
-                  }}
-                />
+                <label>File Number {isEditing && <span style={{ color: '#ef4444' }}>*</span>}</label>
+                {isEditing ? (
+                  <input
+                    className="input"
+                    value={fileNumberInput}
+                    onChange={(e) => setFileNumberInput(e.target.value.toUpperCase().replace(/\s+/g, ''))}
+                    placeholder="e.g. CI42"
+                    style={{ fontFamily: 'monospace' }}
+                  />
+                ) : (
+                  <input
+                    className="input"
+                    value={
+                      formData.sector_prefix
+                        ? `Will be: ${formData.sector_prefix}[auto]`
+                        : 'Select a sector first'
+                    }
+                    readOnly
+                    style={{
+                      background: '#f9fafb',
+                      color: '#6b7280',
+                      cursor: 'not-allowed',
+                      fontFamily: formData.sector_prefix ? 'monospace' : 'inherit',
+                    }}
+                  />
+                )}
               </div>
             </div>
 

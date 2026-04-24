@@ -1,8 +1,18 @@
 import {
   collection, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc,
-  runTransaction, serverTimestamp, query, orderBy,
+  runTransaction, serverTimestamp, query, orderBy, writeBatch,
 } from 'firebase/firestore'
 import { db } from './config'
+
+const FACILITY_SUBCOLLECTIONS = [
+  'permits',
+  'finance',
+  'screenings',
+  'site_verifications',
+  'monitoring',
+  'enforcement',
+  'assignment_history',
+]
 
 /**
  * Atomically increments the sector counter and returns the new file number.
@@ -65,6 +75,59 @@ export async function updateFacility(fileNumber, data, userId) {
     updated_at: serverTimestamp(),
     updated_by: userId,
   })
+}
+
+export async function renameFacilityFileNumber(oldFileNumber, newFileNumber, data, userId) {
+  const oldRef = doc(db, 'facilities', oldFileNumber)
+  const newRef = doc(db, 'facilities', newFileNumber)
+  const [oldSnap, newSnap] = await Promise.all([getDoc(oldRef), getDoc(newRef)])
+
+  if (!oldSnap.exists()) throw new Error(`Facility not found: ${oldFileNumber}`)
+  if (newSnap.exists()) throw new Error(`File number already exists: ${newFileNumber}`)
+
+  const prefix = newFileNumber.replace(/\d+$/, '')
+  const numPart = parseInt(newFileNumber.replace(/^\D+/, ''), 10)
+  const counterRef = doc(db, 'counters', prefix)
+  await runTransaction(db, async (tx) => {
+    const counterSnap = await tx.get(counterRef)
+    if (counterSnap.exists() && numPart > counterSnap.data().last_count) {
+      tx.update(counterRef, { last_count: numPart })
+    }
+  })
+
+  const subcollectionDocs = await Promise.all(
+    FACILITY_SUBCOLLECTIONS.map(async (name) => ({
+      name,
+      snap: await getDocs(collection(db, 'facilities', oldFileNumber, name)),
+    }))
+  )
+
+  const ops = [
+    ['set', newRef, {
+      ...oldSnap.data(),
+      ...data,
+      file_number: newFileNumber,
+      updated_at: serverTimestamp(),
+      updated_by: userId,
+    }],
+  ]
+
+  for (const { name, snap } of subcollectionDocs) {
+    for (const subDoc of snap.docs) {
+      ops.push(['set', doc(db, 'facilities', newFileNumber, name, subDoc.id), subDoc.data()])
+      ops.push(['delete', subDoc.ref])
+    }
+  }
+  ops.push(['delete', oldRef])
+
+  for (let i = 0; i < ops.length; i += 450) {
+    const batch = writeBatch(db)
+    for (const [type, ref, value] of ops.slice(i, i + 450)) {
+      if (type === 'set') batch.set(ref, value)
+      else batch.delete(ref)
+    }
+    await batch.commit()
+  }
 }
 
 export async function deleteFacility(fileNumber) {

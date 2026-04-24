@@ -5,7 +5,7 @@ import { useAuth } from '../../context/AuthContext'
 import { listSubRecords, deleteSubRecord } from '../../firebase/subrecords'
 import { fmtDate, permitStatus } from '../../utils/records'
 import { normalizeAttachmentUrl } from '../../utils/attachments'
-import { ADMIN_ROLES, FIELD_ROLES } from '../../data/constants'
+import { ADMIN_ROLES, FIELD_ROLES, ADMIN_VIEW_ROLES } from '../../data/constants'
 import Spinner from '../Spinner'
 
 const STATUS_LABELS = { active: 'Active', expiring: 'Expiring Soon', expired: 'Expired' }
@@ -25,7 +25,8 @@ export default function PermitsTab({ fileNumber, facilityOfficer }) {
   const [deletingId, setDeletingId] = useState(null)
 
   const canAdd  = ADMIN_ROLES.has(role) || (FIELD_ROLES.has(role) && user?.uid === facilityOfficer)
-  const canEdit = ADMIN_ROLES.has(role)
+  const canEdit = ADMIN_VIEW_ROLES.has(role)
+  const canDelete = ADMIN_ROLES.has(role)
 
   useEffect(() => { load() }, [fileNumber])
 
@@ -98,11 +99,13 @@ export default function PermitsTab({ fileNumber, facilityOfficer }) {
                     <button className="btn btn--ghost btn--xs" onClick={() => navigate(`/facilities/${fileNumber}/permits/${r.id}/edit`)}>
                       <Edit2 size={12} /> Edit
                     </button>
-                    <button className="btn btn--ghost btn--xs btn--danger"
-                      onClick={() => handleDelete(r.id, r.permit_number)}
-                      disabled={deletingId === r.id}>
-                      <Trash2 size={12} /> {deletingId === r.id ? 'Deleting…' : 'Delete'}
-                    </button>
+                    {canDelete && (
+                      <button className="btn btn--ghost btn--xs btn--danger"
+                        onClick={() => handleDelete(r.id, r.permit_number)}
+                        disabled={deletingId === r.id}>
+                        <Trash2 size={12} /> {deletingId === r.id ? 'Deleting…' : 'Delete'}
+                      </button>
+                    )}
                   </div>
                 )}
               </div>

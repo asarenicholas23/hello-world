@@ -2,13 +2,14 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   ArrowLeft, Upload, Download, CheckCircle, XCircle,
-  AlertCircle, Loader, ChevronRight, Building2, FileText,
+  AlertCircle, Loader, ChevronRight, Building2, FileText, CreditCard, Flag, ClipboardList,
 } from 'lucide-react'
 import { Timestamp } from 'firebase/firestore'
 import { useAuth } from '../context/AuthContext'
 import { createFacility, createFacilityWithId, listFacilities } from '../firebase/facilities'
 import { createSubRecord } from '../firebase/subrecords'
-import { SECTORS, DISTRICTS } from '../data/constants'
+import { createFieldReport, listFieldReports } from '../firebase/fieldReports'
+import { SECTORS, DISTRICTS, PAYMENT_TYPES } from '../data/constants'
 import {
   parseCSV,
   detectColumnMapping, buildTemplateCSV,
@@ -46,39 +47,65 @@ function parseCoordinates(value) {
   return null
 }
 
+function normalizeEntityName(value) {
+  return String(value ?? '')
+    .toLowerCase()
+    .replace(/&/g, 'and')
+    .replace(/\b(ltd|limited|company|co|enterprise|enterprises|ent|ghana|gh)\b/g, '')
+    .replace(/[^a-z0-9]+/g, '')
+}
+
+function parseAmount(raw) {
+  const cleaned = String(raw ?? '').replace(/[^0-9.-]+/g, '')
+  const value = Number(cleaned)
+  return Number.isFinite(value) ? value : null
+}
+
+function matchPaymentType(value) {
+  const raw = String(value ?? '').trim()
+  if (!raw) return 'Other'
+  const norm = raw.toLowerCase().replace(/[^a-z0-9]+/g, '')
+  return PAYMENT_TYPES.find((type) => type.toLowerCase().replace(/[^a-z0-9]+/g, '') === norm) ?? raw
+}
+
 // Parse flexible date strings from spreadsheets into Firestore Timestamp
 function parseDateStr(raw) {
   if (!raw) return null
   const s = raw.trim()
   if (!s) return null
 
-  // Try ISO first (YYYY-MM-DD or YYYY-MM-DDTHH:...)
-  // Then DD/MM/YYYY, DD-MM-YYYY
-  // Then "06 Feb 2026" / "Feb 06 2026"
-  const iso = new Date(s)
-  if (!isNaN(iso)) return Timestamp.fromDate(iso)
+  // ISO first (YYYY-MM-DD or YYYY-MM-DDTHH:...), because it is unambiguous.
+  const isoDate = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})(?:[T\s].*)?$/)
+  if (isoDate) {
+    const year = Number(isoDate[1])
+    const month = Number(isoDate[2])
+    const day = Number(isoDate[3])
+    const d = new Date(year, month - 1, day)
+    if (!isNaN(d) && d.getFullYear() === year && d.getMonth() === month - 1 && d.getDate() === day) {
+      return Timestamp.fromDate(d)
+    }
+  }
 
-  // MM/DD/YYYY, DD/MM/YYYY, MM-DD-YYYY, DD-MM-YYYY
+  // DD/MM/YYYY, DD-MM-YYYY. EPA imports are Ghana-style day/month/year.
   const slashDate = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/)
   if (slashDate) {
     const a = Number(slashDate[1])
     const b = Number(slashDate[2])
     const year = Number(slashDate[3])
-
-    // If the first number cannot be a month, treat as DD/MM/YYYY.
-    // Otherwise default to MM/DD/YYYY because that's the import format the office uses.
-    const month = a > 12 ? b : a
-    const day = a > 12 ? a : b
+    const day = a
+    const month = b
     const d = new Date(year, month - 1, day)
     if (!isNaN(d) && d.getMonth() === month - 1 && d.getDate() === day) {
       return Timestamp.fromDate(d)
     }
   }
 
+  // Finally allow textual dates like "06 Feb 2026" / "Feb 06 2026".
+  const textual = new Date(s)
+  if (!isNaN(textual)) return Timestamp.fromDate(textual)
+
   return null
 }
-
-const FILE_NUMBER_RE = /^[A-Z]{2,}[A-Z0-9\/\:\.\-]+$/i
 
 // ── Facility helpers ───────────────────────────────────────────────────
 
@@ -108,8 +135,6 @@ function validateFacility(f) {
   const errors = []
   if (!f.name)          errors.push('Name is required')
   if (!f.sector_prefix) errors.push(`Unknown sector "${f.sector}" — use sector name or prefix (e.g. Manufacturing or CU)`)
-  if (f.file_number && !FILE_NUMBER_RE.test(f.file_number))
-    errors.push(`Invalid file number "${f.file_number}"`)
   return errors
 }
 
@@ -159,6 +184,341 @@ function validatePermit(p) {
   return errors
 }
 
+// ── Finance helpers ────────────────────────────────────────────────────
+
+function detectFinanceMapping(headers) {
+  const normalize = (s) => s.toLowerCase().replace(/[\s_\-\/\.]/g, '')
+  const aliases = {
+    invoice_no:   ['invoiceno', 'invoicenumber', 'invoiceid', 'reference', 'referencenumber', 'refno'],
+    file_number:  ['fileno', 'filenumber', 'facilityno', 'facilitynumber', 'facilityfileno', 'facilityfilenumber', 'clientid'],
+    client_name:  ['clientname', 'entityname', 'facilityname', 'customername', 'nameofundertaking', 'undertakingname'],
+    contact:      ['contact', 'phone', 'contactno', 'contactnumber', 'telephone', 'mobile'],
+    amount:       ['invoiceamt', 'invoiceamnt', 'invoiceamount', 'amount', 'amt', 'totalamount'],
+    client_id:    ['clientid', 'customerid', 'entityid'],
+    category:     ['category', 'paymenttype', 'type', 'feetype', 'description'],
+    sector:       ['sector', 'industry'],
+    department:   ['department', 'office', 'unit'],
+    created_date: ['createddate', 'datecreated', 'date', 'invoicedate', 'createdon'],
+  }
+
+  const mapping = {}
+  headers.forEach((header, idx) => {
+    const norm = normalize(header)
+    for (const [field, names] of Object.entries(aliases)) {
+      if (!(field in mapping) && names.some((name) => norm === name || norm.includes(name))) {
+        mapping[field] = idx
+        break
+      }
+    }
+  })
+  return mapping
+}
+
+function rowToFinance(row, mapping, paymentStatus) {
+  const get = (field) => (mapping[field] != null ? (row[mapping[field]] ?? '').trim() : '')
+  const notes = [
+    (get('client_id') || get('file_number')) ? `Client ID: ${get('client_id') || get('file_number')}` : '',
+    get('contact') ? `Contact: ${get('contact')}` : '',
+    get('sector') ? `Sector: ${get('sector')}` : '',
+    get('department') ? `Department: ${get('department')}` : '',
+  ].filter(Boolean).join('\n')
+
+  return {
+    invoice_no:        get('invoice_no'),
+    file_number:       get('file_number').replace(/\s+/g, ''),
+    client_name:       get('client_name'),
+    contact:           get('contact'),
+    amount:            parseAmount(get('amount')),
+    client_id:         get('client_id') || get('file_number'),
+    category:          get('category'),
+    sector:            get('sector'),
+    department:        get('department'),
+    date:              parseDateStr(get('created_date')),
+    payment_type:      matchPaymentType(get('category')),
+    payment_status:    paymentStatus,
+    currency:          'GHS',
+    reference_number:  get('invoice_no'),
+    notes,
+    _created_date_raw: get('created_date'),
+    _amount_raw:       get('amount'),
+  }
+}
+
+function buildFinanceTemplateCSV(paymentStatus) {
+  const headers = ['Invoice No.', 'File Number', 'Client Name', 'Contact', 'Invoice Amnt.', 'Client Id', 'Category', 'Sector', 'Department', 'Created Date']
+  const example = [
+    paymentStatus === 'paid' ? 'INV-PAID-001' : 'INV-UNPAID-001',
+    'PP035',
+    'Kumasi Plastic Industries Ltd',
+    '+233 24 000 0000',
+    '1250.00',
+    'C-001',
+    'Processing Fee',
+    'Manufacturing',
+    'Konongo Area Office',
+    '2026-04-23',
+  ]
+  return [headers.join(','), example.map((v) => `"${v}"`).join(',')].join('\n')
+}
+
+// ── Field report helpers ───────────────────────────────────────────────
+
+function detectFieldReportMapping(headers) {
+  const normalize = (s) => s.toLowerCase().replace(/[\s_\-\/\.]/g, '')
+  const aliases = {
+    facility_name:      ['nameoffacility', 'facilityname', 'clientname', 'entityname'],
+    location:           ['location', 'address'],
+    contact_person:     ['contactperson', 'contactname'],
+    sector:             ['sector'],
+    phone:              ['contactnumber', 'contactno', 'phone', 'telephone', 'mobile'],
+    district:           ['district'],
+    permit_status:      ['permitstatus'],
+    reporting_status:   ['reportingstatus', 'reportstatus'],
+    date_letter_served: ['dateletterserved', 'letterserveddate'],
+    date_reported:      ['datereported', 'reportdate'],
+    date_of_invoice:    ['dateofinvoice', 'invoicedate'],
+    amount_invoice:     ['amountinvoice', 'invoiceamount', 'invoiceamt', 'invoiceamnt'],
+    payment_status:     ['paymentstatus'],
+    date_of_payment:    ['dateofpayment', 'paymentdate'],
+    amount:             ['amount', 'amountpaid', 'paymentamount'],
+  }
+
+  const mapping = {}
+  headers.forEach((header, idx) => {
+    const norm = normalize(header)
+    for (const [field, names] of Object.entries(aliases)) {
+      if (!(field in mapping) && names.some((name) => norm === name || norm.includes(name))) {
+        mapping[field] = idx
+        break
+      }
+    }
+  })
+  return mapping
+}
+
+function matchReportingStatus(value) {
+  const norm = String(value ?? '').trim().toLowerCase()
+  if (!norm) return 'pending'
+  if (['reported', 'submitted', 'done', 'complete', 'completed', 'yes'].includes(norm)) return 'reported'
+  if (['rejected', 'declined', 'no'].includes(norm)) return 'rejected'
+  return 'pending'
+}
+
+function matchInvoiceStatus(paymentStatus, amountInvoice, dateOfInvoice) {
+  const norm = String(paymentStatus ?? '').trim().toLowerCase()
+  if (norm === 'paid' || norm === 'yes' || norm === 'complete' || norm === 'completed') return 'paid'
+  if (norm === 'unpaid' || norm === 'not paid' || amountInvoice > 0 || dateOfInvoice) return 'invoiced'
+  return 'pending'
+}
+
+function rowToFieldReport(row, mapping) {
+  const get = (field) => (mapping[field] != null ? (row[mapping[field]] ?? '').trim() : '')
+  const sectorRaw = get('sector')
+  const sector = matchSector(sectorRaw)
+  const amountInvoice = parseAmount(get('amount_invoice'))
+  const amountPaid = parseAmount(get('amount'))
+  const dateOfInvoice = parseDateStr(get('date_of_invoice'))
+  const dateReported = parseDateStr(get('date_reported'))
+  const paymentStatusRaw = get('payment_status')
+
+  return {
+    report_type:          'walk_in',
+    facility_name:        get('facility_name'),
+    location:             get('location'),
+    contact_person:       get('contact_person'),
+    sector_prefix:        sector?.prefix ?? '',
+    sector:               sector?.name ?? sectorRaw,
+    phone:                get('phone'),
+    district:             matchDistrict(get('district')),
+    permit_status:        get('permit_status'),
+    reporting_status:     matchReportingStatus(get('reporting_status')),
+    date_letter_served:   parseDateStr(get('date_letter_served')),
+    date_reported:        dateReported,
+    date_of_invoice:      dateOfInvoice,
+    amount_invoice:       amountInvoice,
+    payment_status:       paymentStatusRaw,
+    date_of_payment:      parseDateStr(get('date_of_payment')),
+    amount:               amountPaid,
+    invoice_status:       matchInvoiceStatus(paymentStatusRaw, amountInvoice, dateOfInvoice),
+    date:                 dateReported,
+    officer_id:           null,
+    officer_name:         null,
+    action_taken:         '',
+    follow_up_date:       null,
+    enforcement_location: '',
+    coordinates:          null,
+    photos:               [],
+    screening:            null,
+    notes:                '',
+    _date_letter_served_raw: get('date_letter_served'),
+    _date_reported_raw:      get('date_reported'),
+    _date_of_invoice_raw:    get('date_of_invoice'),
+    _date_of_payment_raw:    get('date_of_payment'),
+    _amount_invoice_raw:     get('amount_invoice'),
+    _amount_raw:             get('amount'),
+  }
+}
+
+function buildFieldReportTemplateCSV() {
+  const headers = [
+    'NAME OF FACILITY', 'LOCATION', 'CONTACT PERSON', 'SECTOR', 'CONTACT NUMBER',
+    'DISTRICT', 'PERMIT STATUS', 'REPORTING STATUS', 'DATE LETTER SERVED',
+    'DATE REPORTED', 'DATE OF INVOICE', 'AMOUNT INVOICE', 'PAYMENT STATUS',
+    'DATE OF PAYMENT', 'AMOUNT',
+  ]
+  const example = [
+    'Kumasi Plastic Industries Ltd', 'Konongo', 'Ama Mensah', 'Manufacturing',
+    '+233 24 000 0000', 'Asante Akim Central', 'Valid', 'Reported',
+    '15/04/2026', '16/04/2026', '18/04/2026', '1200.00', 'Paid',
+    '20/04/2026', '1200.00',
+  ]
+  return [headers.join(','), example.map((v) => `"${v}"`).join(',')].join('\n')
+}
+
+// ── Screening helpers ──────────────────────────────────────────────────
+
+function detectScreeningMapping(headers) {
+  const normalize = (s) => s.toLowerCase().replace(/[\s_\-\/\.()]/g, '')
+  const aliases = {
+    file_number:             ['fileno', 'filenumber', 'filenum', 'fileno'],
+    inspection_date:         ['inspectiondate', 'date', 'visitdate'],
+    proponent_name:          ['nameofproponent', 'proponentname', 'proponent'],
+    company_name:            ['companysname', 'companyname', 'company'],
+    type_of_undertaking:     ['typeofundertaking', 'undertaking', 'type'],
+    components:              ['components'],
+    capacity:                ['capacity'],
+    liquid_waste:            ['liquidwaste'],
+    solid_waste:             ['solidwaste'],
+    gaseous_waste:           ['gaseouswaste'],
+    description_comments:    ['commentsondesriptionofundertaking', 'commentsondescription', 'descriptioncomments'],
+    street_area:             ['streetareaname', 'streetarea', 'street'],
+    town:                    ['town'],
+    district:                ['district'],
+    major_landmark:          ['majorlandmark', 'landmark'],
+    adjacent_land_use:       ['adjacentlanduse', 'landuse'],
+    north:                   ['north'],
+    south:                   ['south'],
+    east:                    ['east'],
+    west:                    ['west'],
+    latitude:                ['latitude', 'lat'],
+    existing_infrastructure: ['existinginfrastructureandfacilityonsite', 'existinginfrastructure'],
+    construction_impacts:    ['constructionphaseimpacts', 'constructionimpacts'],
+    operational_impacts:     ['operationalphaseimpacts', 'operationalimpacts'],
+    impacts_in_ea1:          ['impactsaddressedinea1', 'impactsinea1'],
+    mitigation_measures:     ['ifnomitigationmeasures', 'mitigationmeasures', 'mitigation'],
+    neighbour_name:          ['nameofneighbour', 'neighbourname'],
+    neighbour_contact:       ['contactofneighbour', 'neighbourcontact'],
+    neighbour_location:      ['locationinrelationtotheundertaking', 'neighbourlocation'],
+    neighbour_comments:      ['theircomments', 'neighbourcomments'],
+    observations:            ['observations'],
+    comments:                ['comments'],
+    permit_recommended:      ['permitrecommended'],
+    additional_info_required:['additionalinforequired', 'additionalinfo'],
+    per_recommended:         ['perrecommended'],
+    eia_recommended:         ['eiarecommended'],
+    permit_declined:         ['permitdeclined'],
+    permit_declined_reason:  ['reasonforpermitdeclined', 'permitdeclinedreason'],
+    officer_name:            ['nameofofficer', 'officername', 'officer'],
+    screening_id:            ['screeningid', 'scrid'],
+  }
+
+  const mapping = {}
+  headers.forEach((header, idx) => {
+    const norm = normalize(header)
+    for (const [field, names] of Object.entries(aliases)) {
+      if (!(field in mapping) && names.some((name) => norm === name || norm.includes(name))) {
+        mapping[field] = idx
+        break
+      }
+    }
+  })
+  return mapping
+}
+
+function normalizeYesNo(value) {
+  if (!value) return ''
+  const v = value.trim().toLowerCase()
+  if (['yes', 'y', '1', 'true'].includes(v)) return 'Yes'
+  if (['no', 'n', '0', 'false'].includes(v)) return 'No'
+  return ''
+}
+
+function rowToScreening(row, mapping) {
+  const get = (field) => (mapping[field] != null ? (row[mapping[field]] ?? '').trim() : '')
+  return {
+    file_number:             get('file_number').replace(/\s+/g, ''),
+    inspection_date:         parseDateStr(get('inspection_date')),
+    proponent_name:          get('proponent_name'),
+    company_name:            get('company_name'),
+    type_of_undertaking:     get('type_of_undertaking'),
+    components:              get('components'),
+    capacity:                get('capacity'),
+    liquid_waste:            get('liquid_waste'),
+    solid_waste:             get('solid_waste'),
+    gaseous_waste:           get('gaseous_waste'),
+    description_comments:    get('description_comments'),
+    street_area:             get('street_area'),
+    town:                    get('town'),
+    district:                matchDistrict(get('district')),
+    major_landmark:          get('major_landmark'),
+    adjacent_land_use:       get('adjacent_land_use'),
+    north:                   get('north'),
+    south:                   get('south'),
+    east:                    get('east'),
+    west:                    get('west'),
+    latitude:                get('latitude'),
+    existing_infrastructure: get('existing_infrastructure'),
+    construction_impacts:    get('construction_impacts'),
+    operational_impacts:     get('operational_impacts'),
+    impacts_in_ea1:          normalizeYesNo(get('impacts_in_ea1')),
+    mitigation_measures:     get('mitigation_measures'),
+    neighbour_name:          get('neighbour_name'),
+    neighbour_contact:       get('neighbour_contact'),
+    neighbour_location:      get('neighbour_location'),
+    neighbour_comments:      get('neighbour_comments'),
+    observations:            get('observations'),
+    comments:                get('comments'),
+    permit_recommended:      normalizeYesNo(get('permit_recommended')),
+    additional_info_required:normalizeYesNo(get('additional_info_required')),
+    per_recommended:         normalizeYesNo(get('per_recommended')),
+    eia_recommended:         normalizeYesNo(get('eia_recommended')),
+    permit_declined:         normalizeYesNo(get('permit_declined')),
+    permit_declined_reason:  get('permit_declined_reason'),
+    officer_name:            get('officer_name'),
+    screening_id:            get('screening_id'),
+    photos:                  [],
+    coordinates:             null,
+    _inspection_date_raw:    get('inspection_date'),
+  }
+}
+
+function buildScreeningTemplateCSV() {
+  const headers = [
+    'File No.', 'Inspection Date', 'Name of Proponent', "Company's Name", 'Type of Undertaking',
+    'Components', 'Capacity', 'Liquid Waste', 'Solid Waste', 'Gaseous Waste',
+    'Comments on description of undertaking', 'Street/Area Name', 'Town', 'District', 'Major Landmark',
+    'Adjacent Land Use', 'North', 'South', 'East', 'West', 'Latitude',
+    'Existing Infrastructure and Facility on site', 'Construction Phase Impacts', 'Operational Phase Impacts',
+    'Impacts Addressed in EA1?', 'If no, Mitigation measures', 'Name of Neighbour', 'Contact of Neighbour',
+    'Location in relation to the undertaking', 'Their comments', 'Observations', 'Comments',
+    'Permit Recommended?', 'Additional Info Required?', 'PER Recommended?', 'EIA Recommended?',
+    'Permit Declined?', 'Reason for Permit Declined', 'Picture of Facility', 'Name of Officer', 'ScreeningID',
+  ]
+  const example = [
+    'CI42', '15/04/2026', 'Kwame Mensah', 'Kumasi Plastics Ltd', 'Manufacturing',
+    'Extrusion plant, storage, loading bay', '500 tonnes/month',
+    'Effluent from wash process', 'Plastic scraps and waste', 'Boiler emissions',
+    'Adequate description provided', 'Industrial Area', 'Konongo', 'Asante Akim Central',
+    'Konongo Market', 'Industrial', 'Residential', 'Forest reserve', 'Agricultural', 'Road',
+    '6.6270', 'Existing warehouse and office block', 'Dust, noise from construction',
+    'Waste discharge, air emissions', 'Yes', '', 'Akosua Asante', '+233 20 000 0000',
+    'North of facility', 'No objections raised', 'Site appears suitable for proposed use',
+    'Recommend monitoring plan be submitted', 'Yes', 'No', 'No', 'No', 'No', '',
+    '', 'Ama Boateng', 'SCR-CI42-001',
+  ]
+  return [headers.join(','), example.map((v) => `"${v}"`).join(',')].join('\n')
+}
+
 // ── Component ──────────────────────────────────────────────────────────
 
 const STAGES = { idle: 'idle', preview: 'preview', importing: 'importing', done: 'done' }
@@ -168,7 +528,7 @@ export default function ImportPage() {
   const { user } = useAuth()
   const fileInputRef = useRef()
 
-  const [importType, setImportType] = useState('facilities') // 'facilities' | 'permits'
+  const [importType, setImportType] = useState('facilities') // facilities | permits | finance_paid | finance_unpaid | field_reports | screenings
   const [stage, setStage]           = useState(STAGES.idle)
   const [dragOver, setDragOver]     = useState(false)
   const [parseError, setParseError] = useState('')
@@ -177,7 +537,9 @@ export default function ImportPage() {
   const [mapping, setMapping]   = useState({})
   const [records, setRecords]   = useState([])
   const [existingFacilitiesById, setExistingFacilitiesById] = useState(new Map())
+  const [existingFacilitiesByName, setExistingFacilitiesByName] = useState(new Map())
   const [facilityLinkLoading, setFacilityLinkLoading] = useState(false)
+  const [fieldReportsByName, setFieldReportsByName] = useState(new Map())
 
   const [progress, setProgress] = useState({ done: 0, total: 0 })
   const [results, setResults]   = useState([])
@@ -192,23 +554,56 @@ export default function ImportPage() {
   }
 
   useEffect(() => {
-    if (importType !== 'permits') return
+    if (importType !== 'permits' && importType !== 'screenings' && !importType.startsWith('finance_')) return
 
     let cancelled = false
     setFacilityLinkLoading(true)
 
-    listFacilities()
-      .then((rows) => {
-        if (cancelled) return
-        setExistingFacilitiesById(new Map(
-          rows
-            .map((f) => [String(f.file_number ?? '').trim(), String(f.name ?? '').trim()])
-            .filter(([fileNumber]) => fileNumber)
-        ))
+    const facilitiesPromise = listFacilities().then((rows) => {
+      if (cancelled) return
+      const byId = new Map()
+      const byName = new Map()
+      const duplicateNames = new Set()
+
+      rows.forEach((f) => {
+        const fileNumber = String(f.file_number ?? '').trim()
+        const name = String(f.name ?? '').trim()
+        if (fileNumber) byId.set(fileNumber, name)
+        const nameKey = normalizeEntityName(name)
+        if (!nameKey) return
+        if (byName.has(nameKey)) duplicateNames.add(nameKey)
+        byName.set(nameKey, { fileNumber, name, duplicate: false })
       })
+
+      duplicateNames.forEach((nameKey) => {
+        const existing = byName.get(nameKey)
+        byName.set(nameKey, { ...existing, duplicate: true })
+      })
+
+      setExistingFacilitiesById(byId)
+      setExistingFacilitiesByName(byName)
+    })
+
+    // For screenings: also load field reports for name-based fallback matching
+    const fieldReportsPromise = importType === 'screenings'
+      ? listFieldReports().then((reports) => {
+          if (cancelled) return
+          const byName = new Map()
+          reports.forEach((r) => {
+            const nameKey = normalizeEntityName(r.facility_name ?? '')
+            if (nameKey && !byName.has(nameKey)) {
+              byName.set(nameKey, { fileNumber: r.assigned_file_number ?? null, facilityName: r.facility_name, reportId: r.id })
+            }
+          })
+          setFieldReportsByName(byName)
+        })
+      : Promise.resolve()
+
+    Promise.all([facilitiesPromise, fieldReportsPromise])
       .catch(() => {
         if (cancelled) return
         setExistingFacilitiesById(new Map())
+        setExistingFacilitiesByName(new Map())
       })
       .finally(() => {
         if (!cancelled) setFacilityLinkLoading(false)
@@ -249,6 +644,33 @@ export default function ImportPage() {
       setHeaders(h)
       setMapping(map)
       setRecords(rows.map((row) => rowToPermit(row, map)))
+    } else if (importType.startsWith('finance_')) {
+      const map = detectFinanceMapping(h)
+      if (!('amount' in map) || (!('file_number' in map) && !('client_name' in map))) {
+        setParseError('Could not recognise finance columns. Make sure the CSV includes Invoice Amnt. plus File Number, Client Id, or Client Name.')
+        return
+      }
+      setHeaders(h)
+      setMapping(map)
+      setRecords(rows.map((row) => rowToFinance(row, map, importType === 'finance_paid' ? 'paid' : 'unpaid')))
+    } else if (importType === 'field_reports') {
+      const map = detectFieldReportMapping(h)
+      if (!('facility_name' in map)) {
+        setParseError('Could not recognise field report columns. Make sure the CSV includes NAME OF FACILITY.')
+        return
+      }
+      setHeaders(h)
+      setMapping(map)
+      setRecords(rows.map((row) => rowToFieldReport(row, map)))
+    } else if (importType === 'screenings') {
+      const map = detectScreeningMapping(h)
+      if (!('inspection_date' in map) && !('file_number' in map)) {
+        setParseError('Could not recognise screening columns. Download the template to see the expected format.')
+        return
+      }
+      setHeaders(h)
+      setMapping(map)
+      setRecords(rows.map((row) => rowToScreening(row, map)))
     } else {
       const map = detectColumnMapping(h)
       if (!('name' in map) && !('sector' in map)) {
@@ -270,18 +692,105 @@ export default function ImportPage() {
 
   // ── Import ───────────────────────────────────────────────────────────
 
-  function validateRecord(record) {
-    if (importType !== 'permits') return validateFacility(record)
+  // Standard file number format: one or more letters then digits (e.g. CI42, CU1547, PP035)
+  function isStandardFileNumber(fn) {
+    return /^[A-Z]{1,4}\d+$/i.test((fn ?? '').trim())
+  }
 
-    const errors = validatePermit(record)
-    if (record.file_number && !facilityLinkLoading && !existingFacilitiesById.has(record.file_number)) {
-      errors.push(`No facility found with file number "${record.file_number}"`)
+  function resolveScreeningFacility(record) {
+    const fn = record.file_number
+    if (fn && existingFacilitiesById.has(fn)) {
+      return { fileNumber: fn, name: existingFacilitiesById.get(fn), matchMethod: 'file number' }
+    }
+    // Non-standard or missing file number: try name-based matching
+    if (!fn || !isStandardFileNumber(fn)) {
+      const nameKey = normalizeEntityName(record.proponent_name || record.company_name || '')
+      if (nameKey) {
+        // 1. Try registered facilities by name
+        const facilityMatch = existingFacilitiesByName.get(nameKey)
+        if (facilityMatch?.fileNumber && !facilityMatch.duplicate) {
+          return { fileNumber: facilityMatch.fileNumber, name: facilityMatch.name, matchMethod: 'facility name' }
+        }
+        // 2. Fall back to field reports that have an assigned file number
+        const reportMatch = fieldReportsByName.get(nameKey)
+        if (reportMatch?.fileNumber) {
+          return { fileNumber: reportMatch.fileNumber, name: reportMatch.facilityName, matchMethod: 'field report name' }
+        }
+      }
+    }
+    return null
+  }
+
+  function validateRecord(record) {
+    if (importType === 'facilities') return validateFacility(record)
+
+    if (importType === 'permits') {
+      const errors = validatePermit(record)
+      if (record.file_number && !facilityLinkLoading && !existingFacilitiesById.has(record.file_number)) {
+        errors.push(`No facility found with file number "${record.file_number}"`)
+      }
+      return errors
+    }
+
+    if (importType === 'screenings') {
+      const errors = []
+      if (!record.file_number) errors.push('File No. is required')
+      if (record._inspection_date_raw && !record.inspection_date) errors.push(`Cannot parse inspection date "${record._inspection_date_raw}"`)
+      if (!record.inspection_date) errors.push('Inspection Date is required')
+      if (record.file_number && !facilityLinkLoading) {
+        const linked = resolveScreeningFacility(record)
+        if (!linked) errors.push(`No facility found for file number "${record.file_number}"`)
+      }
+      return errors
+    }
+
+    if (importType === 'field_reports') {
+      const errors = []
+      if (!record.facility_name) errors.push('Name of facility is required')
+      if (record.sector && !record.sector_prefix) errors.push(`Unknown sector "${record.sector}"`)
+      if (record._date_letter_served_raw && !record.date_letter_served) errors.push(`Cannot parse date letter served "${record._date_letter_served_raw}"`)
+      if (record._date_reported_raw && !record.date_reported) errors.push(`Cannot parse date reported "${record._date_reported_raw}"`)
+      if (record._date_of_invoice_raw && !record.date_of_invoice) errors.push(`Cannot parse date of invoice "${record._date_of_invoice_raw}"`)
+      if (record._date_of_payment_raw && !record.date_of_payment) errors.push(`Cannot parse date of payment "${record._date_of_payment_raw}"`)
+      if (record._amount_invoice_raw && record.amount_invoice == null) errors.push(`Cannot parse amount invoice "${record._amount_invoice_raw}"`)
+      if (record._amount_raw && record.amount == null) errors.push(`Cannot parse amount "${record._amount_raw}"`)
+      return errors
+    }
+
+    const errors = []
+    if (record.amount == null || record.amount <= 0) errors.push(`Cannot parse invoice amount "${record._amount_raw}"`)
+    if (!record.date) errors.push(record._created_date_raw ? `Cannot parse created date "${record._created_date_raw}"` : 'Created Date is required')
+    if (!record.file_number && !record.client_name) errors.push('File Number or Client Name is required')
+    if ((record.file_number || record.client_name) && !facilityLinkLoading) {
+      const linked = resolveFinanceFacility(record)
+      if (!linked) {
+        errors.push(record.file_number
+          ? `No facility found with file number "${record.file_number}" or client "${record.client_name}"`
+          : `No facility found for client "${record.client_name}"`)
+      } else if (linked.duplicate) {
+        errors.push(`Multiple facilities match client "${record.client_name}"`)
+      }
     }
     return errors
   }
 
   function getLinkedFacilityName(fileNumber) {
     return existingFacilitiesById.get(fileNumber) ?? ''
+  }
+
+  function resolveFinanceFacility(record) {
+    if (record.file_number && existingFacilitiesById.has(record.file_number)) {
+      return {
+        fileNumber: record.file_number,
+        name: existingFacilitiesById.get(record.file_number),
+        matchMethod: 'file number',
+      }
+    }
+
+    if (!record.client_name) return null
+    const linked = existingFacilitiesByName.get(normalizeEntityName(record.client_name))
+    if (!linked) return null
+    return { ...linked, matchMethod: 'client name' }
   }
 
   const validRecords = records.filter((r) => validateRecord(r).length === 0)
@@ -301,6 +810,37 @@ export default function ImportPage() {
           permitData.entity_name = linkedFacilityName || permitData.entity_name || ''
           await createSubRecord(file_number, 'permits', permitData, user.uid)
           out.push({ name: r.permit_number, fileNumber: file_number, facilityName: linkedFacilityName, success: true })
+        } else if (importType.startsWith('finance_')) {
+          const linkedFacility = resolveFinanceFacility(r)
+          const {
+            invoice_no, file_number, client_name, contact, client_id, category, sector, department,
+            _created_date_raw, _amount_raw, ...financeData
+          } = r
+          financeData.client_name = client_name
+          financeData.import_category = category
+          financeData.import_sector = sector
+          financeData.import_department = department
+          financeData.import_contact = contact
+          financeData.client_id = client_id
+          financeData.invoice_no = invoice_no
+          financeData.import_file_number = file_number
+          financeData.facility_match_method = linkedFacility.matchMethod
+          await createSubRecord(linkedFacility.fileNumber, 'finance', financeData, user.uid)
+          out.push({ name: invoice_no || client_name || file_number, fileNumber: linkedFacility.fileNumber, facilityName: linkedFacility.name, success: true })
+        } else if (importType === 'screenings') {
+          const linkedFacility = resolveScreeningFacility(r)
+          const { file_number, _inspection_date_raw, ...screeningData } = r
+          screeningData.date = screeningData.inspection_date
+          screeningData.screening_id = screeningData.screening_id || `SCR-${linkedFacility.fileNumber}-imported`
+          await createSubRecord(linkedFacility.fileNumber, 'screenings', screeningData, user.uid)
+          out.push({ name: r.proponent_name || r.company_name || file_number, fileNumber: linkedFacility.fileNumber, facilityName: linkedFacility.name, success: true })
+        } else if (importType === 'field_reports') {
+          const {
+            _date_letter_served_raw, _date_reported_raw, _date_of_invoice_raw, _date_of_payment_raw,
+            _amount_invoice_raw, _amount_raw, ...fieldReportData
+          } = r
+          await createFieldReport(fieldReportData, user.uid)
+          out.push({ name: r.facility_name, success: true })
         } else {
           const { file_number: explicitId, ...facilityData } = r
           const fn = explicitId
@@ -309,7 +849,19 @@ export default function ImportPage() {
           out.push({ name: r.name, fileNumber: fn, success: true })
         }
       } catch (err) {
-        out.push({ name: importType === 'permits' ? r.permit_number : r.name, error: err.message, success: false })
+        out.push({
+          name: importType === 'permits'
+            ? r.permit_number
+            : importType.startsWith('finance_')
+              ? (r.invoice_no || r.client_name || r.file_number)
+              : importType === 'field_reports'
+                ? r.facility_name
+                : importType === 'screenings'
+                  ? (r.proponent_name || r.company_name || r.file_number)
+                  : r.name,
+          error: err.message,
+          success: false,
+        })
       }
       setProgress({ done: i + 1, total: validRecords.length })
       setResults([...out])
@@ -319,10 +871,27 @@ export default function ImportPage() {
 
   // ── Template download ────────────────────────────────────────────────
 
+  const isFinanceImport = importType.startsWith('finance_')
+  const importNoun = importType === 'permits'
+    ? 'Permit'
+    : isFinanceImport
+      ? 'Finance Record'
+      : importType === 'field_reports'
+        ? 'Field Report'
+        : importType === 'screenings'
+          ? 'Screening'
+          : 'Facility'
+
   function downloadTemplate() {
     const [content, filename] = importType === 'permits'
       ? [buildPermitTemplateCSV(), 'epa-permits-template.csv']
-      : [buildTemplateCSV(),       'epa-facilities-template.csv']
+      : isFinanceImport
+        ? [buildFinanceTemplateCSV(importType === 'finance_paid' ? 'paid' : 'unpaid'), `epa-finance-${importType === 'finance_paid' ? 'paid' : 'unpaid'}-template.csv`]
+        : importType === 'field_reports'
+          ? [buildFieldReportTemplateCSV(), 'epa-field-reports-template.csv']
+          : importType === 'screenings'
+            ? [buildScreeningTemplateCSV(), 'epa-screenings-template.csv']
+            : [buildTemplateCSV(), 'epa-facilities-template.csv']
     const blob = new Blob([content], { type: 'text/csv' })
     const url  = URL.createObjectURL(blob)
     const a    = document.createElement('a')
@@ -350,7 +919,7 @@ export default function ImportPage() {
       <div className="page-header" style={{ marginTop: 12 }}>
         <div>
           <div className="page-title">Import Data</div>
-          <div className="page-subtitle">Bulk-import facilities or permits from a CSV file.</div>
+          <div className="page-subtitle">Bulk-import facilities, permits, finance records, or field reports from a CSV file.</div>
         </div>
         {stage === STAGES.idle && (
           <button className="btn btn--ghost" onClick={downloadTemplate}>
@@ -373,6 +942,30 @@ export default function ImportPage() {
             onClick={() => switchType('permits')}
           >
             <FileText size={14} /> Permits
+          </button>
+          <button
+            className={`btn ${importType === 'finance_paid' ? 'btn--primary' : 'btn--ghost'}`}
+            onClick={() => switchType('finance_paid')}
+          >
+            <CreditCard size={14} /> Finance Paid
+          </button>
+          <button
+            className={`btn ${importType === 'finance_unpaid' ? 'btn--primary' : 'btn--ghost'}`}
+            onClick={() => switchType('finance_unpaid')}
+          >
+            <CreditCard size={14} /> Finance Unpaid
+          </button>
+          <button
+            className={`btn ${importType === 'field_reports' ? 'btn--primary' : 'btn--ghost'}`}
+            onClick={() => switchType('field_reports')}
+          >
+            <Flag size={14} /> Field Reports
+          </button>
+          <button
+            className={`btn ${importType === 'screenings' ? 'btn--primary' : 'btn--ghost'}`}
+            onClick={() => switchType('screenings')}
+          >
+            <ClipboardList size={14} /> Screenings
           </button>
         </div>
       )}
@@ -415,7 +1008,7 @@ export default function ImportPage() {
                   {SECTORS.map((s) => `${s.name} (${s.prefix})`).join(' · ')}
                 </div>
               </>
-            ) : (
+            ) : importType === 'permits' ? (
               <>
                 <div className="import-help-card__title">Importing Permits</div>
                 <ol className="import-help-card__steps">
@@ -426,6 +1019,47 @@ export default function ImportPage() {
                 </ol>
                 <div className="import-help-card__sectors">
                   <strong>Supported headers:</strong> PermID, Entity Name, File No., PERMIT NO., Date of Issue, Effective Date, Date of Expiry, Place of Issue, Permit Image
+                </div>
+              </>
+            ) : isFinanceImport ? (
+              <>
+                <div className="import-help-card__title">
+                  Importing {importType === 'finance_paid' ? 'Paid' : 'Unpaid'} Finance
+                </div>
+                <ol className="import-help-card__steps">
+                  <li>Export the <strong>{importType === 'finance_paid' ? 'Paid' : 'Unpaid'}</strong> sheet as CSV</li>
+                  <li>The importer first links by <strong>File Number</strong> or <strong>Client Id</strong></li>
+                  <li>If the file number does not match, it falls back to <strong>Client Name</strong></li>
+                  <li>Invoice No. becomes the finance reference number</li>
+                </ol>
+                <div className="import-help-card__sectors">
+                  <strong>Supported headers:</strong> Invoice No., File Number, Client Name, Contact, Invoice Amnt., Client Id, Category, Sector, Department, Created Date
+                </div>
+              </>
+            ) : importType === 'screenings' ? (
+              <>
+                <div className="import-help-card__title">Importing Screenings</div>
+                <ol className="import-help-card__steps">
+                  <li>Each row must have a <strong>File No.</strong> matching a registered facility</li>
+                  <li>If the file number doesn't match (e.g. from an old system), the importer will try to match by proponent or company name against field reports</li>
+                  <li>Yes/No columns accept: Yes/No, Y/N, 1/0</li>
+                  <li>Dates should use <strong>DD/MM/YYYY</strong> or ISO format</li>
+                </ol>
+                <div className="import-help-card__sectors">
+                  <strong>Supported headers:</strong> File No., Inspection Date, Name of Proponent, Company's Name, Type of Undertaking, Components, Capacity, Liquid Waste, Solid Waste, Gaseous Waste, Comments on description of undertaking, Street/Area Name, Town, District, Major Landmark, Adjacent Land Use, North, South, East, West, Latitude, Existing Infrastructure and Facility on site, Construction Phase Impacts, Operational Phase Impacts, Impacts Addressed in EA1?, If no Mitigation measures, Name of Neighbour, Contact of Neighbour, Location in relation to the undertaking, Their comments, Observations, Comments, Permit Recommended?, Additional Info Required?, PER Recommended?, EIA Recommended?, Permit Declined?, Reason for Permit Declined, Name of Officer, ScreeningID
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="import-help-card__title">Importing Field Reports</div>
+                <ol className="import-help-card__steps">
+                  <li>Export the field reports sheet as CSV</li>
+                  <li>Rows are imported as field reports without changing the field report form</li>
+                  <li>Dates should use <strong>DD/MM/YYYY</strong> or an ISO date like <code>2026-04-23</code></li>
+                  <li>Reporting and payment statuses are preserved on the imported report</li>
+                </ol>
+                <div className="import-help-card__sectors">
+                  <strong>Supported headers:</strong> NAME OF FACILITY, LOCATION, CONTACT PERSON, SECTOR, CONTACT NUMBER, DISTRICT, PERMIT STATUS, REPORTING STATUS, DATE LETTER SERVED, DATE REPORTED, DATE OF INVOICE, AMOUNT INVOICE, PAYMENT STATUS, DATE OF PAYMENT, AMOUNT
                 </div>
               </>
             )}
@@ -441,9 +1075,10 @@ export default function ImportPage() {
             <span className="import-summary-bar__valid">
               <CheckCircle size={13} /> {validRecords.length} ready to import
             </span>
-            {importType === 'permits' && facilityLinkLoading && (
+            {(importType === 'permits' || isFinanceImport || importType === 'screenings') && facilityLinkLoading && (
               <span style={{ fontSize: 12, color: '#6b7280', display: 'flex', alignItems: 'center', gap: 4 }}>
-                <Loader size={13} style={{ animation: 'spin 1s linear infinite' }} /> Checking facility file numbers…
+                <Loader size={13} style={{ animation: 'spin 1s linear infinite' }} />
+                Checking facility links…
               </span>
             )}
             {warnCount > 0 && (
@@ -562,6 +1197,113 @@ export default function ImportPage() {
                     })}
                   </tbody>
                 </table>
+              ) : isFinanceImport ? (
+                <table className="import-table">
+                  <thead>
+                    <tr>
+                      <th>#</th><th>Invoice No.</th><th>File No.</th><th>Client Name</th><th>Matched Facility</th>
+                      <th>Match</th><th>Amount</th><th>Category</th><th>Created Date</th><th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {records.slice(0, 5).map((r, i) => {
+                      const errors = validateRecord(r)
+                      const linkedFacility = resolveFinanceFacility(r)
+                      const fmt = (ts) => ts ? new Date(ts.seconds * 1000).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'
+                      return (
+                        <tr key={i} className={errors.length ? 'import-table__row--error' : ''}>
+                          <td style={{ color: '#9ca3af' }}>{i + 1}</td>
+                          <td><strong>{r.invoice_no || <em style={{ color: '#9ca3af' }}>—</em>}</strong></td>
+                          <td><span className="file-num" style={{ fontSize: 11 }}>{r.file_number || <em style={{ color: '#dc2626' }}>missing</em>}</span></td>
+                          <td>{r.client_name || <em style={{ color: '#dc2626' }}>missing</em>}</td>
+                          <td>
+                            {linkedFacility && !linkedFacility.duplicate
+                              ? <><span className="file-num" style={{ fontSize: 11 }}>{linkedFacility.fileNumber}</span> {linkedFacility.name}</>
+                              : <em style={{ color: '#9ca3af' }}>—</em>}
+                          </td>
+                          <td>{linkedFacility?.matchMethod || <em style={{ color: '#9ca3af' }}>—</em>}</td>
+                          <td>{r.amount != null ? `GHS ${r.amount.toLocaleString('en-GH', { minimumFractionDigits: 2 })}` : <em style={{ color: '#dc2626' }}>{r._amount_raw || 'missing'}</em>}</td>
+                          <td>{r.payment_type || <em style={{ color: '#9ca3af' }}>—</em>}</td>
+                          <td>{fmt(r.date)}</td>
+                          <td>
+                            {errors.length === 0
+                              ? <span style={{ color: '#16a34a', fontSize: 12 }}>✓ Ready</span>
+                              : <span style={{ color: '#dc2626', fontSize: 12 }} title={errors.join('\n')}>✗ {errors[0]}</span>
+                            }
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              ) : importType === 'screenings' ? (
+                <table className="import-table">
+                  <thead>
+                    <tr>
+                      <th>#</th><th>File No.</th><th>Matched Facility</th><th>Match</th>
+                      <th>Inspection Date</th><th>Proponent</th><th>Company</th>
+                      <th>Permit Rec.</th><th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {records.slice(0, 5).map((r, i) => {
+                      const errors = validateRecord(r)
+                      const linked = resolveScreeningFacility(r)
+                      const fmt = (ts) => ts ? new Date(ts.seconds * 1000).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'
+                      return (
+                        <tr key={i} className={errors.length ? 'import-table__row--error' : ''}>
+                          <td style={{ color: '#9ca3af' }}>{i + 1}</td>
+                          <td><span className="file-num" style={{ fontSize: 11 }}>{r.file_number || <em style={{ color: '#dc2626' }}>missing</em>}</span></td>
+                          <td>{linked ? <><span className="file-num" style={{ fontSize: 11 }}>{linked.fileNumber}</span> {linked.name}</> : <em style={{ color: '#9ca3af' }}>—</em>}</td>
+                          <td style={{ fontSize: 11, color: '#6b7280' }}>{linked?.matchMethod || '—'}</td>
+                          <td>{fmt(r.inspection_date)}</td>
+                          <td>{r.proponent_name || <em style={{ color: '#9ca3af' }}>—</em>}</td>
+                          <td>{r.company_name || <em style={{ color: '#9ca3af' }}>—</em>}</td>
+                          <td>{r.permit_recommended || <em style={{ color: '#9ca3af' }}>—</em>}</td>
+                          <td>
+                            {errors.length === 0
+                              ? <span style={{ color: '#16a34a', fontSize: 12 }}>✓ Ready</span>
+                              : <span style={{ color: '#dc2626', fontSize: 12 }} title={errors.join('\n')}>✗ {errors[0]}</span>
+                            }
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              ) : importType === 'field_reports' ? (
+                <table className="import-table">
+                  <thead>
+                    <tr>
+                      <th>#</th><th>Facility</th><th>Location</th><th>Sector</th>
+                      <th>District</th><th>Reported</th><th>Invoice</th><th>Payment</th><th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {records.slice(0, 5).map((r, i) => {
+                      const errors = validateRecord(r)
+                      const fmt = (ts) => ts ? new Date(ts.seconds * 1000).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'
+                      return (
+                        <tr key={i} className={errors.length ? 'import-table__row--error' : ''}>
+                          <td style={{ color: '#9ca3af' }}>{i + 1}</td>
+                          <td><strong>{r.facility_name || <em style={{ color: '#dc2626' }}>missing</em>}</strong></td>
+                          <td>{r.location || <em style={{ color: '#9ca3af' }}>—</em>}</td>
+                          <td>{r.sector_prefix ? `${r.sector} (${r.sector_prefix})` : <span style={{ color: r.sector ? '#dc2626' : '#9ca3af' }}>{r.sector || '—'}</span>}</td>
+                          <td>{r.district || <em style={{ color: '#9ca3af' }}>—</em>}</td>
+                          <td>{fmt(r.date_reported)}</td>
+                          <td>{r.amount_invoice != null ? `GHS ${r.amount_invoice.toLocaleString('en-GH', { minimumFractionDigits: 2 })}` : <em style={{ color: '#9ca3af' }}>—</em>}</td>
+                          <td>{r.payment_status || <em style={{ color: '#9ca3af' }}>—</em>}</td>
+                          <td>
+                            {errors.length === 0
+                              ? <span style={{ color: '#16a34a', fontSize: 12 }}>✓ Ready</span>
+                              : <span style={{ color: '#dc2626', fontSize: 12 }} title={errors.join('\n')}>✗ {errors[0]}</span>
+                            }
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
               ) : (
                 <table className="import-table">
                   <thead>
@@ -615,12 +1357,10 @@ export default function ImportPage() {
           ) : (
             <div className="form-actions">
               <button className="btn btn--ghost" onClick={reset}>Cancel</button>
-              <button className="btn btn--primary" onClick={handleImport} disabled={importType === 'permits' && facilityLinkLoading}>
-                {importType === 'permits' && facilityLinkLoading
+              <button className="btn btn--primary" onClick={handleImport} disabled={(importType === 'permits' || isFinanceImport || importType === 'screenings') && facilityLinkLoading}>
+                {(importType === 'permits' || isFinanceImport) && facilityLinkLoading
                   ? 'Checking facility links…'
-                  : `Import ${validRecords.length} ${importType === 'permits'
-                  ? (validRecords.length === 1 ? 'Permit' : 'Permits')
-                  : (validRecords.length === 1 ? 'Facility' : 'Facilities')}`}
+                  : `Import ${validRecords.length} ${validRecords.length === 1 ? importNoun : `${importNoun}s`}`}
               </button>
             </div>
           )}
@@ -688,8 +1428,8 @@ export default function ImportPage() {
           <div className="form-actions" style={{ marginTop: 16 }}>
             <button className="btn btn--ghost" onClick={() => { reset(); }}>Import More</button>
             <button className="btn btn--primary"
-              onClick={() => navigate(importType === 'permits' ? '/permits' : '/facilities')}>
-              View {importType === 'permits' ? 'Permits' : 'Facilities'}
+              onClick={() => navigate(importType === 'permits' ? '/permits' : isFinanceImport ? '/finance' : importType === 'field_reports' ? '/field-reports' : importType === 'screenings' ? '/screening' : '/facilities')}>
+              View {importType === 'permits' ? 'Permits' : isFinanceImport ? 'Finance' : importType === 'field_reports' ? 'Field Reports' : importType === 'screenings' ? 'Screenings' : 'Facilities'}
             </button>
           </div>
         </>

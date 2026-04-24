@@ -10,7 +10,7 @@ import { useAuth } from '../context/AuthContext'
 import { getFacility, deleteFacility } from '../firebase/facilities'
 import { assignRecord, unassignRecord, addSupportingOfficerToRecord, getRecordAssignmentHistory } from '../firebase/assignments'
 import { listStaff } from '../firebase/staff'
-import { SECTOR_COLORS, DISTRICTS, FIELD_ROLES, ADMIN_ROLES } from '../data/constants'
+import { SECTOR_COLORS, DISTRICTS, FIELD_ROLES, ADMIN_ROLES, ADMIN_VIEW_ROLES } from '../data/constants'
 import { workflowSummary, isPermitStuck } from '../data/workflow'
 import Spinner from '../components/Spinner'
 import AssignOfficerDialog from '../components/AssignOfficerDialog'
@@ -72,6 +72,7 @@ export default function FacilityDetail() {
   const [successMsg, setSuccessMsg]         = useState('')
 
   const canAssign = ADMIN_ROLES.has(role) || FIELD_ROLES.has(role)
+  const canEditAllEntries = ADMIN_VIEW_ROLES.has(role)
 
   useEffect(() => {
     getFacility(fileNumber)
@@ -194,19 +195,21 @@ export default function FacilityDetail() {
           )}
         </div>
 
-        {role === 'admin' && (
+        {canEditAllEntries && (
           <div className="action-buttons">
             <button className="btn btn--ghost btn--sm" onClick={() => navigate(`/facilities/${fileNumber}/edit`)}>
               <Edit2 size={14} /> Edit
             </button>
-            <button
-              className="btn btn--ghost btn--sm"
-              style={{ color: '#dc2626', borderColor: '#fecaca' }}
-              onClick={handleDelete}
-              disabled={deleting}
-            >
-              <Trash2 size={14} /> {deleting ? 'Deleting…' : 'Delete'}
-            </button>
+            {role === 'admin' && (
+              <button
+                className="btn btn--ghost btn--sm"
+                style={{ color: '#dc2626', borderColor: '#fecaca' }}
+                onClick={handleDelete}
+                disabled={deleting}
+              >
+                <Trash2 size={14} /> {deleting ? 'Deleting…' : 'Delete'}
+              </button>
+            )}
           </div>
         )}
       </div>

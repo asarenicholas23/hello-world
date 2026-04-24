@@ -4,7 +4,7 @@ import { Plus, Edit2, Trash2, AlertCircle, Image, CheckCircle, XCircle, AlertTri
 import { listSubRecords, deleteSubRecord } from '../../firebase/subrecords'
 import { fmtDate } from '../../utils/records'
 import Spinner from '../Spinner'
-import { FIELD_ROLES } from '../../data/constants'
+import { ADMIN_VIEW_ROLES, FIELD_ROLES } from '../../data/constants'
 
 function DecisionBadge({ record }) {
   if (record.permit_declined === 'Yes') {
@@ -28,12 +28,17 @@ export default function ScreeningsTab({ fileNumber, role }) {
   const [loading, setLoading]   = useState(true)
   const [error, setError]       = useState('')
   const [deletingId, setDeletingId] = useState(null)
+  const [selectedIds, setSelectedIds] = useState([])
+  const [deletingSelected, setDeletingSelected] = useState(false)
 
   useEffect(() => { load() }, [fileNumber])
 
   async function load() {
     setLoading(true)
-    try { setRecords(await listSubRecords(fileNumber, 'screenings')) }
+    try {
+      setRecords(await listSubRecords(fileNumber, 'screenings'))
+      setSelectedIds([])
+    }
     catch { setError('Failed to load screenings.') }
     finally { setLoading(false) }
   }
@@ -48,7 +53,42 @@ export default function ScreeningsTab({ fileNumber, role }) {
     finally { setDeletingId(null) }
   }
 
-  const canEdit = role === 'admin' || FIELD_ROLES.has(role)
+  const canEdit = ADMIN_VIEW_ROLES.has(role) || FIELD_ROLES.has(role)
+  const selectedIdSet = new Set(selectedIds)
+  const visibleRecordIds = records.map((r) => r.id)
+  const allVisibleSelected = visibleRecordIds.length > 0 && visibleRecordIds.every((id) => selectedIdSet.has(id))
+
+  function toggleRecordSelection(id) {
+    setSelectedIds((prev) => (
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    ))
+  }
+
+  function toggleSelectAllVisible() {
+    setSelectedIds((prev) => {
+      if (allVisibleSelected) return prev.filter((id) => !visibleRecordIds.includes(id))
+      return [...new Set([...prev, ...visibleRecordIds])]
+    })
+  }
+
+  async function handleDeleteSelected() {
+    if (selectedIds.length === 0 || deletingSelected) return
+    const label = selectedIds.length === 1 ? 'screening record' : 'screening records'
+    if (!window.confirm(`Delete ${selectedIds.length} selected ${label}?\nThis cannot be undone.`)) return
+
+    setDeletingSelected(true)
+    const idsToDelete = records.filter((r) => selectedIdSet.has(r.id)).map((r) => r.id)
+    const results = await Promise.allSettled(idsToDelete.map((id) => deleteSubRecord(fileNumber, 'screenings', id)))
+    const deletedIds = idsToDelete.filter((_, index) => results[index].status === 'fulfilled')
+    const failedCount = idsToDelete.length - deletedIds.length
+
+    if (deletedIds.length > 0) {
+      setRecords((prev) => prev.filter((r) => !deletedIds.includes(r.id)))
+      setSelectedIds((prev) => prev.filter((id) => !deletedIds.includes(id)))
+    }
+    if (failedCount > 0) alert(`Deleted ${deletedIds.length}, but ${failedCount} failed. Try again.`)
+    setDeletingSelected(false)
+  }
 
   if (loading) return <div className="tab-loading"><Spinner size={24} /></div>
   if (error)   return <div className="login-error" style={{ margin: '12px 0' }}><AlertCircle size={14} /> {error}</div>
@@ -67,11 +107,32 @@ export default function ScreeningsTab({ fileNumber, role }) {
       {records.length === 0 ? (
         <div className="tab-empty">No screenings recorded yet.</div>
       ) : (
-        <div className="record-list">
-          {records.map((r) => (
-            <div key={r.id} className="record-item">
+        <>
+          {canEdit && (
+            <div className="bulk-actions-bar" style={{ marginBottom: 12 }}>
+              <label className="bulk-actions-bar__checkbox">
+                <input type="checkbox" checked={allVisibleSelected} onChange={toggleSelectAllVisible} />
+                Select all
+              </label>
+              <span className="bulk-actions-bar__count">{selectedIds.length} selected</span>
+              <button className="btn btn--ghost btn--xs" onClick={() => setSelectedIds([])} disabled={selectedIds.length === 0 || deletingSelected}>
+                Clear
+              </button>
+              <button className="btn btn--ghost btn--xs btn--danger" onClick={handleDeleteSelected} disabled={selectedIds.length === 0 || deletingSelected}>
+                <Trash2 size={12} /> {deletingSelected ? 'Deleting…' : 'Delete Selected'}
+              </button>
+            </div>
+          )}
+          <div className="record-list">
+            {records.map((r) => (
+              <div key={r.id} className={`record-item${selectedIdSet.has(r.id) ? ' cross-record-item--selected' : ''}`}>
               <div className="record-item__header">
                 <span className="record-item__title">
+                  {canEdit && (
+                    <label className="bulk-card-checkbox" onClick={(e) => e.stopPropagation()} style={{ marginRight: 8 }}>
+                      <input type="checkbox" checked={selectedIdSet.has(r.id)} onChange={() => toggleRecordSelection(r.id)} />
+                    </label>
+                  )}
                   {r.screening_id && <span className="file-num" style={{ fontSize: 11, marginRight: 6 }}>{r.screening_id}</span>}
                   Screening — {fmtDate(r.inspection_date ?? r.date)}
                 </span>
@@ -104,9 +165,10 @@ export default function ScreeningsTab({ fileNumber, role }) {
                   </button>
                 </div>
               )}
-            </div>
-          ))}
-        </div>
+              </div>
+            ))}
+          </div>
+        </>
       )}
     </div>
   )

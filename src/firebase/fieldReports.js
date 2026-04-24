@@ -19,9 +19,9 @@ export async function getFieldReport(id) {
 export async function createFieldReport(data, userId) {
   const ref = await addDoc(COL(), {
     ...data,
-    reporting_status:      'pending',
-    invoice_status:        'pending',
-    assigned_file_number:  null,
+    reporting_status:      data.reporting_status ?? 'pending',
+    invoice_status:        data.invoice_status ?? 'pending',
+    assigned_file_number:  data.assigned_file_number ?? null,
     created_at:            serverTimestamp(),
     created_by:            userId,
   })

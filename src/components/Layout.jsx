@@ -5,7 +5,7 @@ import { useSync } from '../context/SyncContext'
 import { ADMIN_VIEW_ROLES } from '../data/constants'
 import {
   LayoutDashboard, Building2, FileText, Banknote,
-  Users, ClipboardList, Activity, ShieldAlert, CheckSquare,
+  Users, ClipboardList, Activity, CheckSquare,
   LogOut, Menu, X, Leaf, Upload, Flag, BarChart2,
   Briefcase, LayoutList, MessageSquare, GraduationCap, BellRing,
 } from 'lucide-react'
@@ -30,10 +30,9 @@ const FIELD_NAV = [
   { label: 'Facilities',        icon: Building2,       path: '/facilities' },
   { label: 'Screening',         icon: ClipboardList,   path: '/screening' },
   { label: 'Monitoring',        icon: Activity,        path: '/monitoring' },
-  { label: 'Enforcement',       icon: ShieldAlert,     path: '/enforcement' },
+  { label: 'Field Reports',     icon: Flag,            path: '/field-reports' },
   { label: 'Site Verifications',icon: CheckSquare,     path: '/site-verifications' },
   { label: 'My Assignments',    icon: Briefcase,       path: '/my-assignments', dividerBefore: true },
-  { label: 'Field Reports',     icon: Flag,            path: '/field-reports' },
   { label: 'Complaints',        icon: MessageSquare,   path: '/complaints',     dividerBefore: true },
   { label: 'Env. Education',    icon: GraduationCap,   path: '/env-education' },
 ]
@@ -49,6 +48,7 @@ const NAV_BY_ROLE = {
     { label: 'Dashboard',  icon: LayoutDashboard, path: '/' },
     { label: 'Facilities', icon: Building2,       path: '/facilities' },
     { label: 'Finance',    icon: Banknote,        path: '/finance' },
+    { label: 'Field Reports', icon: Flag,          path: '/field-reports' },
   ],
 }
 

@@ -6,6 +6,7 @@ import { getEnvEducation, createEnvEducation, updateEnvEducation } from '../fire
 import { ENV_ED_TYPES } from './EnvironmentalEducationPage'
 import { DISTRICTS } from '../data/constants'
 import { inputToTs, tsToInput } from '../utils/records'
+import PhotoCapture from '../components/PhotoCapture'
 
 const EMPTY = {
   date: '',
@@ -26,6 +27,7 @@ export default function EnvEducationForm() {
   const { user } = useAuth()
 
   const [form, setForm]       = useState(EMPTY)
+  const [photos, setPhotos]   = useState([])
   const [loading, setLoading] = useState(isEdit)
   const [saving, setSaving]   = useState(false)
   const [error, setError]     = useState('')
@@ -46,6 +48,7 @@ export default function EnvEducationForm() {
           facilitator:        data.facilitator        ?? '',
           notes:              data.notes              ?? '',
         })
+        setPhotos(data.photos ?? [])
       })
       .catch(() => setError('Failed to load record.'))
       .finally(() => setLoading(false))
@@ -70,6 +73,7 @@ export default function EnvEducationForm() {
         target_group:       form.target_group.trim(),
         facilitator:        form.facilitator.trim(),
         notes:              form.notes.trim(),
+        photos,
       }
       if (isEdit) await updateEnvEducation(id, payload, user.uid)
       else        await createEnvEducation(payload, user.uid)
@@ -150,6 +154,15 @@ export default function EnvEducationForm() {
           <label className="form-label">Notes</label>
           <textarea className="form-input" rows={3} value={form.notes} onChange={(e) => set('notes', e.target.value)} placeholder="Key takeaways, outcomes, follow-ups…" />
         </div>
+
+        <div className="form-section-title" style={{ marginTop: 20 }}>Event Photos</div>
+        <PhotoCapture
+          photos={photos}
+          onPhotosChange={setPhotos}
+          fileNumber="env-education"
+          category="sessions"
+          maxPhotos={5}
+        />
 
         <div className="form-actions">
           <button type="button" className="btn btn--ghost" onClick={() => navigate('/env-education')}>Cancel</button>

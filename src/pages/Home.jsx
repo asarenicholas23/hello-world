@@ -31,7 +31,7 @@ const FIELD_CARDS = [
   { icon: Building2,    color: '#1d4ed8', bg: '#eff6ff', title: 'Facilities',        path: '/facilities',         desc: 'Browse registered facilities.' },
   { icon: ClipboardList,color: '#0369a1', bg: '#f0f9ff', title: 'Screening',         path: '/screening',          desc: 'Pre-permit inspection records with GPS and photos.' },
   { icon: Activity,     color: '#166534', bg: '#dcfce7', title: 'Monitoring',        path: '/monitoring',         desc: 'Sector-specific environmental monitoring visits.' },
-  { icon: ShieldAlert,  color: '#c2410c', bg: '#fff7ed', title: 'Enforcement',       path: '/enforcement',        desc: 'Log warnings, notices, fines, and closures.' },
+  { icon: ShieldAlert,  color: '#c2410c', bg: '#fff7ed', title: 'Field Reports',     path: '/field-reports',      desc: 'Log enforcement actions and walk-in visits.' },
   { icon: CheckSquare,  color: '#0891b2', bg: '#f0fdfa', title: 'Site Verifications',path: '/site-verifications', desc: 'Pre-renewal site verification visits.' },
 ]
 
@@ -163,7 +163,7 @@ export default function Home() {
             <KpiCard
               icon={<ShieldAlert size={20} color="#c2410c" />} bg="#fff7ed"
               value={myStats.enforcement} label="Enforcement Actions"
-              onClick={() => navigate('/enforcement', { state: { officerUid: user.uid } })}
+              onClick={() => navigate('/field-reports', { state: { typeFilter: 'enforcement' } })}
             />
             <KpiCard
               icon={<CheckSquare size={20} color="#0891b2" />} bg="#f0fdfa"

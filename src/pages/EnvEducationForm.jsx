@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, WifiOff } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
+import { useSync } from '../context/SyncContext'
 import { getEnvEducation, createEnvEducation, updateEnvEducation } from '../firebase/envEducation'
 import { ENV_ED_TYPES } from './EnvironmentalEducationPage'
 import { DISTRICTS } from '../data/constants'
@@ -25,6 +26,7 @@ export default function EnvEducationForm() {
   const isEdit = Boolean(id)
   const navigate = useNavigate()
   const { user } = useAuth()
+  const { isOnline } = useSync()
 
   const [form, setForm]       = useState(EMPTY)
   const [photos, setPhotos]   = useState([])
@@ -93,6 +95,13 @@ export default function EnvEducationForm() {
       <div className="page-header" style={{ marginTop: 12 }}>
         <div className="page-title">{isEdit ? 'Edit Session' : 'Log Education Session'}</div>
       </div>
+      {!isOnline && (
+        <div className="offline-banner">
+          <WifiOff size={15} style={{ flexShrink: 0 }} />
+          You&apos;re offline — your submission will be saved locally and synced automatically when you reconnect.
+        </div>
+      )}
+
       {error && <div className="login-error">{error}</div>}
 
       <form className="card form-card" onSubmit={handleSubmit}>

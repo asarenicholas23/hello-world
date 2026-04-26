@@ -8,6 +8,7 @@ import {
   Users, ClipboardList, Activity, CheckSquare,
   LogOut, Menu, X, Leaf, Upload, Flag, BarChart2,
   Briefcase, LayoutList, MessageSquare, GraduationCap, BellRing,
+  WifiOff, RefreshCw, CheckCircle2,
 } from 'lucide-react'
 
 const ADMIN_NAV = [
@@ -99,7 +100,7 @@ export default function Layout() {
   const pageTitle = usePageTitle()
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
-  const { syncStatus } = useSync()
+  const { syncStatus, toasts, dismissToast } = useSync()
   const navItems = ADMIN_VIEW_ROLES.has(staff?.role) ? ADMIN_NAV : (NAV_BY_ROLE[staff?.role] ?? [])
   const initials = staff?.name
     ?.split(' ')
@@ -209,6 +210,8 @@ export default function Layout() {
           <Outlet />
         </div>
       </div>
+
+      <ToastStack toasts={toasts} onDismiss={dismissToast} />
     </div>
   )
 }
@@ -224,10 +227,36 @@ function SyncIndicator({ status }) {
   return (
     <div className="sync-indicator">
       <span
-        className="sync-dot"
+        className={`sync-dot${status.type === 'offline' ? ' sync-dot--pulse' : ''}`}
         style={{ background: SYNC_DOT_COLOR[status.type] ?? '#9ca3af' }}
       />
       <span className="sync-label">{status.label}</span>
+    </div>
+  )
+}
+
+const TOAST_ICON = {
+  offline: WifiOff,
+  syncing: RefreshCw,
+  success: CheckCircle2,
+}
+
+function ToastStack({ toasts, onDismiss }) {
+  if (!toasts.length) return null
+  return (
+    <div className="toast-stack">
+      {toasts.map((t) => {
+        const Icon = TOAST_ICON[t.type] ?? WifiOff
+        return (
+          <div key={t.id} className={`toast toast--${t.type}`}>
+            <Icon size={16} className={t.type === 'syncing' ? 'toast-spin' : ''} style={{ flexShrink: 0 }} />
+            <span className="toast-msg">{t.message}</span>
+            <button className="toast-close" onClick={() => onDismiss(t.id)} aria-label="Dismiss">
+              <X size={14} />
+            </button>
+          </div>
+        )
+      })}
     </div>
   )
 }

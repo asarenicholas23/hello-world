@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, AlertCircle, Save, Loader } from 'lucide-react'
+import { ArrowLeft, AlertCircle, Save, Loader, WifiOff } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
+import { useSync } from '../context/SyncContext'
 import { useGPS } from '../hooks/useGPS'
 import { getSubRecord, createSubRecord, updateSubRecord, listSubRecords } from '../firebase/subrecords'
 import { tsToInput, inputToTs } from '../utils/records'
@@ -58,6 +59,7 @@ export default function ScreeningForm() {
   const isEditing = Boolean(recordId)
   const navigate  = useNavigate()
   const { user, staff } = useAuth()
+  const { isOnline } = useSync()
 
   const [form, setForm]               = useState(EMPTY)
   const [screeningId, setScreeningId] = useState('')
@@ -216,6 +218,13 @@ export default function ScreeningForm() {
           </div>
         </div>
       </div>
+
+      {!isOnline && (
+        <div className="offline-banner">
+          <WifiOff size={15} style={{ flexShrink: 0 }} />
+          You&apos;re offline — your submission will be saved locally and synced automatically when you reconnect.
+        </div>
+      )}
 
       {error && (
         <div className="login-error" style={{ marginBottom: 16 }}>

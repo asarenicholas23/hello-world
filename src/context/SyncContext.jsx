@@ -1,8 +1,11 @@
 /* eslint-disable react-refresh/only-export-components */
-import { createContext, useContext, useEffect, useRef, useState } from 'react'
+import { createContext, useContext, useEffect, useRef, useState, useCallback } from 'react'
+import { waitForPendingWrites } from 'firebase/firestore'
+import { db } from '../firebase/config'
 import { createFacility } from '../firebase/facilities'
 
 const STORAGE_KEY = 'epa_facility_drafts'
+let nextToastId = 0
 
 function loadDrafts() {
   try {
@@ -22,27 +25,68 @@ export function SyncProvider({ children }) {
   const [isOnline, setIsOnline] = useState(navigator.onLine)
   const [drafts, setDrafts] = useState(loadDrafts)
   const [syncing, setSyncing] = useState(false)
+  const [toasts, setToasts] = useState([])
 
-  // Keep refs so the processing effect always reads the latest values
-  // without needing them as dependencies (avoids re-triggering on every change).
   const draftsRef = useRef(drafts)
   const syncingRef = useRef(syncing)
+  const offlineToastIdRef = useRef(null)
+
   useEffect(() => { draftsRef.current = drafts }, [drafts])
   useEffect(() => { syncingRef.current = syncing }, [syncing])
 
-  // Track online/offline
+  const dismissToast = useCallback((id) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id))
+  }, [])
+
+  // duration=0 means persistent (must be manually dismissed)
+  const pushToast = useCallback((message, type, duration = 4000) => {
+    const id = ++nextToastId
+    setToasts((prev) => [...prev, { id, message, type }])
+    if (duration > 0) {
+      setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), duration)
+    }
+    return id
+  }, [])
+
+  // Track online/offline transitions and fire toasts
   useEffect(() => {
-    function goOnline() { setIsOnline(true) }
-    function goOffline() { setIsOnline(false) }
+    function goOffline() {
+      setIsOnline(false)
+      if (offlineToastIdRef.current === null) {
+        offlineToastIdRef.current = pushToast(
+          "You're offline — changes you make will be saved and synced automatically when you reconnect.",
+          'offline',
+          0,
+        )
+      }
+    }
+
+    function goOnline() {
+      setIsOnline(true)
+      // Dismiss the persistent offline toast
+      if (offlineToastIdRef.current !== null) {
+        dismissToast(offlineToastIdRef.current)
+        offlineToastIdRef.current = null
+      }
+      // Show syncing toast until Firestore flushes pending writes
+      const syncId = pushToast('Back online — syncing your changes…', 'syncing', 0)
+      waitForPendingWrites(db)
+        .then(() => {
+          dismissToast(syncId)
+          pushToast('All changes synced', 'success', 3500)
+        })
+        .catch(() => dismissToast(syncId))
+    }
+
     window.addEventListener('online', goOnline)
     window.addEventListener('offline', goOffline)
     return () => {
       window.removeEventListener('online', goOnline)
       window.removeEventListener('offline', goOffline)
     }
-  }, [])
+  }, [pushToast, dismissToast])
 
-  // Auto-sync drafts when coming back online
+  // Auto-sync facility drafts when coming back online
   useEffect(() => {
     if (!isOnline || draftsRef.current.length === 0 || syncingRef.current) return
 
@@ -73,7 +117,7 @@ export function SyncProvider({ children }) {
 
     process()
     return () => { cancelled = true }
-  }, [isOnline]) // draftsRef/syncingRef intentionally omitted — they're refs
+  }, [isOnline])
 
   function addDraft(facilityData, userId) {
     const draft = {
@@ -111,7 +155,10 @@ export function SyncProvider({ children }) {
 
   return (
     <SyncContext.Provider
-      value={{ isOnline, drafts, addDraft, removeDraft, syncing, syncStatus, pendingCount }}
+      value={{
+        isOnline, drafts, addDraft, removeDraft, syncing, syncStatus, pendingCount,
+        toasts, pushToast, dismissToast,
+      }}
     >
       {children}
     </SyncContext.Provider>

@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, AlertCircle, Save, Loader } from 'lucide-react'
+import { ArrowLeft, AlertCircle, Save, Loader, WifiOff } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
+import { useSync } from '../context/SyncContext'
 import { getSubRecord, createSubRecord, updateSubRecord, listSubRecords } from '../firebase/subrecords'
 import { uploadFile } from '../firebase/storage'
 import { tsToInput, inputToTs } from '../utils/records'
@@ -29,6 +30,7 @@ export default function FinanceForm() {
   const isEditing = Boolean(recordId)
   const navigate = useNavigate()
   const { user } = useAuth()
+  const { isOnline } = useSync()
 
   const [formData, setFormData]           = useState(EMPTY)
   const [urls, setUrls]                   = useState(EMPTY_URLS)
@@ -179,6 +181,13 @@ export default function FinanceForm() {
       </div>
 
       <form onSubmit={handleSubmit}>
+        {!isOnline && (
+          <div className="offline-banner">
+            <WifiOff size={15} style={{ flexShrink: 0 }} />
+            You&apos;re offline — your submission will be saved locally and synced automatically when you reconnect.
+          </div>
+        )}
+
         {error && (
           <div className="login-error" style={{ marginBottom: 16 }}>
             <AlertCircle size={15} style={{ flexShrink: 0 }} />

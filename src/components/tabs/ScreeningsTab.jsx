@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Edit2, Trash2, AlertCircle, Image, CheckCircle, XCircle, AlertTriangle } from 'lucide-react'
+import { Plus, Edit2, Trash2, AlertCircle, Image, CheckCircle, XCircle, AlertTriangle, FileText } from 'lucide-react'
 import { listSubRecords, deleteSubRecord } from '../../firebase/subrecords'
 import { fmtDate } from '../../utils/records'
 import Spinner from '../Spinner'
+import RecordDocumentModal from '../RecordDocumentModal'
 import { ADMIN_VIEW_ROLES, FIELD_ROLES } from '../../data/constants'
 
 function DecisionBadge({ record }) {
@@ -30,6 +31,7 @@ export default function ScreeningsTab({ fileNumber, role }) {
   const [deletingId, setDeletingId] = useState(null)
   const [selectedIds, setSelectedIds] = useState([])
   const [deletingSelected, setDeletingSelected] = useState(false)
+  const [viewRecord, setViewRecord] = useState(null)
 
   useEffect(() => { load() }, [fileNumber])
 
@@ -95,6 +97,14 @@ export default function ScreeningsTab({ fileNumber, role }) {
 
   return (
     <div>
+      {viewRecord && (
+        <RecordDocumentModal
+          type="screening"
+          record={viewRecord}
+          fileNumber={fileNumber}
+          onClose={() => setViewRecord(null)}
+        />
+      )}
       {canEdit && (
         <div className="tab-toolbar">
           <button className="btn btn--primary btn--sm"
@@ -153,18 +163,23 @@ export default function ScreeningsTab({ fileNumber, role }) {
               {r.type_of_undertaking && (
                 <div className="record-item__note">{r.type_of_undertaking}</div>
               )}
-              {canEdit && (
-                <div className="record-item__actions">
-                  <button className="btn btn--ghost btn--xs"
-                    onClick={() => navigate(`/facilities/${fileNumber}/screenings/${r.id}/edit`)}>
-                    <Edit2 size={12} /> Edit
-                  </button>
-                  <button className="btn btn--ghost btn--xs btn--danger"
-                    onClick={() => handleDelete(r.id)} disabled={deletingId === r.id}>
-                    <Trash2 size={12} /> {deletingId === r.id ? 'Deleting…' : 'Delete'}
-                  </button>
-                </div>
-              )}
+              <div className="record-item__actions">
+                <button className="btn btn--ghost btn--xs" onClick={() => setViewRecord(r)}>
+                  <FileText size={12} /> View
+                </button>
+                {canEdit && (
+                  <>
+                    <button className="btn btn--ghost btn--xs"
+                      onClick={() => navigate(`/facilities/${fileNumber}/screenings/${r.id}/edit`)}>
+                      <Edit2 size={12} /> Edit
+                    </button>
+                    <button className="btn btn--ghost btn--xs btn--danger"
+                      onClick={() => handleDelete(r.id)} disabled={deletingId === r.id}>
+                      <Trash2 size={12} /> {deletingId === r.id ? 'Deleting…' : 'Delete'}
+                    </button>
+                  </>
+                )}
+              </div>
               </div>
             ))}
           </div>

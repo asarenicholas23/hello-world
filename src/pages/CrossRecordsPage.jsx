@@ -5,7 +5,10 @@ import { Search, AlertCircle, Download, Plus, LayoutGrid, Table2, Trash2 } from 
 import { getCrossRecords, buildFacilityMap } from '../firebase/dashboard'
 import { deleteSubRecord } from '../firebase/subrecords'
 import { fmtDate, permitStatus } from '../utils/records'
-import { SECTOR_COLORS, ENFORCEMENT_ACTIONS, COMPLIANCE_STATUS, FIELD_ROLES, ADMIN_ROLES, PAYMENT_TYPES } from '../data/constants'
+import {
+  SECTOR_COLORS, ENFORCEMENT_ACTIONS, COMPLIANCE_STATUS, FIELD_ROLES, ADMIN_ROLES,
+  PAYMENT_TYPES, SECTORS, DISTRICTS,
+} from '../data/constants'
 import Spinner from '../components/Spinner'
 
 // ── Per-category configuration ──────────────────────────
@@ -142,6 +145,15 @@ const CATEGORY_CONFIG = {
   enforcement:        { label: 'Enforcement',       tab: 'enforcement',        editPath: 'enforcement' },
 }
 
+function sectorLabel(prefix) {
+  const sector = SECTORS.find((s) => s.prefix === prefix)
+  return sector ? `${sector.name} (${sector.prefix})` : (prefix || 'Unknown')
+}
+
+function districtLabel(code) {
+  return DISTRICTS.find((d) => d.code === code)?.name ?? code ?? 'Unknown'
+}
+
 // Map URL segments to Firestore collection names
 const URL_TO_COLLECTION = {
   permits:             'permits',
@@ -222,6 +234,8 @@ export default function CrossRecordsPage() {
   const [officerFilter, setOfficerFilter]     = useState(location.state?.officerUid ?? '')
   const [paymentTypeFilter, setPaymentTypeFilter]     = useState(location.state?.paymentType ?? '')
   const [paymentStatusFilter, setPaymentStatusFilter] = useState(location.state?.paymentStatus ?? '')
+  const [sectorFilter, setSectorFilter] = useState(location.state?.sectorPrefix ?? '')
+  const [districtFilter, setDistrictFilter] = useState(location.state?.district ?? '')
   const [viewMode, setViewMode] = useState(() => localStorage.getItem('finance-view') ?? 'cards')
   const [dateFrom, setDateFrom]           = useState('')
   const [dateTo, setDateTo]               = useState('')
@@ -235,6 +249,8 @@ export default function CrossRecordsPage() {
     setOfficerFilter(location.state?.officerUid ?? '')
     setPaymentTypeFilter(location.state?.paymentType ?? '')
     setPaymentStatusFilter(location.state?.paymentStatus ?? '')
+    setSectorFilter(location.state?.sectorPrefix ?? '')
+    setDistrictFilter(location.state?.district ?? '')
     setDateFrom('')
     setDateTo('')
   }, [location.key])
@@ -278,6 +294,12 @@ export default function CrossRecordsPage() {
     if (paymentStatusFilter && collection === 'finance') {
       result = result.filter((r) => (r.payment_status ?? 'paid') === paymentStatusFilter)
     }
+    if (sectorFilter && collection === 'finance') {
+      result = result.filter((r) => r.sectorPrefix === sectorFilter)
+    }
+    if (districtFilter && collection === 'finance') {
+      result = result.filter((r) => r.facilityDistrict === districtFilter)
+    }
     if (dateFrom || dateTo) {
       const getRecordDate = (r) => {
         const raw = collection === 'permits' ? r[permitDateField] : r.date
@@ -306,18 +328,29 @@ export default function CrossRecordsPage() {
       )
     }
     return result
-  }, [records, search, statusFilter, officerFilter, paymentTypeFilter, paymentStatusFilter, dateFrom, dateTo, permitDateField, collection])
+  }, [records, search, statusFilter, officerFilter, paymentTypeFilter, paymentStatusFilter, sectorFilter, districtFilter, dateFrom, dateTo, permitDateField, collection])
 
   const financeTotals = useMemo(() => {
     if (collection !== 'finance') return null
     let total = 0, paid = 0, unpaid = 0
+    const bySector = {}
+    const byDistrict = {}
     filtered.forEach((r) => {
       const amount = Number(r.amount ?? 0)
       total += amount
-      if ((r.payment_status ?? 'paid') === 'unpaid') unpaid += amount
-      else paid += amount
+      if ((r.payment_status ?? 'paid') === 'unpaid') {
+        unpaid += amount
+      } else {
+        paid += amount
+        const sectorKey = r.sectorPrefix || 'unknown'
+        const districtKey = r.facilityDistrict || 'unknown'
+        bySector[sectorKey] = (bySector[sectorKey] ?? 0) + amount
+        byDistrict[districtKey] = (byDistrict[districtKey] ?? 0) + amount
+      }
     })
-    return { total, paid, unpaid }
+    const topSector = Object.entries(bySector).sort((a, b) => b[1] - a[1])[0] ?? null
+    const topDistrict = Object.entries(byDistrict).sort((a, b) => b[1] - a[1])[0] ?? null
+    return { total, paid, unpaid, topSector, topDistrict }
   }, [filtered, collection])
   const canBulkManage = ADMIN_ROLES.has(staff?.role)
   const selectedKeySet = useMemo(() => new Set(selectedKeys), [selectedKeys])
@@ -513,6 +546,26 @@ export default function CrossRecordsPage() {
               <option value="paid">Paid</option>
               <option value="unpaid">Unpaid</option>
             </select>
+            <select
+              className="filter-select"
+              value={sectorFilter}
+              onChange={(e) => setSectorFilter(e.target.value)}
+            >
+              <option value="">All Sectors</option>
+              {SECTORS.map((s) => (
+                <option key={s.prefix} value={s.prefix}>{s.name} ({s.prefix})</option>
+              ))}
+            </select>
+            <select
+              className="filter-select"
+              value={districtFilter}
+              onChange={(e) => setDistrictFilter(e.target.value)}
+            >
+              <option value="">All Districts</option>
+              {DISTRICTS.map((d) => (
+                <option key={d.code} value={d.code}>{d.name}</option>
+              ))}
+            </select>
             <div className="view-toggle">
               <button
                 className={`view-toggle__btn${viewMode === 'cards' ? ' view-toggle__btn--active' : ''}`}
@@ -533,7 +586,7 @@ export default function CrossRecordsPage() {
         )}
       </div>
 
-      {(officerFilter || (collection === 'permits' && statusFilter) || paymentTypeFilter || paymentStatusFilter || dateFrom || dateTo) && (
+      {(officerFilter || (collection === 'permits' && statusFilter) || paymentTypeFilter || paymentStatusFilter || sectorFilter || districtFilter || dateFrom || dateTo) && (
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', marginBottom: 8 }}>
           {officerFilter && (
             <span className="filter-pill">
@@ -557,6 +610,18 @@ export default function CrossRecordsPage() {
             <span className="filter-pill">
               {paymentStatusFilter === 'unpaid' ? 'Unpaid / Outstanding' : 'Paid'}
               <button onClick={() => setPaymentStatusFilter('')}>✕</button>
+            </span>
+          )}
+          {sectorFilter && (
+            <span className="filter-pill">
+              Sector: {sectorLabel(sectorFilter)}
+              <button onClick={() => setSectorFilter('')}>✕</button>
+            </span>
+          )}
+          {districtFilter && (
+            <span className="filter-pill">
+              District: {districtLabel(districtFilter)}
+              <button onClick={() => setDistrictFilter('')}>✕</button>
             </span>
           )}
           {(dateFrom || dateTo) && (
@@ -598,6 +663,28 @@ export default function CrossRecordsPage() {
               GH¢ {financeTotals.unpaid.toLocaleString('en-GH', { minimumFractionDigits: 2 })}
             </span>
           </div>
+          {financeTotals.topSector && (
+            <div className="finance-totals-bar__item">
+              <span className="finance-totals-bar__label">Top Sector</span>
+              <span className="finance-totals-bar__value">
+                {sectorLabel(financeTotals.topSector[0])}
+              </span>
+              <span className="finance-totals-bar__label">
+                GH¢ {financeTotals.topSector[1].toLocaleString('en-GH', { minimumFractionDigits: 2 })}
+              </span>
+            </div>
+          )}
+          {financeTotals.topDistrict && (
+            <div className="finance-totals-bar__item">
+              <span className="finance-totals-bar__label">Top District</span>
+              <span className="finance-totals-bar__value">
+                {districtLabel(financeTotals.topDistrict[0])}
+              </span>
+              <span className="finance-totals-bar__label">
+                GH¢ {financeTotals.topDistrict[1].toLocaleString('en-GH', { minimumFractionDigits: 2 })}
+              </span>
+            </div>
+          )}
         </div>
       )}
 
@@ -642,6 +729,7 @@ export default function CrossRecordsPage() {
                   <th>File No.</th>
                   <th>Facility</th>
                   <th>Sector</th>
+                  <th>District</th>
                   <th>Date</th>
                   <th>Type</th>
                   <th>Permit</th>
@@ -677,6 +765,7 @@ export default function CrossRecordsPage() {
                           {r.sectorPrefix}
                         </span>
                       </td>
+                      <td style={{ color: '#6b7280' }}>{districtLabel(r.facilityDistrict)}</td>
                       <td>{fmtDate(r.date)}</td>
                       <td>{r.payment_type || '—'}</td>
                       <td style={{ color: '#6b7280' }}>{r.permit_number || '—'}</td>
@@ -732,6 +821,11 @@ export default function CrossRecordsPage() {
                     >
                       {r.sectorPrefix}
                     </span>
+                    {r.facilityDistrict && (
+                      <span className="record-badge" style={{ background: '#f3f4f6', color: '#4b5563', fontSize: 10 }}>
+                        {districtLabel(r.facilityDistrict)}
+                      </span>
+                    )}
                   </div>
                   <div className="cross-record__body">
                     <div className="cross-record__content">

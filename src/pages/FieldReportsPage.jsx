@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { AlertCircle, Search, ChevronDown, ChevronUp, Plus, Loader, UserCheck, Edit2, Trash2 } from 'lucide-react'
+import { AlertCircle, Search, ChevronDown, ChevronUp, Plus, Loader, UserCheck, Edit2, Trash2, MessageSquare } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { listFieldReports, updateFieldReport, deleteFieldReport } from '../firebase/fieldReports'
 import { getFacility, createFacilityWithId } from '../firebase/facilities'
@@ -54,6 +54,8 @@ export default function FieldReportsPage() {
   const [error, setError]       = useState('')
   const [search, setSearch]     = useState('')
   const [typeFilter, setTypeFilter] = useState(location.state?.typeFilter ?? '')
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo,   setDateTo]   = useState('')
   const [expanded, setExpanded] = useState(null)
   const [saving, setSaving]     = useState({})
   const [selectedIds, setSelectedIds] = useState([])
@@ -74,6 +76,14 @@ export default function FieldReportsPage() {
 
   const filtered = reports.filter((r) => {
     if (typeFilter && r.report_type !== typeFilter) return false
+
+    if (dateFrom || dateTo) {
+      const rawTs = r.report_type === 'enforcement' ? r.date : r.created_at
+      const d = rawTs?.toDate?.() ?? (rawTs?.seconds ? new Date(rawTs.seconds * 1000) : null)
+      if (dateFrom && (!d || d < new Date(dateFrom + 'T00:00:00'))) return false
+      if (dateTo   && (!d || d > new Date(dateTo   + 'T23:59:59'))) return false
+    }
+
     if (!search.trim()) return true
     const q = search.toLowerCase()
     return (
@@ -296,11 +306,27 @@ export default function FieldReportsPage() {
             {filtered.length} of {reports.length} unregistered facility reports
           </div>
         </div>
-        {staff?.role !== 'finance' && (
-          <button className="btn btn--primary" onClick={() => navigate('/field-reports/new')}>
-            <Plus size={14} /> New Field Report
-          </button>
-        )}
+        <div style={{ display: 'flex', gap: 8 }}>
+          {canEditAllEntries && filtered.some((r) => r.phone) && (
+            <button
+              className="btn btn--ghost btn--sm"
+              title="SMS contacts in this view"
+              onClick={() => {
+                const contacts = filtered
+                  .filter((r) => r.phone)
+                  .map((r) => ({ ...r, name: r.facility_name ?? 'Unknown', fileNumber: r.id }))
+                navigate('/sms', { state: { bulkFieldReports: contacts, bulkSource: 'field_reports' } })
+              }}
+            >
+              <MessageSquare size={14} /> SMS ({filtered.filter((r) => r.phone).length})
+            </button>
+          )}
+          {staff?.role !== 'finance' && (
+            <button className="btn btn--primary" onClick={() => navigate('/field-reports/new')}>
+              <Plus size={14} /> New Field Report
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="filter-bar">
@@ -320,6 +346,19 @@ export default function FieldReportsPage() {
             <option value="walk_in">Walk-in</option>
           </select>
         </div>
+        <div className="filter-group" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          <span style={{ fontSize: 12, color: '#6b7280', whiteSpace: 'nowrap' }}>From</span>
+          <input className="input" type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} style={{ width: 136 }} />
+        </div>
+        <div className="filter-group" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          <span style={{ fontSize: 12, color: '#6b7280', whiteSpace: 'nowrap' }}>To</span>
+          <input className="input" type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} style={{ width: 136 }} />
+        </div>
+        {(dateFrom || dateTo) && (
+          <button className="btn btn--ghost btn--sm" onClick={() => { setDateFrom(''); setDateTo('') }}>
+            Clear dates
+          </button>
+        )}
       </div>
 
       {error && (

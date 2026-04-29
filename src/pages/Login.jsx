@@ -105,7 +105,7 @@ export default function Login() {
         </form>
 
         <div className="login-footer">
-          Ghana Environmental Protection Agency — Konongo Area Office
+          Ghana Environmental Protection Authority — Konongo Area Office
         </div>
       </div>
     </div>

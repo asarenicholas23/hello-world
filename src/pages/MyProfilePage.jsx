@@ -6,7 +6,7 @@ import { getMyActivityStats } from '../firebase/dashboard'
 import { ADMIN_ROLES } from '../data/constants'
 import {
   Mail, Phone, Hash, Calendar, MapPin, BookOpen, Briefcase,
-  Edit2, Lock, Check, AlertCircle, Camera,
+  Edit2, Lock, Check, AlertCircle, Camera, PartyPopper,
   Building2, ClipboardList, Activity, ShieldAlert, CheckSquare, FileText,
   MessageSquare, GraduationCap,
 } from 'lucide-react'
@@ -178,9 +178,25 @@ export default function MyProfilePage() {
   const initials   = staff.name?.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase() ?? '?'
   const currentPhotoUrl = photoPreview || staff.picture_url || null
 
+  const isBirthday = (() => {
+    if (!staff.date_of_birth) return false
+    try {
+      const [, m, d] = staff.date_of_birth.split('-')
+      const now = new Date()
+      return parseInt(m) === now.getMonth() + 1 && parseInt(d) === now.getDate()
+    } catch { return false }
+  })()
+
   return (
     <div className="page">
       <div className="page-title" style={{ marginBottom: 20 }}>My Profile</div>
+
+      {isBirthday && (
+        <div className="birthday-banner">
+          <PartyPopper size={18} />
+          <span>Happy Birthday, {staff.name?.split(' ')[0]}! Wishing you a wonderful day.</span>
+        </div>
+      )}
 
       {profileMsg && (
         <div
@@ -232,7 +248,10 @@ export default function MyProfilePage() {
           )}
           <div className="profile-info-grid">
             <InfoItem icon={Hash}     label="Staff ID"    value={staff.staff_id} />
-            <InfoItem icon={Mail}     label="Email"       value={staff.email} />
+            <InfoItem icon={Mail}     label="Login Email" value={user?.email} />
+            {staff.email && staff.email !== user?.email && (
+              <InfoItem icon={Mail}   label="Contact Email" value={staff.email} />
+            )}
             {staff.phone      && <InfoItem icon={Phone}     label="Contact"     value={staff.phone} />}
             {staff.address    && <InfoItem icon={MapPin}    label="Address"     value={staff.address} />}
             {staff.qualification && <InfoItem icon={BookOpen} label="Qualification" value={staff.qualification} />}

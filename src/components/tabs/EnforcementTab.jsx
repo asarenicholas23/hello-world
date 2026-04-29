@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Edit2, Trash2, AlertCircle, Image } from 'lucide-react'
+import { Plus, Edit2, Trash2, AlertCircle, Image, FileText } from 'lucide-react'
 import { listSubRecords, deleteSubRecord } from '../../firebase/subrecords'
 import { fmtDate } from '../../utils/records'
 import { ADMIN_VIEW_ROLES, ENFORCEMENT_ACTIONS, FIELD_ROLES } from '../../data/constants'
 import Spinner from '../Spinner'
+import RecordDocumentModal from '../RecordDocumentModal'
 
 const ACTION_COLORS = {
   warning: { bg: '#fef9c3', color: '#854d0e' },
@@ -20,6 +21,7 @@ export default function EnforcementTab({ fileNumber, role }) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [deletingId, setDeletingId] = useState(null)
+  const [viewRecord, setViewRecord] = useState(null)
 
   useEffect(() => { load() }, [fileNumber])
 
@@ -48,6 +50,14 @@ export default function EnforcementTab({ fileNumber, role }) {
 
   return (
     <div>
+      {viewRecord && (
+        <RecordDocumentModal
+          type="enforcement"
+          record={viewRecord}
+          fileNumber={fileNumber}
+          onClose={() => setViewRecord(null)}
+        />
+      )}
       {canEdit && (
         <div className="tab-toolbar">
           <button className="btn btn--primary btn--sm" onClick={() => navigate(`/facilities/${fileNumber}/enforcement/new`)}>
@@ -82,16 +92,21 @@ export default function EnforcementTab({ fileNumber, role }) {
                 </div>
                 {r.location && <div className="record-item__note">{r.location}</div>}
                 {r.notes && <div className="record-item__note">{r.notes}</div>}
-                {canEdit && (
-                  <div className="record-item__actions">
-                    <button className="btn btn--ghost btn--xs" onClick={() => navigate(`/facilities/${fileNumber}/enforcement/${r.id}/edit`)}>
-                      <Edit2 size={12} /> Edit
-                    </button>
-                    <button className="btn btn--ghost btn--xs btn--danger" onClick={() => handleDelete(r.id)} disabled={deletingId === r.id}>
-                      <Trash2 size={12} /> {deletingId === r.id ? 'Deleting…' : 'Delete'}
-                    </button>
-                  </div>
-                )}
+                <div className="record-item__actions">
+                  <button className="btn btn--ghost btn--xs" onClick={() => setViewRecord(r)}>
+                    <FileText size={12} /> View
+                  </button>
+                  {canEdit && (
+                    <>
+                      <button className="btn btn--ghost btn--xs" onClick={() => navigate(`/facilities/${fileNumber}/enforcement/${r.id}/edit`)}>
+                        <Edit2 size={12} /> Edit
+                      </button>
+                      <button className="btn btn--ghost btn--xs btn--danger" onClick={() => handleDelete(r.id)} disabled={deletingId === r.id}>
+                        <Trash2 size={12} /> {deletingId === r.id ? 'Deleting…' : 'Delete'}
+                      </button>
+                    </>
+                  )}
+                </div>
               </div>
             )
           })}

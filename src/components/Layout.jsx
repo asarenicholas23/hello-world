@@ -3,6 +3,7 @@ import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useSync } from '../context/SyncContext'
 import { ADMIN_VIEW_ROLES } from '../data/constants'
+import NotificationBell from './NotificationBell'
 import {
   LayoutDashboard, Building2, FileText, Banknote,
   Users, ClipboardList, Activity, CheckSquare,
@@ -194,6 +195,7 @@ export default function Layout() {
             <span className="topbar__page-title">{pageTitle}</span>
           </span>
           <SyncIndicator status={syncStatus} />
+          <NotificationBell uid={staff?.uid ?? staff?.id} />
           <span
             className="badge"
             style={{

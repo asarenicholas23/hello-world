@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Edit2, Trash2, AlertCircle, Paperclip } from 'lucide-react'
+import { Plus, Edit2, Trash2, AlertCircle, Paperclip, PackageCheck } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
-import { listSubRecords, deleteSubRecord } from '../../firebase/subrecords'
+import { listSubRecords, deleteSubRecord, updateSubRecord } from '../../firebase/subrecords'
 import { fmtDate, permitStatus } from '../../utils/records'
 import { normalizeAttachmentUrl } from '../../utils/attachments'
 import { ADMIN_ROLES, FIELD_ROLES, ADMIN_VIEW_ROLES } from '../../data/constants'
@@ -23,6 +23,7 @@ export default function PermitsTab({ fileNumber, facilityOfficer }) {
   const [loading, setLoading]       = useState(true)
   const [error, setError]           = useState('')
   const [deletingId, setDeletingId] = useState(null)
+  const [togglingId, setTogglingId] = useState(null)
 
   const canAdd  = ADMIN_ROLES.has(role) || (FIELD_ROLES.has(role) && user?.uid === facilityOfficer)
   const canEdit = ADMIN_VIEW_ROLES.has(role)
@@ -35,6 +36,16 @@ export default function PermitsTab({ fileNumber, facilityOfficer }) {
     try { setRecords(await listSubRecords(fileNumber, 'permits')) }
     catch { setError('Failed to load permits.') }
     finally { setLoading(false) }
+  }
+
+  async function toggleReady(r) {
+    setTogglingId(r.id)
+    try {
+      const next = !r.ready_to_collect
+      await updateSubRecord(fileNumber, 'permits', r.id, { ready_to_collect: next }, user?.uid)
+      setRecords((prev) => prev.map((p) => p.id === r.id ? { ...p, ready_to_collect: next } : p))
+    } catch { alert('Failed to update. Try again.') }
+    finally { setTogglingId(null) }
   }
 
   async function handleDelete(id, label) {
@@ -71,7 +82,14 @@ export default function PermitsTab({ fileNumber, facilityOfficer }) {
               <div key={r.id} className="record-item">
                 <div className="record-item__header">
                   <span className="record-item__title">{r.permit_number}</span>
-                  {status && <span className="record-badge" style={sc}>{STATUS_LABELS[status]}</span>}
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                    {status && <span className="record-badge" style={sc}>{STATUS_LABELS[status]}</span>}
+                    {r.ready_to_collect && (
+                      <span className="record-badge" style={{ background: '#dbeafe', color: '#1e40af' }}>
+                        <PackageCheck size={10} /> Ready to Collect
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <div className="record-item__meta">
                   <span>Issued: {fmtDate(r.issue_date)}</span>
@@ -96,6 +114,15 @@ export default function PermitsTab({ fileNumber, facilityOfficer }) {
                 )}
                 {canEdit && (
                   <div className="record-item__actions">
+                    <button
+                      className={`btn btn--ghost btn--xs${r.ready_to_collect ? ' btn--active' : ''}`}
+                      onClick={() => toggleReady(r)}
+                      disabled={togglingId === r.id}
+                      title={r.ready_to_collect ? 'Mark as NOT ready to collect' : 'Mark as ready to collect'}
+                    >
+                      <PackageCheck size={12} />
+                      {togglingId === r.id ? '…' : r.ready_to_collect ? 'Ready ✓' : 'Mark Ready'}
+                    </button>
                     <button className="btn btn--ghost btn--xs" onClick={() => navigate(`/facilities/${fileNumber}/permits/${r.id}/edit`)}>
                       <Edit2 size={12} /> Edit
                     </button>

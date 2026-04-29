@@ -283,7 +283,7 @@ export const MONITORING_CHECKLISTS = {
         title: 'Reporting & Training',
         items: [
           { key: 'annual_report_submitted', label: 'Pesticides annual report submitted for previous calendar year?' },
-          { key: 'training_received',       label: 'Training organized and/or approved by the Agency received?' },
+          { key: 'training_received',       label: 'Training organized and/or approved by the Authority received?' },
           { key: 'training_evidence',       label: 'If yes — provide evidence of training', type: 'text', conditional: { key: 'training_received', value: 'Yes' } },
           { key: 'last_training_info',      label: 'If yes — when was last training and who organized it?', type: 'text', conditional: { key: 'training_received', value: 'Yes' } },
         ],

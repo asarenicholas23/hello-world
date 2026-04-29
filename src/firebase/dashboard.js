@@ -186,6 +186,18 @@ export async function getPermitStatusMap() {
   return map // { [fileNumber]: 'active' | 'expiring' | 'expired' }
 }
 
+// Returns Set of fileNumbers that have at least one permit with ready_to_collect: true
+export async function getPermitReadySet() {
+  const snap = await getDocs(collectionGroup(db, 'permits'))
+  const ready = new Set()
+  snap.docs.forEach((d) => {
+    if (d.data().ready_to_collect === true) {
+      ready.add(d.ref.parent.parent.id)
+    }
+  })
+  return ready
+}
+
 export async function getFinanceStats(startMs, endMs) {
   const snap = await getDocs(collectionGroup(db, 'finance'))
 

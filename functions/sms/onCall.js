@@ -2,7 +2,7 @@ const { onCall, HttpsError } = require('firebase-functions/v2/https')
 const { defineSecret }      = require('firebase-functions/params')
 const admin                 = require('firebase-admin')
 const { sendSms, normalizePhone } = require('./arkesel')
-const { permitExpiry, permitExpired, unpaidInvoice } = require('./templates')
+const { permitExpiry, permitExpired, unpaidInvoice, enforcementReminder, permitReady } = require('./templates')
 
 const ARKESEL_API_KEY = defineSecret('ARKESEL_API_KEY')
 const ADMIN_ROLES     = new Set(['admin', 'director'])
@@ -30,9 +30,9 @@ exports.sendFacilitySms = onCall({
   await assertAdmin(request.auth)
   const db     = admin.firestore()
   const apiKey = ARKESEL_API_KEY.value()
-  const { facilityId, template, customMessage, extraPhones = [] } = request.data
+  const { facilityId, template, customMessage, extraPhones = [], facilityName: overrideName } = request.data
 
-  let facilityName = ''
+  let facilityName = overrideName ?? ''
   let recipients   = []
 
   if (facilityId) {
@@ -50,7 +50,10 @@ exports.sendFacilitySms = onCall({
     if (n) recipients.push(n)
   }
 
+  console.log(`[sendFacilitySms] facilityId=${facilityId} template=${template} rawRecipients=${JSON.stringify(recipients)}`)
+
   if (!recipients.length) {
+    console.error('[sendFacilitySms] no valid phone numbers after normalisation. Raw phone from facility:', facilityId)
     throw new HttpsError('invalid-argument', 'No valid phone numbers. Check the facility has a phone on record.')
   }
 
@@ -83,20 +86,43 @@ exports.sendFacilitySms = onCall({
       record?.amount ?? 0,
     )
 
+  } else if (template === 'enforcement_reminder') {
+    const enfSnap = await db.collection(`facilities/${facilityId}/enforcement`)
+      .orderBy('date', 'desc').limit(1).get()
+    const enf = enfSnap.docs[0]?.data()
+    const actionLabel = enf?.action_taken ?? 'enforcement action'
+    const date = enf?.date
+      ? enf.date.toDate().toLocaleDateString('en-GH', { day: 'numeric', month: 'long', year: 'numeric' })
+      : '(date unknown)'
+    message = enforcementReminder(facilityName, facilityId, actionLabel, date)
+
+  } else if (template === 'permit_ready') {
+    message = permitReady(facilityName, facilityId)
+
   } else {
     throw new HttpsError('invalid-argument', `Unknown template: ${template}`)
   }
 
   try {
     const arkeselResponse = await sendSms(apiKey, recipients, message)
+    // Capture per-recipient info from Arkesel data[] — use null not undefined (Firestore rejects undefined)
+    const recipientStatuses = Array.isArray(arkeselResponse.data)
+      ? arkeselResponse.data.map((r) => ({
+          recipient: r.recipient ?? null,
+          status:    r.status   ?? null,
+          reason:    r.reason   ?? null,
+        }))
+      : []
     await logSms(db, {
       recipients,
       message,
       template,
-      facility_id:      facilityId ?? null,
-      triggered_by:     request.auth.uid,
-      status:           'sent',
-      arkesel_response: arkeselResponse,
+      facility_id:       facilityId ?? null,
+      facility_name:     facilityName || null,   // empty string → null
+      triggered_by:      request.auth.uid,
+      status:            'sent',
+      arkesel_response:  arkeselResponse,
+      recipient_statuses: recipientStatuses,
     })
     return { success: true, recipients, message }
   } catch (err) {

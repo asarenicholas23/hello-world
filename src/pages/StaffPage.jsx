@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, UserPlus, Pencil, Trash2, Shield, Banknote, Briefcase, Star, Eye } from 'lucide-react'
+import { ArrowLeft, UserPlus, Pencil, Trash2, Shield, Banknote, Briefcase, Star, Eye, PartyPopper } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { listStaff, deleteStaff } from '../firebase/staff'
 
@@ -46,6 +46,25 @@ export default function StaffPage() {
     }
   }
 
+  const upcomingBirthdays = members.filter((m) => {
+    if (!m.date_of_birth) return false
+    try {
+      const [, mo, dy] = m.date_of_birth.split('-')
+      const now = new Date()
+      const birthThisYear = new Date(now.getFullYear(), +mo - 1, +dy)
+      if (birthThisYear < now) birthThisYear.setFullYear(now.getFullYear() + 1)
+      const daysUntil = Math.round((birthThisYear - now) / 86400000)
+      return daysUntil <= 7
+    } catch { return false }
+  }).map((m) => {
+    const [, mo, dy] = m.date_of_birth.split('-')
+    const now = new Date()
+    const birthThisYear = new Date(now.getFullYear(), +mo - 1, +dy)
+    if (birthThisYear < now) birthThisYear.setFullYear(now.getFullYear() + 1)
+    const daysUntil = Math.round((birthThisYear - now) / 86400000)
+    return { ...m, daysUntil }
+  })
+
   return (
     <div className="page">
       <button className="btn btn--ghost btn--sm btn--back" onClick={() => navigate('/')}>
@@ -61,6 +80,22 @@ export default function StaffPage() {
           <UserPlus size={14} /> Add Staff
         </button>
       </div>
+
+      {upcomingBirthdays.length > 0 && (
+        <div className="birthday-alert-card">
+          <div className="birthday-alert-card__title">
+            <PartyPopper size={15} /> Upcoming Birthdays
+          </div>
+          {upcomingBirthdays.map((m) => (
+            <div key={m.id} className="birthday-alert-row">
+              <span className="birthday-alert-name">{m.name}</span>
+              <span className="birthday-alert-when">
+                {m.daysUntil === 0 ? 'Today!' : m.daysUntil === 1 ? 'Tomorrow' : `In ${m.daysUntil} days`}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
 
       {error && <div className="login-error">{error}</div>}
 

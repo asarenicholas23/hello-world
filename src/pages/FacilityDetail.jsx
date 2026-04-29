@@ -10,6 +10,7 @@ import { useAuth } from '../context/AuthContext'
 import { getFacility, deleteFacility } from '../firebase/facilities'
 import { assignRecord, unassignRecord, addSupportingOfficerToRecord, getRecordAssignmentHistory } from '../firebase/assignments'
 import { listStaff } from '../firebase/staff'
+import { createNotification } from '../firebase/notifications'
 import { SECTOR_COLORS, DISTRICTS, FIELD_ROLES, ADMIN_ROLES, ADMIN_VIEW_ROLES } from '../data/constants'
 import { workflowSummary, isPermitStuck } from '../data/workflow'
 import Spinner from '../components/Spinner'
@@ -105,6 +106,11 @@ export default function FacilityDetail() {
       setFacility((f) => ({
         ...f, supporting_officers: [...(f.supporting_officers ?? []), toUid],
       }))
+      createNotification(
+        toUid, 'supporting_assigned',
+        `You have been added as a supporting officer for ${facility.name} (${fileNumber}).`,
+        { fileNumber, facilityName: facility.name },
+      ).catch(() => {})
     } else {
       await assignRecord({
         basePath: 'facilities', recordId: fileNumber,
@@ -112,6 +118,11 @@ export default function FacilityDetail() {
         fromUid: facility.primary_officer ?? null,
       })
       setFacility((f) => ({ ...f, primary_officer: toUid, primary_officer_name: toName }))
+      createNotification(
+        toUid, 'facility_assigned',
+        `You have been assigned to facility ${facility.name} (${fileNumber}).`,
+        { fileNumber, facilityName: facility.name },
+      ).catch(() => {})
     }
     flash(type === 'supporting' ? `Supporting officer added.` : `Facility assigned to ${toName}.`)
   }

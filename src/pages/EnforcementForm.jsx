@@ -5,6 +5,8 @@ import { useAuth } from '../context/AuthContext'
 import { useSync } from '../context/SyncContext'
 import { useGPS } from '../hooks/useGPS'
 import { getSubRecord, createSubRecord, updateSubRecord } from '../firebase/subrecords'
+import { getFacility } from '../firebase/facilities'
+import { createFieldReport } from '../firebase/fieldReports'
 import { tsToInput, inputToTs } from '../utils/records'
 import { ENFORCEMENT_ACTIONS } from '../data/constants'
 import PhotoCapture from '../components/PhotoCapture'
@@ -91,6 +93,29 @@ export default function EnforcementForm() {
         await updateSubRecord(fileNumber, 'enforcement', recordId, payload, user.uid)
       } else {
         await createSubRecord(fileNumber, 'enforcement', payload, user.uid)
+        // Mirror to field_reports so enforcement actions are visible in the Field Reports page
+        const facility = await getFacility(fileNumber).catch(() => null)
+        createFieldReport({
+          report_type:          'enforcement',
+          facility_name:        facility?.name ?? fileNumber,
+          sector_prefix:        facility?.sector_prefix ?? '',
+          district:             facility?.district ?? '',
+          location:             formData.location.trim() || facility?.location || '',
+          contact_person:       formData.contact_person.trim(),
+          phone:                facility?.phone ?? '',
+          action_taken:         formData.action_taken,
+          follow_up_date:       payload.follow_up_date,
+          enforcement_location: formData.location.trim(),
+          date:                 payload.date,
+          notes:                formData.notes.trim(),
+          coordinates:          coordinates ?? null,
+          photos,
+          officer_id:           user.uid,
+          officer_name:         staff?.name ?? '',
+          assigned_file_number: fileNumber,
+          reporting_status:     'reported',
+          invoice_status:       'pending',
+        }, user.uid).catch(() => {})
       }
       navigate(`/facilities/${fileNumber}`, { state: { tab: 'enforcement' } })
     } catch (err) {

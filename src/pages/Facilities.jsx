@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { Building2, MapPin, Phone, Plus, Search, User, AlertCircle, Clock, Trash2, CheckCircle, LayoutGrid, Table2 } from 'lucide-react'
+import { Building2, MapPin, Phone, Plus, Search, User, AlertCircle, Clock, Trash2, CheckCircle, LayoutGrid, Table2, MessageSquare, PackageCheck } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useSync } from '../context/SyncContext'
 import { listFacilities, deleteFacility } from '../firebase/facilities'
-import { getPermitStatusMap } from '../firebase/dashboard'
+import { getPermitStatusMap, getPermitReadySet } from '../firebase/dashboard'
 import { SECTORS, DISTRICTS, SECTOR_COLORS, ADMIN_ROLES } from '../data/constants'
 import Spinner from '../components/Spinner'
 
@@ -47,6 +47,9 @@ export default function Facilities() {
   }, [location.key])
   const [permitStatusMap, setPermitStatusMap] = useState(null)
   const [permitMapLoading, setPermitMapLoading] = useState(false)
+  const [permitReadySet, setPermitReadySet]   = useState(null)
+  const [readySetLoading, setReadySetLoading] = useState(false)
+  const [readyFilter, setReadyFilter]         = useState(false)
   const [sort, setSort]   = useState('newest')
   const [view, setView]   = useState(() => localStorage.getItem('facilities-view') ?? 'table')
   const [selectedIds, setSelectedIds] = useState([])
@@ -73,6 +76,15 @@ export default function Facilities() {
       .finally(() => setPermitMapLoading(false))
   }, [permitFilter, permitStatusMap, permitMapLoading])
 
+  useEffect(() => {
+    if (!readyFilter || permitReadySet !== null || readySetLoading) return
+    setReadySetLoading(true)
+    getPermitReadySet()
+      .then(setPermitReadySet)
+      .catch(() => {})
+      .finally(() => setReadySetLoading(false))
+  }, [readyFilter, permitReadySet, readySetLoading])
+
   const filtered = useMemo(() => {
     const q = search.toLowerCase()
     const base = facilities.filter((f) => {
@@ -90,12 +102,13 @@ export default function Facilities() {
         const status = permitStatusMap[f.file_number] ?? 'none'
         matchesPermit = status === permitFilter
       }
-      return matchesSearch && matchesSector && matchesDistrict && matchesPermit && matchesOfficer
+      const matchesReady = !readyFilter || (permitReadySet !== null && permitReadySet.has(f.file_number))
+      return matchesSearch && matchesSector && matchesDistrict && matchesPermit && matchesOfficer && matchesReady
     })
     return sortFacilities(base, sort)
-  }, [facilities, search, sectorFilter, districtFilter, permitFilter, officerFilter, permitStatusMap, sort])
+  }, [facilities, search, sectorFilter, districtFilter, permitFilter, officerFilter, permitStatusMap, sort, readyFilter, permitReadySet])
 
-  const activeFilters = [sectorFilter, districtFilter, permitFilter, officerFilter].filter(Boolean).length
+  const activeFilters = [sectorFilter, districtFilter, permitFilter, officerFilter, readyFilter ? 'ready' : ''].filter(Boolean).length
   const canBulkManage = ADMIN_ROLES.has(role)
   const selectedIdSet = useMemo(() => new Set(selectedIds), [selectedIds])
   const visibleFacilityIds = filtered.map((f) => f.file_number)
@@ -181,6 +194,15 @@ export default function Facilities() {
               </button>
             </>
           )}
+          {canBulkManage && filtered.length > 0 && (
+            <button
+              className="btn btn--ghost"
+              onClick={() => navigate('/sms', { state: { bulkFacilities: filtered } })}
+              title="Send SMS to all facilities in this filtered view"
+            >
+              <MessageSquare size={14} /> SMS ({filtered.length})
+            </button>
+          )}
           {role === 'admin' && (
             <button className="btn btn--primary" onClick={() => navigate('/facilities/new')}>
               <Plus size={16} /> New Facility
@@ -231,6 +253,16 @@ export default function Facilities() {
             <option value="expired">Expired permit</option>
             <option value="none">No permit on file</option>
           </select>
+        </div>
+
+        <div className="filter-group">
+          <button
+            className={`btn btn--sm${readyFilter ? ' btn--primary' : ' btn--ghost'}`}
+            onClick={() => setReadyFilter((v) => !v)}
+            title="Show only facilities with permits ready to collect"
+          >
+            <PackageCheck size={13} /> {readyFilter ? 'Ready to Collect ✓' : 'Permit Ready?'}
+          </button>
         </div>
 
         <div className="filter-group">
@@ -285,9 +317,16 @@ export default function Facilities() {
               <button onClick={() => setPermitFilter('')}>✕</button>
             </span>
           )}
+          {readyFilter && (
+            <span className="filter-pill">
+              <PackageCheck size={11} /> Permit ready to collect
+              {readySetLoading && ' (loading…)'}
+              <button onClick={() => setReadyFilter(false)}>✕</button>
+            </span>
+          )}
           <button
             className="btn btn--ghost btn--xs"
-            onClick={() => { setSectorFilter(''); setDistrictFilter(''); setPermitFilter(''); setOfficerFilter(''); setSearch('') }}
+            onClick={() => { setSectorFilter(''); setDistrictFilter(''); setPermitFilter(''); setOfficerFilter(''); setSearch(''); setReadyFilter(false) }}
           >
             Clear all
           </button>

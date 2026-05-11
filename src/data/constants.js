@@ -1,12 +1,12 @@
 // ── Role system ────────────────────────────────────────
 export const ROLES = [
-  { value: 'director',          label: 'Director',          level: 1 },
-  { value: 'admin',             label: 'Admin',             level: 2 },
-  { value: 'senior_officer',    label: 'Senior Officer',    level: 3 },
-  { value: 'officer',           label: 'Officer',           level: 4 },
-  { value: 'assistant_officer', label: 'Assistant Officer', level: 5 },
-  { value: 'junior_officer',    label: 'Junior Officer',    level: 6 },
-  { value: 'finance',           label: 'Finance',           level: null },
+  { value: 'director',          label: 'Area Head',          level: 1 },
+  { value: 'admin',             label: 'Administer',             level: 2 },
+  { value: 'senior_officer',    label: 'Senior Programme Officer',    level: 3 },
+  { value: 'officer',           label: 'Programme Officer',           level: 4 },
+  { value: 'assistant_officer', label: 'Assistant Programme Officer', level: 5 },
+  { value: 'junior_officer',    label: 'Programme Assistant',    level: 6 },
+  { value: 'finance',           label: 'Finance Officer',           level: null },
 ]
 
 export const ROLE_LEVEL = Object.fromEntries(ROLES.map((r) => [r.value, r.level]))
@@ -56,7 +56,6 @@ export const REGION = 'Ashanti'
 export const PAYMENT_TYPES = [
   'Processing Fee',
   'Permit Fee',
-  'Annual Fee',
   'Penalty',
   'Other',
 ]

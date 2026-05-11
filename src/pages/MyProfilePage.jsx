@@ -12,12 +12,12 @@ import {
 } from 'lucide-react'
 
 const ROLE_META = {
-  director:          { label: 'Regional Director',            color: '#7c3aed', bg: '#faf5ff' },
+  director:          { label: 'Area Head',            color: '#7c3aed', bg: '#faf5ff' },
   admin:             { label: 'Administrator',                color: '#1d4ed8', bg: '#eff6ff' },
-  senior_officer:    { label: 'Senior Environmental Officer', color: '#0369a1', bg: '#f0f9ff' },
-  officer:           { label: 'Environmental Officer',        color: '#c2410c', bg: '#fff7ed' },
-  assistant_officer: { label: 'Asst. Environmental Officer',  color: '#b45309', bg: '#fffbeb' },
-  junior_officer:    { label: 'Junior Environmental Officer', color: '#6b7280', bg: '#f9fafb' },
+  senior_officer:    { label: 'Senior Programme Officer', color: '#0369a1', bg: '#f0f9ff' },
+  officer:           { label: 'Programme Officer',        color: '#c2410c', bg: '#fff7ed' },
+  assistant_officer: { label: 'Asst. Programme Officer',  color: '#b45309', bg: '#fffbeb' },
+  junior_officer:    { label: 'Programme Assistant', color: '#6b7280', bg: '#f9fafb' },
   finance:           { label: 'Finance Officer',              color: '#065f46', bg: '#ecfdf5' },
 }
 

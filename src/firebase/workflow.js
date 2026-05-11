@@ -15,6 +15,32 @@ export async function advanceStep({ fileNumber, step, uid, name, notes = '' }) {
   })
 }
 
+export async function resetWorkflow(fileNumber) {
+  await updateDoc(doc(db, 'facilities', fileNumber), {
+    workflow_current_step: 0,
+    workflow_steps:        {},
+    workflow_updated_at:   serverTimestamp(),
+  })
+}
+
+export async function tickAllSteps({ fileNumber, uid, name }) {
+  const steps = {}
+  for (let i = 1; i <= 10; i++) {
+    steps[`workflow_steps.${i}`] = {
+      status:            'complete',
+      completed_by:      uid,
+      completed_by_name: name,
+      completed_at:      serverTimestamp(),
+      notes:             '',
+    }
+  }
+  await updateDoc(doc(db, 'facilities', fileNumber), {
+    workflow_current_step: 10,
+    workflow_updated_at:   serverTimestamp(),
+    ...steps,
+  })
+}
+
 export async function addQAApproval({ fileNumber, uid, name }) {
   const ref      = doc(db, 'facilities', fileNumber)
   const snap     = await getDoc(ref)

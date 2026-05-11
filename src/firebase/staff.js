@@ -74,7 +74,7 @@ export async function createStaff(
   return user.uid
 }
 
-export async function updateStaff(uid, { name, role, phone, designation, qualification, date_of_appointment, date_of_birth, address, picture_url }) {
+export async function updateStaff(uid, { name, role, phone, designation, qualification, date_of_appointment, date_of_birth, address, notification_email, picture_url }) {
   const data = {
     name,
     role,
@@ -85,6 +85,7 @@ export async function updateStaff(uid, { name, role, phone, designation, qualifi
     date_of_appointment: date_of_appointment ?? '',
     date_of_birth:       date_of_birth ?? '',
     address:             address ?? '',
+    notification_email:  notification_email ?? '',
     updated_at:          serverTimestamp(),
   }
   if (picture_url !== undefined) data.picture_url = picture_url
@@ -95,15 +96,16 @@ export async function deleteStaff(uid) {
   await deleteDoc(doc(db, 'staff', uid))
 }
 
-export async function updateOwnProfile(uid, { name, phone, designation, qualification, date_of_birth, address, picture_url }) {
+export async function updateOwnProfile(uid, { name, phone, designation, qualification, date_of_birth, address, notification_email, picture_url }) {
   const data = {
     name,
-    phone:         phone ?? '',
-    designation:   designation ?? '',
-    qualification: qualification ?? '',
-    date_of_birth: date_of_birth ?? '',
-    address:       address ?? '',
-    updated_at:    serverTimestamp(),
+    phone:              phone ?? '',
+    designation:        designation ?? '',
+    qualification:      qualification ?? '',
+    date_of_birth:      date_of_birth ?? '',
+    address:            address ?? '',
+    notification_email: notification_email ?? '',
+    updated_at:         serverTimestamp(),
   }
   if (picture_url !== undefined) data.picture_url = picture_url
   await updateDoc(doc(db, 'staff', uid), data)

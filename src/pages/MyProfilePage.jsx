@@ -86,12 +86,13 @@ export default function MyProfilePage() {
 
   function resetForm() {
     setForm({
-      name:          staff.name ?? '',
-      phone:         staff.phone ?? '',
-      designation:   staff.designation ?? '',
-      qualification: staff.qualification ?? '',
-      date_of_birth: staff.date_of_birth ?? '',
-      address:       staff.address ?? '',
+      name:               staff.name ?? '',
+      phone:              staff.phone ?? '',
+      designation:        staff.designation ?? '',
+      qualification:      staff.qualification ?? '',
+      date_of_birth:      staff.date_of_birth ?? '',
+      address:            staff.address ?? '',
+      notification_email: staff.notification_email ?? '',
     })
     setPhotoFile(null)
     setPhotoPreview(null)
@@ -252,6 +253,9 @@ export default function MyProfilePage() {
             {staff.email && staff.email !== user?.email && (
               <InfoItem icon={Mail}   label="Contact Email" value={staff.email} />
             )}
+            {staff.notification_email && (
+              <InfoItem icon={Mail}   label="Notification Email" value={staff.notification_email} />
+            )}
             {staff.phone      && <InfoItem icon={Phone}     label="Contact"     value={staff.phone} />}
             {staff.address    && <InfoItem icon={MapPin}    label="Address"     value={staff.address} />}
             {staff.qualification && <InfoItem icon={BookOpen} label="Qualification" value={staff.qualification} />}
@@ -333,6 +337,18 @@ export default function MyProfilePage() {
               <label className="form-label">Address</label>
               <input className="form-input" value={form.address} onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))} placeholder="Residential address" />
             </div>
+          </div>
+
+          <div className="form-group">
+            <label className="form-label">Notification Email</label>
+            <input
+              className="form-input"
+              type="email"
+              value={form.notification_email}
+              onChange={(e) => setForm((f) => ({ ...f, notification_email: e.target.value }))}
+              placeholder="Email address for assignment alerts and notifications"
+            />
+            <span className="form-hint">When set, you will receive an email whenever you are assigned a facility or supporting role. Leave blank to opt out.</span>
           </div>
 
           <div className="form-actions">

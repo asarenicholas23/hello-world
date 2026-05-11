@@ -1,9 +1,10 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useSync } from '../context/SyncContext'
 import { ADMIN_VIEW_ROLES } from '../data/constants'
 import NotificationBell from './NotificationBell'
+import { onForegroundMessage } from '../firebase/fcm'
 import {
   LayoutDashboard, Building2, FileText, Banknote,
   Users, ClipboardList, Activity, CheckSquare,
@@ -101,7 +102,15 @@ export default function Layout() {
   const pageTitle = usePageTitle()
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
-  const { syncStatus, toasts, dismissToast } = useSync()
+  const { syncStatus, toasts, dismissToast, pushToast } = useSync()
+
+  useEffect(() => {
+    return onForegroundMessage((payload) => {
+      const title = payload.notification?.title ?? 'New notification'
+      const body  = payload.notification?.body  ?? ''
+      pushToast(`${title}${body ? ` — ${body}` : ''}`, 'success', 6000)
+    })
+  }, [pushToast])
   const navItems = ADMIN_VIEW_ROLES.has(staff?.role) ? ADMIN_NAV : (NAV_BY_ROLE[staff?.role] ?? [])
   const initials = staff?.name
     ?.split(' ')

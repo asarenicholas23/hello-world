@@ -1,7 +1,7 @@
 import { useState } from 'react'
-import { X, Check, AlertTriangle, Users } from 'lucide-react'
+import { X, Check, AlertTriangle, Users, RotateCcw, CheckSquare } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
-import { advanceStep, addQAApproval } from '../firebase/workflow'
+import { advanceStep, addQAApproval, resetWorkflow, tickAllSteps } from '../firebase/workflow'
 import { WORKFLOW_STEPS, isPermitStuck } from '../data/workflow'
 import { ADMIN_ROLES, FIELD_ROLES } from '../data/constants'
 
@@ -25,7 +25,9 @@ export default function WorkflowPanel({ facility, onClose, onUpdated }) {
   const nextStep     = currentStep < 10 ? currentStep + 1 : null
   const isAllDone    = currentStep >= 10
   const stuck        = isPermitStuck(facility)
-  const canAdvance   = user.uid === facility.primary_officer || ADMIN_ROLES.has(role)
+  const canAdvance   = user.uid === facility.primary_officer
+                    || (facility.supporting_officers ?? []).includes(user.uid)
+                    || ADMIN_ROLES.has(role)
   const canApproveQA = ADMIN_ROLES.has(role) || FIELD_ROLES.has(role)
 
   const qaStep      = facility.workflow_steps?.['7'] ?? {}
@@ -70,6 +72,28 @@ export default function WorkflowPanel({ facility, onClose, onUpdated }) {
     } else {
       await doAdvance(step)
     }
+  }
+
+  async function handleReset() {
+    if (!window.confirm('Reset all workflow progress for this facility? This cannot be undone.')) return
+    setSaving(true)
+    try {
+      await resetWorkflow(fileNumber)
+      onUpdated({ ...facility, workflow_current_step: 0, workflow_steps: {}, workflow_updated_at: mockNow() })
+    } finally { setSaving(false) }
+  }
+
+  async function handleTickAll() {
+    if (!window.confirm('Mark all 10 steps complete?')) return
+    setSaving(true)
+    try {
+      await tickAllSteps({ fileNumber, uid: user.uid, name: staff?.name ?? '' })
+      const steps = {}
+      for (let i = 1; i <= 10; i++) {
+        steps[String(i)] = { status: 'complete', completed_by: user.uid, completed_by_name: staff?.name, completed_at: mockNow(), notes: '' }
+      }
+      onUpdated({ ...facility, workflow_current_step: 10, workflow_steps: steps, workflow_updated_at: mockNow() })
+    } finally { setSaving(false) }
   }
 
   async function handleQAApproval() {
@@ -230,6 +254,29 @@ export default function WorkflowPanel({ facility, onClose, onUpdated }) {
             })}
           </div>
         </div>
+
+        {canAdvance && (
+          <div className="dialog__footer">
+            <button
+              className="btn btn--ghost btn--sm"
+              style={{ color: '#dc2626' }}
+              disabled={saving}
+              onClick={handleReset}
+            >
+              <RotateCcw size={13} /> Reset
+            </button>
+            <div style={{ flex: 1 }} />
+            {!isAllDone && (
+              <button
+                className="btn btn--primary btn--sm"
+                disabled={saving}
+                onClick={handleTickAll}
+              >
+                <CheckSquare size={13} /> Tick All
+              </button>
+            )}
+          </div>
+        )}
       </div>
     </div>
   )

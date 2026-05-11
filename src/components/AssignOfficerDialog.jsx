@@ -4,7 +4,7 @@ import { FIELD_ROLES, ADMIN_ROLES, ROLE_LEVEL } from '../data/constants'
 
 function getEligibleOfficers(allStaff, currentRole, currentUid) {
   if (ADMIN_ROLES.has(currentRole)) {
-    return allStaff.filter((s) => FIELD_ROLES.has(s.role))
+    return allStaff.filter((s) => FIELD_ROLES.has(s.role) || ADMIN_ROLES.has(s.role))
   }
   const level = ROLE_LEVEL[currentRole] ?? 99
   return allStaff.filter((s) => {

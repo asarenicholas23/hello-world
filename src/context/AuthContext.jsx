@@ -3,6 +3,7 @@ import { createContext, useContext, useEffect, useState } from 'react'
 import { onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'firebase/auth'
 import { doc, getDoc } from 'firebase/firestore'
 import { auth, db } from '../firebase/config'
+import { requestPushPermission } from '../firebase/fcm'
 
 const AuthContext = createContext(null)
 
@@ -32,6 +33,7 @@ export function AuthProvider({ children }) {
           if (data.role) data.role = data.role.toLowerCase()
           setStaff(data)
           setStaffError(null)
+          requestPushPermission(firebaseUser.uid)
         } else {
           setStaff(null)
           setStaffError('Your account is not registered as staff. Contact an administrator.')

@@ -61,7 +61,7 @@ exports.sendFacilitySms = onCall({
   let message = ''
   if (template === 'custom') {
     if (!customMessage?.trim()) throw new HttpsError('invalid-argument', 'Message text is required.')
-    message = customMessage.trim()
+    message = customMessage.trim().replace(/\[Facility Name\]/gi, facilityName || 'Facility')
 
   } else if (template === 'permit_expiry_60' || template === 'permit_expiry_30' || template === 'permit_expiry_7') {
     const days = parseInt(template.replace('permit_expiry_', ''), 10)

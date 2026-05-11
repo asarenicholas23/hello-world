@@ -45,6 +45,7 @@ exports.dailyPermitReminders = onSchedule({
   region:    'europe-west1',
   secrets:   [ARKESEL_API_KEY],
 }, async () => {
+  return // DISABLED — remove this line to enable scheduled permit reminders
   const db     = admin.firestore()
   const apiKey = ARKESEL_API_KEY.value()
   const now    = Date.now()
@@ -110,6 +111,7 @@ exports.weeklyUnpaidReminders = onSchedule({
   region:    'europe-west1',
   secrets:   [ARKESEL_API_KEY],
 }, async () => {
+  return // DISABLED — remove this line to enable scheduled unpaid invoice reminders
   const db     = admin.firestore()
   const apiKey = ARKESEL_API_KEY.value()
   const weekKey = `W${isoWeek(new Date())}_${new Date().getFullYear()}`

@@ -9,6 +9,7 @@ const EMPTY = {
   name: '', email: '', password: '', role: 'officer', phone: '',
   designation: '', qualification: '',
   date_of_appointment: '', date_of_birth: '', address: '',
+  notification_email: '',
 }
 
 export default function StaffForm() {
@@ -42,6 +43,7 @@ export default function StaffForm() {
           date_of_appointment: data.date_of_appointment ?? '',
           date_of_birth:       data.date_of_birth ?? '',
           address:             data.address ?? '',
+          notification_email:  data.notification_email ?? '',
         })
         setExistingPhotoUrl(data.picture_url ?? '')
       })
@@ -194,6 +196,18 @@ export default function StaffForm() {
             <label className="form-label">Contact / Phone</label>
             <input className="form-input" value={form.phone} onChange={(e) => set('phone', e.target.value)} placeholder="+233 24 000 0000" />
           </div>
+        </div>
+
+        <div className="form-group">
+          <label className="form-label">Notification Email</label>
+          <input
+            className="form-input"
+            type="email"
+            value={form.notification_email}
+            onChange={(e) => set('notification_email', e.target.value)}
+            placeholder="Email address for assignment alerts and notifications"
+          />
+          <span className="form-hint">Leave blank to disable email notifications for this staff member.</span>
         </div>
 
         <div className="form-row">

@@ -1,10 +1,13 @@
 import { useEffect, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, AlertCircle, Save, Loader, WifiOff } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useSync } from '../context/SyncContext'
 import { getSubRecord, createSubRecord, updateSubRecord, listSubRecords } from '../firebase/subrecords'
+import { linkPermitWorkflowRecord } from '../firebase/workflow'
+import { getFacility } from '../firebase/facilities'
 import { tsToInput, inputToTs } from '../utils/records'
+import { decodeFileNumberParam, facilityPath } from '../utils/fileNumbers'
 import { DISTRICTS } from '../data/constants'
 import { MONITORING_CHECKLISTS, CHECKLIST_OPTIONS } from '../data/monitoringChecklists'
 import PhotoCapture from '../components/PhotoCapture'
@@ -26,13 +29,16 @@ function buildDefaults(checklist) {
 }
 
 export default function MonitoringForm() {
-  const { fileNumber, recordId } = useParams()
+  const params = useParams()
+  const fileNumber = decodeFileNumberParam(params.fileNumber)
+  const { recordId } = params
   const isEditing = Boolean(recordId)
   const navigate = useNavigate()
+  const location = useLocation()
   const { user, staff } = useAuth()
   const { isOnline } = useSync()
 
-  const sectorPrefix = fileNumber.replace(/\d+$/, '')
+  const [sectorPrefix, setSectorPrefix] = useState('CI')
   const checklist = MONITORING_CHECKLISTS[sectorPrefix] ?? MONITORING_CHECKLISTS.CI
 
   const [formData, setFormData] = useState({
@@ -51,6 +57,8 @@ export default function MonitoringForm() {
   useEffect(() => {
     async function load() {
       try {
+        const facility = await getFacility(fileNumber).catch(() => null)
+        setSectorPrefix(facility?.sector_prefix ?? 'CI')
         if (isEditing) {
           const rec = await getSubRecord(fileNumber, 'monitoring', recordId)
           if (!rec) { setError('Record not found.'); return }
@@ -107,6 +115,7 @@ export default function MonitoringForm() {
       notes:        formData.notes.trim(),
       photos,
       sector_prefix: sectorPrefix,
+      linked_permit_id: location.state?.permitId ?? '',
     }
 
     if (formData.gps) payload.gps = formData.gps
@@ -124,12 +133,22 @@ export default function MonitoringForm() {
     }
 
     try {
+      let savedId = recordId
       if (isEditing) {
         await updateSubRecord(fileNumber, 'monitoring', recordId, payload, user.uid)
       } else {
-        await createSubRecord(fileNumber, 'monitoring', payload, user.uid)
+        savedId = await createSubRecord(fileNumber, 'monitoring', payload, user.uid)
       }
-      navigate(`/facilities/${fileNumber}`, { state: { tab: 'monitoring' } })
+      if (location.state?.fromWorkflow && location.state?.permitId) {
+        await linkPermitWorkflowRecord({
+          fileNumber,
+          permitId: location.state.permitId,
+          category: 'monitoring',
+          recordId: savedId,
+          uid: user.uid,
+        })
+      }
+      navigate(facilityPath(fileNumber), { state: { tab: 'monitoring' } })
     } catch (err) {
       setError(`Failed to save: ${err.message}`)
       setSubmitting(false)
@@ -141,7 +160,7 @@ export default function MonitoringForm() {
   return (
     <div className="page">
       <button className="btn btn--ghost btn--sm btn--back"
-        onClick={() => navigate(`/facilities/${fileNumber}`, { state: { tab: 'monitoring' } })}>
+        onClick={() => navigate(facilityPath(fileNumber), { state: { tab: 'monitoring' } })}>
         <ArrowLeft size={14} /> Back to Facility
       </button>
 
@@ -278,7 +297,7 @@ export default function MonitoringForm() {
 
         <div className="form-actions">
           <button type="button" className="btn btn--ghost"
-            onClick={() => navigate(`/facilities/${fileNumber}`, { state: { tab: 'monitoring' } })}
+            onClick={() => navigate(facilityPath(fileNumber), { state: { tab: 'monitoring' } })}
             disabled={submitting}>
             Cancel
           </button>

@@ -2,6 +2,7 @@ import { collection, collectionGroup, getDocs } from 'firebase/firestore'
 import { db } from './config'
 import { listFacilities } from './facilities'
 import { isPermitStuck } from '../data/workflow'
+import { decodeFileNumberParam } from '../utils/fileNumbers'
 
 function quarterRange() {
   const now  = new Date()
@@ -61,7 +62,7 @@ export async function getMyActivityStats(uid, startMs, endMs) {
     monitoring:         countMine(monSnap),
     enforcement:        countMine(enfSnap),
     siteVerifications:  countMine(siteSnap),
-    permits:            permitSnap.docs.filter((d) => myFacilityNums.has(d.ref.parent.parent.id)).length,
+    permits:            permitSnap.docs.filter((d) => myFacilityNums.has(decodeFileNumberParam(d.ref.parent.parent.id))).length,
     complaints:         countMine(complaintsSnap),
     envEducation:       countMine(envEdSnap),
   }
@@ -84,7 +85,7 @@ export async function getDashboardStats() {
   })
 
   const facilitiesWithPermit = new Set(
-    permitSnap.docs.map((d) => d.ref.parent.parent.id)
+    permitSnap.docs.map((d) => decodeFileNumberParam(d.ref.parent.parent.id))
   )
   const withoutPermits = facilities.filter((f) => !facilitiesWithPermit.has(f.file_number)).length
 
@@ -143,7 +144,7 @@ export async function getPermitStats() {
 export async function getCrossRecords(category, facilityMap) {
   const snap = await getDocs(collectionGroup(db, category))
   return snap.docs.map((d) => {
-    const fileNumber = d.ref.parent.parent.id
+    const fileNumber = decodeFileNumberParam(d.ref.parent.parent.id)
     const fac = facilityMap[fileNumber] ?? {}
     return {
       id: d.id,
@@ -170,7 +171,7 @@ export async function getPermitStatusMap() {
   const in60  = now + 60 * 24 * 60 * 60 * 1000
   const map   = {}
   snap.docs.forEach((d) => {
-    const fileNumber = d.ref.parent.parent.id
+    const fileNumber = decodeFileNumberParam(d.ref.parent.parent.id)
     const ms = d.data().expiry_date?.toMillis?.() ?? null
     let status = 'active'
     if (!ms)       status = 'active'
@@ -192,7 +193,7 @@ export async function getPermitReadySet() {
   const ready = new Set()
   snap.docs.forEach((d) => {
     if (d.data().ready_to_collect === true) {
-      ready.add(d.ref.parent.parent.id)
+      ready.add(decodeFileNumberParam(d.ref.parent.parent.id))
     }
   })
   return ready
@@ -215,7 +216,7 @@ export async function getFinanceStats(startMs, endMs) {
       const docMs = tsMs(data.date) || tsMs(data.created_at)
       if (docMs < startMs || docMs > endMs) return
     }
-    const fileNumber = d.ref.parent.parent.id
+    const fileNumber = decodeFileNumberParam(d.ref.parent.parent.id)
     facilitiesWithFinance.add(fileNumber)
     const amount = Number(data.amount) || 0
     const isPaid = data.payment_status !== 'unpaid'

@@ -137,6 +137,34 @@ body {
   margin-right: 8px;
   color: #d1d5db;
 }
+
+/* ── Mobile bottom tabs ───────────────────────────────── */
+.mobile-tabbar {
+  display: none;
+}
+.mobile-tab {
+  min-width: 0;
+  height: 56px;
+  color: #64748b;
+  text-decoration: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  border-radius: 12px;
+  font-size: 10.5px;
+  font-weight: 650;
+  white-space: nowrap;
+  flex: 1 1 0;
+}
+.mobile-tab svg {
+  flex-shrink: 0;
+}
+.mobile-tab--active {
+  color: #065f46;
+  background: #ecfdf5;
+}
 .topbar__icon-btn {
   background: none; border: none; cursor: pointer; color: #6b7280;
   padding: 6px; border-radius: 6px;
@@ -488,6 +516,168 @@ body {
   border-radius: 6px;
   border: 1px solid #e2e8f0;
   white-space: nowrap;
+}
+
+.chat-widget {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 400;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.chat-widget-button {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  border: none;
+  background: #16a34a;
+  color: #fff;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 18px 40px rgba(22, 163, 74, 0.22);
+}
+
+.chat-widget-panel {
+  width: min(380px, calc(100vw - 32px));
+  max-height: 520px;
+  margin-bottom: 12px;
+  background: #fff;
+  border-radius: 20px;
+  overflow: hidden;
+  box-shadow: 0 20px 70px rgba(15, 23, 42, 0.18);
+  display: flex;
+  flex-direction: column;
+}
+
+.chat-widget-header {
+  padding: 16px 16px 14px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.chat-widget-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #111827;
+}
+
+.chat-widget-subtitle {
+  font-size: 12px;
+  color: #6b7280;
+  margin-top: 2px;
+}
+
+.chat-widget-close {
+  border: none;
+  background: transparent;
+  color: #6b7280;
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 8px;
+}
+
+.chat-widget-messages {
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow-y: auto;
+}
+
+.chat-widget-message {
+  max-width: 100%;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: #f8fafc;
+}
+
+.chat-widget-message--assistant {
+  background: #f3f4f6;
+  align-self: flex-start;
+}
+
+.chat-widget-message--user {
+  background: #dcfce7;
+  align-self: flex-end;
+}
+
+.chat-widget-message-role {
+  display: block;
+  font-size: 11px;
+  color: #6b7280;
+  margin-bottom: 4px;
+}
+
+.chat-widget-message p {
+  margin: 0;
+  font-size: 13px;
+  color: #111827;
+  white-space: pre-wrap;
+}
+
+.chat-widget-status {
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.chat-widget-input-row {
+  display: flex;
+  gap: 8px;
+  padding: 12px 14px 14px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.chat-widget-input-row input {
+  flex: 1;
+  min-width: 0;
+  border-radius: 999px;
+  border: 1px solid #d1d5db;
+  padding: 10px 14px;
+  font-size: 14px;
+  color: #111827;
+}
+
+.chat-widget-input-row input:focus {
+  outline: none;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.08);
+}
+
+.chat-widget-input-row button {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  border: none;
+  background: #2563eb;
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.chat-widget-input-row button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+@media (max-width: 720px) {
+  .chat-widget {
+    right: 16px;
+    bottom: 16px;
+  }
+
+  .chat-widget-panel {
+    width: calc(100vw - 32px);
+    max-height: 60vh;
+  }
 }
 
 /* ── Facility sector badge (inline in cards / header) ─── */
@@ -973,11 +1163,30 @@ body {
   .sidebar-overlay { display: block; }
   .main-area { margin-left: 0; }
   .topbar__menu-btn { display: flex; }
+  .mobile-tabbar {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 250;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-height: calc(68px + env(safe-area-inset-bottom));
+    padding: 6px 10px calc(6px + env(safe-area-inset-bottom));
+    background: rgba(255,255,255,.96);
+    border-top: 1px solid #dbe3ea;
+    box-shadow: 0 -10px 28px rgba(15, 23, 42, .1);
+    overflow: hidden;
+  }
+  .app-shell--nav-open .mobile-tabbar {
+    display: none;
+  }
   .charts-grid { grid-template-columns: 1fr; }
   .detail-grid { grid-template-columns: 1fr; }
   .form-row { grid-template-columns: 1fr; }
   .kpi-grid { grid-template-columns: repeat(2, 1fr); }
-  .page-content { padding: 16px 16px 40px; }
+  .page-content { padding: 16px 16px calc(96px + env(safe-area-inset-bottom)); }
   .login-card { padding: 32px 24px; }
   .home-welcome { padding: 20px; }
   .home-welcome__name { font-size: 20px; }
@@ -1999,6 +2208,110 @@ body {
 /* ── Workflow dialog & timeline ───────────────────────── */
 .workflow-dialog { max-width: 500px; }
 .workflow-body   { padding: 14px 20px; overflow-y: auto; max-height: 68vh; }
+
+.workflow-case-panel {
+  background: #f8fafc;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 12px;
+  margin-bottom: 14px;
+}
+.workflow-case-panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.workflow-case-panel__eyebrow {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+}
+.workflow-case-panel__title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #111827;
+}
+.workflow-case-panel__hint {
+  font-size: 11px;
+  color: #64748b;
+  margin-top: 9px;
+}
+.workflow-case-panel__select-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 10px;
+}
+.workflow-case-panel__select-row .select {
+  min-width: 0;
+  flex: 1;
+}
+.workflow-action-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.workflow-action-btn {
+  border: 1px solid #dbe3ea;
+  background: #fff;
+  color: #334155;
+  border-radius: 8px;
+  padding: 8px 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 650;
+  cursor: pointer;
+}
+.workflow-action-btn:hover {
+  border-color: #86efac;
+  background: #f0fdf4;
+  color: #166534;
+}
+.workflow-action-btn--linked {
+  border-color: #bbf7d0;
+  background: #f0fdf4;
+  color: #166534;
+}
+.workflow-action-btn:disabled {
+  opacity: .5;
+  cursor: not-allowed;
+  background: #f8fafc;
+  color: #94a3b8;
+}
+.workflow-linked-records {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+.workflow-linked-record {
+  border: 1px solid #bbf7d0;
+  background: #f0fdf4;
+  color: #166534;
+  border-radius: 999px;
+  padding: 4px 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 650;
+  cursor: pointer;
+}
+.workflow-linked-record:hover {
+  background: #dcfce7;
+}
+.workflow-step-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
 
 .workflow-progress-wrap {
   height: 7px; background: #e5e7eb; border-radius: 999px; overflow: hidden; margin-bottom: 6px;

@@ -9,6 +9,7 @@ import { assignRecord, unassignRecord, addSupportingOfficerToRecord } from '../f
 import { listStaff } from '../firebase/staff'
 import { useLocation } from 'react-router-dom'
 import { fmtDate, inputToTs } from '../utils/records'
+import { facilityPath } from '../utils/fileNumbers'
 import { SECTORS, DISTRICTS, ENFORCEMENT_ACTIONS, ADMIN_ROLES, FIELD_ROLES, ADMIN_VIEW_ROLES } from '../data/constants'
 import AssignOfficerDialog from '../components/AssignOfficerDialog'
 import Spinner from '../components/Spinner'
@@ -163,7 +164,7 @@ export default function FieldReportsPage() {
   }
 
   async function handleFileNumberAssign(reportId, fileNumber) {
-    const trimmed = fileNumber.trim().toUpperCase()
+    const trimmed = fileNumber.trim()
     if (!trimmed) return
 
     const report = reports.find((r) => r.id === reportId)
@@ -621,7 +622,7 @@ export default function FieldReportsPage() {
                               <button
                                 className="btn btn--ghost btn--sm"
                                 style={{ marginTop: 4 }}
-                                onClick={() => navigate(`/facilities/${r.assigned_file_number}`)}
+                                onClick={() => navigate(facilityPath(r.assigned_file_number))}
                               >
                                 Open Facility →
                               </button>

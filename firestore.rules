@@ -43,8 +43,7 @@ service cloud.firestore {
     }
 
     // ── Counters ───────────────────────────────────────────────
-    // Authenticated users need read+write for the file-number transaction
-    // (Phase 2). Write access tightened to admins+officers in Phase 2.
+    // Legacy file-number counters retained for existing data/admin scripts.
     match /counters/{prefix} {
       allow read, write: if isAuthed();
     }
@@ -70,6 +69,13 @@ service cloud.firestore {
         allow read:           if isAuthed();
         allow create:         if canEditAllEntries() || isFieldRole();
         allow update, delete: if false;
+      }
+
+      // Permit workflows — one workflow case per permit.
+      match /permit_workflows/{id} {
+        allow read:           if isAuthed();
+        allow create, update: if canEditAllEntries() || isFieldRole() || isFinance();
+        allow delete:         if canEditAllEntries();
       }
 
       // Finance — admin, director, or finance role
@@ -154,6 +160,7 @@ service cloud.firestore {
     // dashboard and cross-facility listing pages. Write access is still
     // governed by the specific subcollection rules above.
     match /{path=**}/permits/{id}            { allow read: if isAuthed(); }
+    match /{path=**}/permit_workflows/{id}   { allow read: if isAuthed(); }
     match /{path=**}/assignment_history/{id}  { allow read: if isAuthed(); }
     match /{path=**}/finance/{id}            { allow read: if isAuthed(); }
     match /{path=**}/screenings/{id}         { allow read: if isAuthed(); }

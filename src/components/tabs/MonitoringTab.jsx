@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Plus, Edit2, Trash2, AlertCircle, Image, FileText } from 'lucide-react'
 import { listSubRecords, deleteSubRecord } from '../../firebase/subrecords'
 import { fmtDate } from '../../utils/records'
+import { facilityPath } from '../../utils/fileNumbers'
 import { MONITORING_CHECKLISTS } from '../../data/monitoringChecklists'
 import Spinner from '../Spinner'
 import RecordDocumentModal from '../RecordDocumentModal'
@@ -126,7 +127,7 @@ export default function MonitoringTab({ fileNumber, role }) {
       {canEdit && (
         <div className="tab-toolbar">
           <button className="btn btn--primary btn--sm"
-            onClick={() => navigate(`/facilities/${fileNumber}/monitoring/new`)}>
+            onClick={() => navigate(facilityPath(fileNumber, '/monitoring/new'))}>
             <Plus size={14} /> Add Visit
           </button>
         </div>
@@ -187,7 +188,7 @@ export default function MonitoringTab({ fileNumber, role }) {
                 {canEdit && (
                   <>
                     <button className="btn btn--ghost btn--xs"
-                      onClick={() => navigate(`/facilities/${fileNumber}/monitoring/${r.id}/edit`)}>
+                      onClick={() => navigate(facilityPath(fileNumber, `/monitoring/${r.id}/edit`))}>
                       <Edit2 size={12} /> Edit
                     </button>
                     <button className="btn btn--ghost btn--xs btn--danger"

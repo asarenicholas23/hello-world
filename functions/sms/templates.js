@@ -1,12 +1,12 @@
 const OFFICE  = 'EPA Konongo Area Office'
-const CONTACT = '032-200-0000'  // update with real office number
+const CONTACT = '05411405654'  // update with real office number
 
 function permitExpiry(facilityName, fileNumber, daysLeft, expiryDateStr) {
   return `Dear ${facilityName} (${fileNumber}), your EPA Environmental Permit expires in ${daysLeft} day(s) on ${expiryDateStr}. Contact ${OFFICE} to begin renewal. ${CONTACT}`
 }
 
 function permitExpired(facilityName, fileNumber) {
-  return `Dear ${facilityName} (${fileNumber}), your EPA Environmental Permit has EXPIRED. Operating without a valid permit is a violation of the EPA Act. Contact ${OFFICE} immediately. ${CONTACT}`
+  return `Dear ${facilityName} (${fileNumber}), your EPA Environmental Permit has EXPIRED. Kindly visit ${OFFICE}  located at Lowcost, near Holy Virgin School, to commence the permit renewal process immediately. For any enquiries or assistance, kindly contact us on ${CONTACT}`
 }
 
 function unpaidInvoice(facilityName, fileNumber, type, amount) {

@@ -3,13 +3,18 @@ import {
   serverTimestamp, query, orderBy,
 } from 'firebase/firestore'
 import { db } from './config'
+import { facilityDocId } from '../utils/fileNumbers'
+
+function recordDocId(basePath, recordId) {
+  return basePath === 'facilities' ? facilityDocId(recordId) : recordId
+}
 
 function historyColFor(basePath, recordId) {
-  return collection(db, basePath, recordId, 'assignment_history')
+  return collection(db, basePath, recordDocId(basePath, recordId), 'assignment_history')
 }
 
 export async function assignRecord({ basePath, recordId, toUid, toName, actorUid, actorRole, fromUid = null }) {
-  await updateDoc(doc(db, basePath, recordId), {
+  await updateDoc(doc(db, basePath, recordDocId(basePath, recordId)), {
     primary_officer:      toUid,
     primary_officer_name: toName,
     assigned_by:          actorUid,
@@ -26,7 +31,7 @@ export async function assignRecord({ basePath, recordId, toUid, toName, actorUid
 }
 
 export async function unassignRecord({ basePath, recordId, fromUid, actorUid, actorRole }) {
-  await updateDoc(doc(db, basePath, recordId), {
+  await updateDoc(doc(db, basePath, recordDocId(basePath, recordId)), {
     primary_officer:      null,
     primary_officer_name: null,
     assigned_by:          null,
@@ -43,7 +48,7 @@ export async function unassignRecord({ basePath, recordId, fromUid, actorUid, ac
 }
 
 export async function addSupportingOfficerToRecord({ basePath, recordId, officerUid, actorUid, actorRole }) {
-  const ref  = doc(db, basePath, recordId)
+  const ref  = doc(db, basePath, recordDocId(basePath, recordId))
   const snap = await getDoc(ref)
   const current = snap.data()?.supporting_officers ?? []
   if (current.includes(officerUid)) return
@@ -61,4 +66,23 @@ export async function addSupportingOfficerToRecord({ basePath, recordId, officer
 export async function getRecordAssignmentHistory(basePath, recordId) {
   const snap = await getDocs(query(historyColFor(basePath, recordId), orderBy('timestamp', 'desc')))
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }))
+}
+
+export async function markAssignmentStatus({ basePath, recordId, status, uid }) {
+  const validStatus = ['active', 'completed']
+  const payload = {
+    assignment_status: status && validStatus.includes(status) ? status : 'active',
+    updated_at: serverTimestamp(),
+    updated_by: uid ?? null,
+  }
+
+  if (status === 'completed') {
+    payload.assignment_completed_at = serverTimestamp()
+    payload.assignment_completed_by = uid ?? null
+  } else {
+    payload.assignment_completed_at = null
+    payload.assignment_completed_by = null
+  }
+
+  await updateDoc(doc(db, basePath, recordDocId(basePath, recordId)), payload)
 }

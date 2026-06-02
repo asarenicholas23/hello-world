@@ -16,14 +16,15 @@ import {
   ADMIN_VIEW_ROLES,
   OFFICE_OVERVIEW_ROLES,
 } from '../data/constants'
+import { facilityPath } from '../utils/fileNumbers'
 
 const ROLE_LABEL = {
-  director:          'Regional Director',
-  admin:             'Administrator',
-  senior_officer:    'Senior Environmental Officer',
-  officer:           'Environmental Officer',
-  assistant_officer: 'Assistant Environmental Officer',
-  junior_officer:    'Junior Environmental Officer',
+  director:          'Area Head',
+  admin:             'Administrative Assistant',
+  senior_officer:    'Senior Programme Officer',
+  officer:           'Programme Officer',
+  assistant_officer: 'Assistant Programme Officer',
+  junior_officer:    'Programme Assistant',
   finance:           'Finance Officer',
 }
 
@@ -374,7 +375,7 @@ export default function Home() {
                 <div
                   key={f.file_number}
                   className="recent-facility-row"
-                  onClick={() => navigate(`/facilities/${f.file_number}`)}
+                  onClick={() => navigate(facilityPath(f.file_number))}
                   style={{ borderTop: i > 0 ? '1px solid #f3f4f6' : 'none' }}
                 >
                   <span className="file-num" style={{ fontSize: 12 }}>{f.file_number}</span>

@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, AlertCircle, Save, Loader, WifiOff } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useSync } from '../context/SyncContext'
 import { useGPS } from '../hooks/useGPS'
 import { getSubRecord, createSubRecord, updateSubRecord, listSubRecords } from '../firebase/subrecords'
+import { linkPermitWorkflowRecord } from '../firebase/workflow'
 import { tsToInput, inputToTs } from '../utils/records'
+import { decodeFileNumberParam, facilityPath } from '../utils/fileNumbers'
 import PhotoCapture from '../components/PhotoCapture'
 import Spinner from '../components/Spinner'
 import GPSField from '../components/GPSField'
@@ -55,9 +57,12 @@ const EMPTY = {
 }
 
 export default function ScreeningForm() {
-  const { fileNumber, recordId } = useParams()
+  const params = useParams()
+  const fileNumber = decodeFileNumberParam(params.fileNumber)
+  const { recordId } = params
   const isEditing = Boolean(recordId)
   const navigate  = useNavigate()
+  const location = useLocation()
   const { user, staff } = useAuth()
   const { isOnline } = useSync()
 
@@ -182,18 +187,29 @@ export default function ScreeningForm() {
       eia_recommended:         form.eia_recommended,
       permit_declined:         form.permit_declined,
       permit_declined_reason:  form.permit_declined_reason.trim(),
+      linked_permit_id:        location.state?.permitId ?? '',
       officer_id:              user.uid,
       officer_name:            staff?.name ?? '',
       photos,
     }
 
     try {
+      let savedId = recordId
       if (isEditing) {
         await updateSubRecord(fileNumber, 'screenings', recordId, payload, user.uid)
       } else {
-        await createSubRecord(fileNumber, 'screenings', payload, user.uid)
+        savedId = await createSubRecord(fileNumber, 'screenings', payload, user.uid)
       }
-      navigate(`/facilities/${fileNumber}`, { state: { tab: 'screenings' } })
+      if (location.state?.fromWorkflow && location.state?.permitId) {
+        await linkPermitWorkflowRecord({
+          fileNumber,
+          permitId: location.state.permitId,
+          category: 'screenings',
+          recordId: savedId,
+          uid: user.uid,
+        })
+      }
+      navigate(facilityPath(fileNumber), { state: { tab: 'screenings' } })
     } catch (err) {
       setError(`Failed to save: ${err.message}`)
       setSubmitting(false)
@@ -205,7 +221,7 @@ export default function ScreeningForm() {
   return (
     <div className="page">
       <button className="btn btn--ghost btn--sm btn--back"
-        onClick={() => navigate(`/facilities/${fileNumber}`, { state: { tab: 'screenings' } })}>
+        onClick={() => navigate(facilityPath(fileNumber), { state: { tab: 'screenings' } })}>
         <ArrowLeft size={14} /> Back to Facility
       </button>
 
@@ -556,7 +572,7 @@ export default function ScreeningForm() {
 
         <div className="form-actions">
           <button type="button" className="btn btn--ghost"
-            onClick={() => navigate(`/facilities/${fileNumber}`, { state: { tab: 'screenings' } })}
+            onClick={() => navigate(facilityPath(fileNumber), { state: { tab: 'screenings' } })}
             disabled={submitting}>
             Cancel
           </button>

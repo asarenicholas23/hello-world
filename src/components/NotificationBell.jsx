@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Bell, CheckCheck, Building2, Briefcase } from 'lucide-react'
 import { subscribeNotifications, markRead, markAllRead } from '../firebase/notifications'
+import { facilityPath } from '../utils/fileNumbers'
 
 function fmtTs(ts) {
   if (!ts) return ''
@@ -46,7 +47,7 @@ export default function NotificationBell({ uid }) {
   async function handleClick(n) {
     if (!n.read) await markRead(n.id)
     setOpen(false)
-    if (n.metadata?.fileNumber) navigate(`/facilities/${n.metadata.fileNumber}`)
+    if (n.metadata?.fileNumber) navigate(facilityPath(n.metadata.fileNumber))
   }
 
   async function handleMarkAll() {

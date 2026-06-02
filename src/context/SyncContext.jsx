@@ -101,7 +101,7 @@ export function SyncProvider({ children }) {
         const { _id, _user_id, _created_at, ...facilityData } = draft
         try {
           await createFacility(facilityData, _user_id)
-          console.log(`[sync] Draft ${_id} → synced as ${facilityData.sector_prefix}*`)
+          console.log(`[sync] Draft ${_id} → synced as ${facilityData.file_number}`)
         } catch (err) {
           console.warn(`[sync] Draft ${_id} failed:`, err.message)
           failed.push(draft)

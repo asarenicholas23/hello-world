@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Plus, Edit2, Trash2, AlertCircle, Paperclip } from 'lucide-react'
 import { listSubRecords, deleteSubRecord } from '../../firebase/subrecords'
 import { fmtDate } from '../../utils/records'
+import { facilityPath } from '../../utils/fileNumbers'
 import { ADMIN_ROLES, ADMIN_VIEW_ROLES } from '../../data/constants'
 import Spinner from '../Spinner'
 
@@ -42,7 +43,7 @@ export default function FinanceTab({ fileNumber, role }) {
     <div>
       {canEdit && (
         <div className="tab-toolbar">
-          <button className="btn btn--primary btn--sm" onClick={() => navigate(`/facilities/${fileNumber}/finance/new`)}>
+          <button className="btn btn--primary btn--sm" onClick={() => navigate(facilityPath(fileNumber, '/finance/new'))}>
             <Plus size={14} /> Add Record
           </button>
         </div>
@@ -82,7 +83,7 @@ export default function FinanceTab({ fileNumber, role }) {
               )}
               {canEdit && (
                 <div className="record-item__actions">
-                  <button className="btn btn--ghost btn--xs" onClick={() => navigate(`/facilities/${fileNumber}/finance/${r.id}/edit`)}>
+                  <button className="btn btn--ghost btn--xs" onClick={() => navigate(facilityPath(fileNumber, `/finance/${r.id}/edit`))}>
                     <Edit2 size={12} /> Edit
                   </button>
                   {canDelete && (

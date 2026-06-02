@@ -19,7 +19,7 @@ export async function getSmsLog(limitCount = 100) {
 
 // Template previews for the compose UI (mirrors functions/sms/templates.js)
 const OFFICE  = 'EPA Konongo Area Office'
-const CONTACT = '054 140 5654'
+const CONTACT = '05411405654'
 
 export const SMS_TEMPLATES = [
   { value: 'permit_expiry_60',     label: 'Permit Expiry — 60 days',       requiresFacility: true },
@@ -39,7 +39,7 @@ export function previewTemplate(template, facility) {
     case 'permit_expiry_60':     return `Dear ${name} (${id}), your EPA Environmental Permit expires in 60 day(s) on (expiry date). Contact ${OFFICE} to begin renewal. ${CONTACT}`
     case 'permit_expiry_30':     return `Dear ${name} (${id}), your EPA Environmental Permit expires in 30 day(s) on (expiry date). Contact ${OFFICE} to begin renewal. ${CONTACT}`
     case 'permit_expiry_7':      return `Dear ${name} (${id}), your EPA Environmental Permit expires in 7 day(s) on (expiry date). Contact ${OFFICE} to begin renewal. ${CONTACT}`
-    case 'permit_expired':       return `Dear ${name} (${id}), your EPA Environmental Permit has EXPIRED. Operating without a valid permit is a violation of the EPA Act. Contact ${OFFICE} immediately. ${CONTACT}`
+    case 'permit_expired':       return `Dear ${name} (${id}), your EPA Environmental Permit has EXPIRED. Kindly visit ${OFFICE}  located at Lowcost, near Holy Virgin School, to commence the permit renewal process immediately. For any enquiries or assistance, kindly contact us on ${CONTACT}`
     case 'unpaid_invoice':       return `Dear ${name} (${id}), you have an outstanding (payment type) of GHS (amount) owed to ${OFFICE}. Please settle promptly to avoid enforcement action. ${CONTACT}`
     case 'enforcement_reminder': return `Dear ${name} (${id}), this is a reminder of the (action) issued against your facility on (date). Please visit ${OFFICE} to discuss compliance steps. ${CONTACT}`
     case 'permit_ready':         return `Dear ${name} (${id}), your EPA Environmental Permit is ready for collection at ${OFFICE}. Please visit us with the required fees to collect it. ${CONTACT}`

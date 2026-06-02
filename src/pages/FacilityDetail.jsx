@@ -4,7 +4,7 @@ import {
   ArrowLeft, Edit2, Trash2, MapPin, Phone, Mail, User,
   Building2, Hash, FileText, Banknote, ClipboardList,
   Activity, ShieldAlert, AlertCircle, ExternalLink, CheckSquare,
-  UserCheck, Clock, AlertTriangle,
+  UserCheck, Clock,
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { getFacility, deleteFacility } from '../firebase/facilities'
@@ -12,7 +12,6 @@ import { assignRecord, unassignRecord, addSupportingOfficerToRecord, getRecordAs
 import { listStaff } from '../firebase/staff'
 import { createNotification } from '../firebase/notifications'
 import { SECTOR_COLORS, DISTRICTS, FIELD_ROLES, ADMIN_ROLES, ADMIN_VIEW_ROLES } from '../data/constants'
-import { workflowSummary, isPermitStuck } from '../data/workflow'
 import Spinner from '../components/Spinner'
 import AssignOfficerDialog from '../components/AssignOfficerDialog'
 import WorkflowPanel from '../components/WorkflowPanel'
@@ -22,6 +21,7 @@ import ScreeningsTab from '../components/tabs/ScreeningsTab'
 import SiteVerificationsTab from '../components/tabs/SiteVerificationsTab'
 import MonitoringTab from '../components/tabs/MonitoringTab'
 import EnforcementTab from '../components/tabs/EnforcementTab'
+import { decodeFileNumberParam, facilityPath } from '../utils/fileNumbers'
 
 const SUB_RECORD_TABS = [
   { key: 'permits',            label: 'Permits',            icon: FileText },
@@ -50,7 +50,8 @@ function districtName(code) {
 }
 
 export default function FacilityDetail() {
-  const { fileNumber } = useParams()
+  const params = useParams()
+  const fileNumber = decodeFileNumberParam(params.fileNumber)
   const { user, role } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
@@ -208,7 +209,7 @@ export default function FacilityDetail() {
 
         {canEditAllEntries && (
           <div className="action-buttons">
-            <button className="btn btn--ghost btn--sm" onClick={() => navigate(`/facilities/${fileNumber}/edit`)}>
+            <button className="btn btn--ghost btn--sm" onClick={() => navigate(facilityPath(fileNumber, '/edit'))}>
               <Edit2 size={14} /> Edit
             </button>
             {role === 'admin' && (
@@ -262,30 +263,19 @@ export default function FacilityDetail() {
       </div>
 
       {/* Workflow bar */}
-      {(() => {
-        const wf    = workflowSummary(facility)
-        const stuck = isPermitStuck(facility)
-        return (
-          <div className="facility-workflow-bar">
-            <div className="permit-workflow-track" style={{ flex: 1, maxWidth: 160 }}>
-              <div className="permit-workflow-fill" style={{ width: `${wf.pct}%` }} />
-            </div>
-            <span className="permit-workflow-label">
-              {wf.step === 0 ? 'Workflow not started'
-                : wf.step >= 10 ? '✓ Workflow complete'
-                : `Step ${wf.step}/10 · ${wf.label}`}
-            </span>
-            {stuck && <span className="permit-stuck-badge"><AlertTriangle size={10} /> Stuck</span>}
-            <button
-              className="btn btn--ghost btn--xs"
-              style={{ marginLeft: 'auto' }}
-              onClick={() => setWorkflowOpen(true)}
-            >
-              Open Workflow →
-            </button>
-          </div>
-        )
-      })()}
+      <div className="facility-workflow-bar">
+        <CheckSquare size={14} style={{ color: '#059669', flexShrink: 0 }} />
+        <span className="permit-workflow-label">
+          Permit workflows are tracked per permit case.
+        </span>
+        <button
+          className="btn btn--ghost btn--xs"
+          style={{ marginLeft: 'auto' }}
+          onClick={() => setWorkflowOpen(true)}
+        >
+          Open Permit Workflow →
+        </button>
+      </div>
 
       {historyOpen && (
         <div className="assignment-history" style={{ margin: '4px 0 12px' }}>

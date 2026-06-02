@@ -6,6 +6,7 @@ import { useSync } from '../context/SyncContext'
 import { useGPS } from '../hooks/useGPS'
 import { createFacility, updateFacility, getFacility, renameFacilityFileNumber } from '../firebase/facilities'
 import { SECTORS, DISTRICTS, REGION } from '../data/constants'
+import { decodeFileNumberParam, facilityPath } from '../utils/fileNumbers'
 import Spinner from '../components/Spinner'
 import GPSField from '../components/GPSField'
 
@@ -26,7 +27,8 @@ const EMPTY_FORM = {
 
 export default function FacilityForm() {
   const { fileNumber } = useParams()
-  const isEditing = Boolean(fileNumber)
+  const decodedFileNumber = decodeFileNumberParam(fileNumber)
+  const isEditing = Boolean(decodedFileNumber)
   const navigate = useNavigate()
   const { user } = useAuth()
   const { isOnline, addDraft } = useSync()
@@ -41,7 +43,7 @@ export default function FacilityForm() {
   // Load existing facility when editing
   useEffect(() => {
     if (!isEditing) return
-    getFacility(fileNumber)
+    getFacility(decodedFileNumber)
       .then((facility) => {
         if (!facility) {
           setError('Facility not found.')
@@ -62,12 +64,12 @@ export default function FacilityForm() {
           address: rest.address ?? '',
           phone: rest.phone ?? '',
         })
-        setFileNumberInput(rest.file_number ?? fileNumber)
+        setFileNumberInput(rest.file_number ?? decodedFileNumber)
         setCoordinates(coords ?? null)
       })
       .catch(() => setError('Failed to load facility data.'))
       .finally(() => setInitialLoading(false))
-  }, [fileNumber, isEditing])
+  }, [decodedFileNumber, isEditing])
 
   function handleChange(e) {
     const { name, value } = e.target
@@ -77,28 +79,21 @@ export default function FacilityForm() {
   function handleSectorChange(e) {
     const name = e.target.value
     const sector = SECTORS.find((s) => s.name === name)
-    const nextPrefix = sector?.prefix ?? ''
     setFormData((prev) => ({
       ...prev,
       sector: name,
-      sector_prefix: nextPrefix,
+      sector_prefix: sector?.prefix ?? '',
     }))
-    if (isEditing && nextPrefix) {
-      setFileNumberInput((prev) => {
-        const current = prev || fileNumber || ''
-        const numberPart = current.replace(/^\D+/, '')
-        return numberPart ? `${nextPrefix}${numberPart}` : current
-      })
-    }
   }
 
   function validate() {
+    const trimmedFileNumber = fileNumberInput.trim()
     if (!formData.name.trim()) return 'Name of Undertaking is required.'
+    if (!trimmedFileNumber) return 'File number is required.'
     if (!formData.sector) return 'Sector is required.'
     if (!formData.type_of_undertaking.trim()) return 'Type of Undertaking is required.'
     if (!formData.location.trim()) return 'Location is required.'
     if (!formData.district) return 'District is required.'
-    if (isEditing && !fileNumberInput.trim()) return 'File number is required.'
     return null
   }
 
@@ -114,14 +109,13 @@ export default function FacilityForm() {
     setSubmitting(true)
     setError('')
 
-    const nextFileNumber = fileNumberInput.trim().toUpperCase()
+    const nextFileNumber = fileNumberInput.trim()
     const payload = {
       ...formData,
-      ...(isEditing ? { file_number: nextFileNumber } : {}),
+      file_number: nextFileNumber,
       coordinates: coordinates ?? null,
     }
 
-    // Offline create — file number transaction requires network
     if (!isEditing && !isOnline) {
       addDraft(payload, user.uid)
       navigate('/facilities', { state: { draftSaved: true } })
@@ -130,16 +124,16 @@ export default function FacilityForm() {
 
     try {
       if (isEditing) {
-        if (nextFileNumber !== fileNumber) {
-          await renameFacilityFileNumber(fileNumber, nextFileNumber, payload, user.uid)
-          navigate(`/facilities/${nextFileNumber}`)
+        if (nextFileNumber !== decodedFileNumber) {
+          await renameFacilityFileNumber(decodedFileNumber, nextFileNumber, payload, user.uid)
+          navigate(facilityPath(nextFileNumber))
         } else {
-          await updateFacility(fileNumber, payload, user.uid)
-          navigate(`/facilities/${fileNumber}`)
+          await updateFacility(decodedFileNumber, payload, user.uid)
+          navigate(facilityPath(decodedFileNumber))
         }
       } else {
         const newFileNumber = await createFacility(payload, user.uid)
-        navigate(`/facilities/${newFileNumber}`)
+        navigate(facilityPath(newFileNumber))
       }
     } catch (err) {
       // Connection dropped mid-save — offer draft fallback for new facilities
@@ -149,9 +143,7 @@ export default function FacilityForm() {
         return
       }
       setError(
-        err.message.includes('Counter not found')
-          ? 'Could not generate file number. Make sure sector counters are seeded.'
-          : `Failed to save: ${err.message}`
+        `Failed to save: ${err.message}`
       )
       setSubmitting(false)
       window.scrollTo({ top: 0, behavior: 'smooth' })
@@ -175,7 +167,7 @@ export default function FacilityForm() {
             </div>
             {isEditing && (
               <div className="page-subtitle">
-                File Number: <span className="file-num">{fileNumber}</span>
+                File Number: <span className="file-num">{decodedFileNumber}</span>
               </div>
             )}
           </div>
@@ -233,32 +225,14 @@ export default function FacilityForm() {
               </div>
 
               <div className="form-group">
-                <label>File Number {isEditing && <span style={{ color: '#ef4444' }}>*</span>}</label>
-                {isEditing ? (
-                  <input
-                    className="input"
-                    value={fileNumberInput}
-                    onChange={(e) => setFileNumberInput(e.target.value.toUpperCase().replace(/\s+/g, ''))}
-                    placeholder="e.g. CI42"
-                    style={{ fontFamily: 'monospace' }}
-                  />
-                ) : (
-                  <input
-                    className="input"
-                    value={
-                      formData.sector_prefix
-                        ? `Will be: ${formData.sector_prefix}[auto]`
-                        : 'Select a sector first'
-                    }
-                    readOnly
-                    style={{
-                      background: '#f9fafb',
-                      color: '#6b7280',
-                      cursor: 'not-allowed',
-                      fontFamily: formData.sector_prefix ? 'monospace' : 'inherit',
-                    }}
-                  />
-                )}
+                <label>File Number <span style={{ color: '#ef4444' }}>*</span></label>
+                <input
+                  className="input"
+                  value={fileNumberInput}
+                  onChange={(e) => setFileNumberInput(e.target.value)}
+                  placeholder="Enter file number"
+                  style={{ fontFamily: 'monospace' }}
+                />
               </div>
             </div>
 

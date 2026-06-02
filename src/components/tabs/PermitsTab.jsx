@@ -5,6 +5,7 @@ import { useAuth } from '../../context/AuthContext'
 import { listSubRecords, deleteSubRecord, updateSubRecord } from '../../firebase/subrecords'
 import { fmtDate, permitStatus } from '../../utils/records'
 import { normalizeAttachmentUrl } from '../../utils/attachments'
+import { facilityPath } from '../../utils/fileNumbers'
 import { ADMIN_ROLES, FIELD_ROLES, ADMIN_VIEW_ROLES } from '../../data/constants'
 import Spinner from '../Spinner'
 
@@ -65,7 +66,7 @@ export default function PermitsTab({ fileNumber, facilityOfficer }) {
     <div>
       {canAdd && (
         <div className="tab-toolbar">
-          <button className="btn btn--primary btn--sm" onClick={() => navigate(`/facilities/${fileNumber}/permits/new`)}>
+          <button className="btn btn--primary btn--sm" onClick={() => navigate(facilityPath(fileNumber, '/permits/new'))}>
             <Plus size={14} /> Add Permit
           </button>
         </div>
@@ -123,7 +124,7 @@ export default function PermitsTab({ fileNumber, facilityOfficer }) {
                       <PackageCheck size={12} />
                       {togglingId === r.id ? '…' : r.ready_to_collect ? 'Ready ✓' : 'Mark Ready'}
                     </button>
-                    <button className="btn btn--ghost btn--xs" onClick={() => navigate(`/facilities/${fileNumber}/permits/${r.id}/edit`)}>
+                    <button className="btn btn--ghost btn--xs" onClick={() => navigate(facilityPath(fileNumber, `/permits/${r.id}/edit`))}>
                       <Edit2 size={12} /> Edit
                     </button>
                     {canDelete && (

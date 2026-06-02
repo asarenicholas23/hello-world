@@ -17,7 +17,7 @@ epa-kon-pms (Firestore)
 
 ## `counters` collection
 
-Auto-incremented per sector. Used in Firestore transactions when generating file numbers.
+Legacy collection from the former file-number generator. New facility records now use manually entered file numbers.
 
 | Doc ID | Fields |
 |--------|--------|
@@ -30,7 +30,7 @@ Auto-incremented per sector. Used in Firestore transactions when generating file
 | `CA`   | `last_count: number`, `sector_name: "Agriculture"` |
 | `CM`   | `last_count: number`, `sector_name: "Mining"` |
 
-File number format: `{PREFIX}{last_count}` — e.g., `CI266`, `CU42`. No zero-padding.
+File numbers are entered manually and are not derived from the sector.
 
 ---
 
@@ -58,11 +58,11 @@ staff/{uid}
 
 ## `facilities` collection
 
-**Document ID = file_number** (e.g., `CI266`, `CU42`).
+**Document ID = file_number**.
 
 ```
 facilities/{file_number}
-  file_number         string   — Same as doc ID; e.g. "CI266"
+  file_number         string   — Same as doc ID
   name                string   — Name of Undertaking
   sector              string   — e.g. "Infrastructure"
   sector_prefix       string   — e.g. "CI"
@@ -94,6 +94,24 @@ facilities/{file_number}
   notes           string
   created_at      timestamp
   created_by      string    — staff uid
+```
+
+#### `facilities/{file_number}/permit_workflows/{permit_id}`
+One workflow case per permit. The document ID is the related permit document ID.
+
+```
+  facility_id      string
+  facility_name    string
+  permit_id        string
+  permit_number    string
+  current_step     number    — 0..10
+  status           string    — "not_started" | "in_progress" | "complete"
+  steps            map       — keyed by workflow step number
+  linked_records   map       — finance/screening/site_verifications/monitoring record IDs
+  created_at       timestamp
+  created_by       string
+  updated_at       timestamp
+  updated_by       string
 ```
 
 #### `facilities/{file_number}/finance/{id}`

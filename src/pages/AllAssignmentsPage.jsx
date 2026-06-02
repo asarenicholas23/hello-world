@@ -4,6 +4,7 @@ import { LayoutList, AlertCircle, UserCheck, Flag } from 'lucide-react'
 import { listFacilities } from '../firebase/facilities'
 import { listFieldReports } from '../firebase/fieldReports'
 import { listStaff } from '../firebase/staff'
+import { facilityPath } from '../utils/fileNumbers'
 import Spinner from '../components/Spinner'
 
 export default function AllAssignmentsPage() {
@@ -154,7 +155,7 @@ export default function AllAssignmentsPage() {
             <div
               key={`${r.type}-${r.id}`}
               className="record-item record-item--clickable"
-              onClick={() => r.type === 'facility' ? navigate(`/facilities/${r.id}`) : navigate('/field-reports')}
+              onClick={() => r.type === 'facility' ? navigate(facilityPath(r.id)) : navigate('/field-reports')}
             >
               <div className="record-item__header">
                 <span className="record-item__title">{r.name}</span>

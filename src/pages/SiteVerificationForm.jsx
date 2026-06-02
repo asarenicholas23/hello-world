@@ -1,11 +1,14 @@
 import { useEffect, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, AlertCircle, Save, Loader, WifiOff } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useSync } from '../context/SyncContext'
 import { useGPS } from '../hooks/useGPS'
 import { getSubRecord, createSubRecord, updateSubRecord, listSubRecords } from '../firebase/subrecords'
+import { linkPermitWorkflowRecord } from '../firebase/workflow'
+import { getFacility } from '../firebase/facilities'
 import { tsToInput, inputToTs, fmtDate } from '../utils/records'
+import { decodeFileNumberParam, facilityPath } from '../utils/fileNumbers'
 import { SITE_VERIFICATION_CHECKLISTS, SV_CHECKLIST_OPTIONS } from '../data/siteVerificationChecklists'
 import PhotoCapture from '../components/PhotoCapture'
 import GPSField from '../components/GPSField'
@@ -26,13 +29,16 @@ function buildDefaults(checklist) {
 }
 
 export default function SiteVerificationForm() {
-  const { fileNumber, recordId } = useParams()
+  const params = useParams()
+  const fileNumber = decodeFileNumberParam(params.fileNumber)
+  const { recordId } = params
   const isEditing = Boolean(recordId)
   const navigate = useNavigate()
+  const location = useLocation()
   const { user, staff } = useAuth()
   const { isOnline } = useSync()
 
-  const sectorPrefix = fileNumber.replace(/\d+$/, '')
+  const [sectorPrefix, setSectorPrefix] = useState('CI')
   const [subType, setSubType] = useState(sectorPrefix === 'CE' ? 'CE' : sectorPrefix)
   const checklistKey = sectorPrefix === 'CE' ? subType : sectorPrefix
   const checklist = SITE_VERIFICATION_CHECKLISTS[checklistKey] ?? SITE_VERIFICATION_CHECKLISTS.CI
@@ -53,11 +59,18 @@ export default function SiteVerificationForm() {
   useEffect(() => {
     async function load() {
       try {
-        const [permitList, rec] = await Promise.all([
+        const [facility, permitList, rec] = await Promise.all([
+          getFacility(fileNumber).catch(() => null),
           listSubRecords(fileNumber, 'permits'),
           isEditing ? getSubRecord(fileNumber, 'site_verifications', recordId) : Promise.resolve(null),
         ])
+        const loadedSectorPrefix = facility?.sector_prefix ?? 'CI'
+        setSectorPrefix(loadedSectorPrefix)
+        if (!isEditing) setSubType(loadedSectorPrefix === 'CE' ? 'CE' : loadedSectorPrefix)
         setPermits(permitList)
+        if (!isEditing && location.state?.permitId) {
+          setFormData((p) => ({ ...p, linked_permit_id: location.state.permitId }))
+        }
         if (isEditing) {
           if (!rec) { setError('Record not found.'); return }
           const loadedSubType = sectorPrefix === 'CE'
@@ -86,7 +99,7 @@ export default function SiteVerificationForm() {
       }
     }
     load()
-  }, [fileNumber, recordId, isEditing, setCoordinates]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [fileNumber, recordId, isEditing, setCoordinates, location.state?.permitId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   function set(key, value) {
     setFormData((p) => ({ ...p, [key]: value }))
@@ -139,12 +152,22 @@ export default function SiteVerificationForm() {
     }
 
     try {
+      let savedId = recordId
       if (isEditing) {
         await updateSubRecord(fileNumber, 'site_verifications', recordId, payload, user.uid)
       } else {
-        await createSubRecord(fileNumber, 'site_verifications', payload, user.uid)
+        savedId = await createSubRecord(fileNumber, 'site_verifications', payload, user.uid)
       }
-      navigate(`/facilities/${fileNumber}`, { state: { tab: 'site_verifications' } })
+      if (location.state?.fromWorkflow && location.state?.permitId) {
+        await linkPermitWorkflowRecord({
+          fileNumber,
+          permitId: location.state.permitId,
+          category: 'site_verifications',
+          recordId: savedId,
+          uid: user.uid,
+        })
+      }
+      navigate(facilityPath(fileNumber), { state: { tab: 'site_verifications' } })
     } catch (err) {
       setError(`Failed to save: ${err.message}`)
       setSubmitting(false)
@@ -155,7 +178,7 @@ export default function SiteVerificationForm() {
 
   return (
     <div className="page">
-      <button className="btn btn--ghost btn--sm btn--back" onClick={() => navigate(`/facilities/${fileNumber}`, { state: { tab: 'site_verifications' } })}>
+      <button className="btn btn--ghost btn--sm btn--back" onClick={() => navigate(facilityPath(fileNumber), { state: { tab: 'site_verifications' } })}>
         <ArrowLeft size={14} /> Back to Facility
       </button>
 
@@ -319,7 +342,7 @@ export default function SiteVerificationForm() {
 
         <div className="form-actions">
           <button type="button" className="btn btn--ghost"
-            onClick={() => navigate(`/facilities/${fileNumber}`, { state: { tab: 'site_verifications' } })}
+            onClick={() => navigate(facilityPath(fileNumber), { state: { tab: 'site_verifications' } })}
             disabled={submitting}>
             Cancel
           </button>

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, Download, Search, Filter } from 'lucide-react'
 import { getCrossRecords, buildFacilityMap } from '../firebase/dashboard'
 import { fmtDate, permitStatus } from '../utils/records'
+import { facilityPath } from '../utils/fileNumbers'
 import { SECTORS, DISTRICTS, SECTOR_COLORS, ENFORCEMENT_ACTIONS } from '../data/constants'
 import Spinner from '../components/Spinner'
 
@@ -277,7 +278,7 @@ export default function PermitAnalyticsPage() {
                   <tr
                     key={`${r.fileNumber}-${r.id}`}
                     className="analytics-table__row"
-                    onClick={() => navigate(`/facilities/${r.fileNumber}`, { state: { tab: 'permits' } })}
+                    onClick={() => navigate(facilityPath(r.fileNumber), { state: { tab: 'permits' } })}
                   >
                     <td><span className="file-num" style={{ fontSize: 12 }}>{r.fileNumber}</span></td>
                     <td className="analytics-table__name">{r.facilityName}</td>

@@ -1,5 +1,6 @@
 import { ref, uploadString, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage'
 import { storage } from './config'
+import { facilityDocId } from '../utils/fileNumbers'
 
 /**
  * Upload a base64 data URL to Firebase Storage.
@@ -35,7 +36,7 @@ export async function deletePhoto(downloadUrl) {
  * @param {string} filename    unique filename, e.g. '1234567890_abc.jpg'
  */
 export function makePhotoPath(fileNumber, category, filename) {
-  return `facilities/${fileNumber}/${category}/${filename}`
+  return `facilities/${facilityDocId(fileNumber)}/${category}/${filename}`
 }
 
 /** Generate a unique photo filename using timestamp + random suffix. */

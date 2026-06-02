@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Plus, Edit2, Trash2, AlertCircle, Image, FileText } from 'lucide-react'
 import { listSubRecords, deleteSubRecord } from '../../firebase/subrecords'
 import { fmtDate } from '../../utils/records'
+import { facilityPath } from '../../utils/fileNumbers'
 import { ADMIN_VIEW_ROLES, ENFORCEMENT_ACTIONS, FIELD_ROLES } from '../../data/constants'
 import Spinner from '../Spinner'
 import RecordDocumentModal from '../RecordDocumentModal'
@@ -60,7 +61,7 @@ export default function EnforcementTab({ fileNumber, role }) {
       )}
       {canEdit && (
         <div className="tab-toolbar">
-          <button className="btn btn--primary btn--sm" onClick={() => navigate(`/facilities/${fileNumber}/enforcement/new`)}>
+          <button className="btn btn--primary btn--sm" onClick={() => navigate(facilityPath(fileNumber, '/enforcement/new'))}>
             <Plus size={14} /> Add Action
           </button>
         </div>
@@ -98,7 +99,7 @@ export default function EnforcementTab({ fileNumber, role }) {
                   </button>
                   {canEdit && (
                     <>
-                      <button className="btn btn--ghost btn--xs" onClick={() => navigate(`/facilities/${fileNumber}/enforcement/${r.id}/edit`)}>
+                      <button className="btn btn--ghost btn--xs" onClick={() => navigate(facilityPath(fileNumber, `/enforcement/${r.id}/edit`))}>
                         <Edit2 size={12} /> Edit
                       </button>
                       <button className="btn btn--ghost btn--xs btn--danger" onClick={() => handleDelete(r.id)} disabled={deletingId === r.id}>

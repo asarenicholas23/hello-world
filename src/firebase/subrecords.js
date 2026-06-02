@@ -3,9 +3,10 @@ import {
   serverTimestamp, query, orderBy,
 } from 'firebase/firestore'
 import { db } from './config'
+import { facilityDocId } from '../utils/fileNumbers'
 
 function subCol(fileNumber, category) {
-  return collection(db, 'facilities', fileNumber, category)
+  return collection(db, 'facilities', facilityDocId(fileNumber), category)
 }
 
 export async function listSubRecords(fileNumber, category) {
@@ -16,7 +17,7 @@ export async function listSubRecords(fileNumber, category) {
 }
 
 export async function getSubRecord(fileNumber, category, id) {
-  const snap = await getDoc(doc(db, 'facilities', fileNumber, category, id))
+  const snap = await getDoc(doc(db, 'facilities', facilityDocId(fileNumber), category, id))
   return snap.exists() ? { id: snap.id, ...snap.data() } : null
 }
 
@@ -30,7 +31,7 @@ export async function createSubRecord(fileNumber, category, data, userId) {
 }
 
 export async function updateSubRecord(fileNumber, category, id, data, userId) {
-  await updateDoc(doc(db, 'facilities', fileNumber, category, id), {
+  await updateDoc(doc(db, 'facilities', facilityDocId(fileNumber), category, id), {
     ...data,
     updated_at: serverTimestamp(),
     updated_by: userId,
@@ -38,5 +39,5 @@ export async function updateSubRecord(fileNumber, category, id, data, userId) {
 }
 
 export async function deleteSubRecord(fileNumber, category, id) {
-  await deleteDoc(doc(db, 'facilities', fileNumber, category, id))
+  await deleteDoc(doc(db, 'facilities', facilityDocId(fileNumber), category, id))
 }

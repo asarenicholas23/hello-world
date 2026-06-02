@@ -6,6 +6,7 @@ import { useSync } from '../context/SyncContext'
 import { getSubRecord, createSubRecord, updateSubRecord } from '../firebase/subrecords'
 import { uploadFile } from '../firebase/storage'
 import { tsToInput, inputToTs } from '../utils/records'
+import { decodeFileNumberParam, facilityDocId, facilityPath } from '../utils/fileNumbers'
 import FileAttachmentField from '../components/FileAttachmentField'
 import Spinner from '../components/Spinner'
 
@@ -22,7 +23,9 @@ const EMPTY_URLS = { permit_image_url: '', schedule_url: '' }
 const EMPTY_FILES = { permit_image: null, schedule: null }
 
 export default function PermitForm() {
-  const { fileNumber, recordId } = useParams()
+  const params = useParams()
+  const fileNumber = decodeFileNumberParam(params.fileNumber)
+  const { recordId } = params
   const isEditing = Boolean(recordId)
   const navigate = useNavigate()
   const { user } = useAuth()
@@ -82,7 +85,7 @@ export default function PermitForm() {
       if (file) {
         setUploadingSlot(key)
         const ext  = file.name.split('.').pop()
-        const path = `facilities/${fileNumber}/permits/${id}/${key}.${ext}`
+        const path = `facilities/${facilityDocId(fileNumber)}/permits/${id}/${key}.${ext}`
         updates[urlKey] = await uploadFile(file, path)
       } else if (urls[urlKey] === '') {
         updates[urlKey] = ''
@@ -119,7 +122,7 @@ export default function PermitForm() {
         const newId = await createSubRecord(fileNumber, 'permits', payload, user.uid)
         await uploadAttachments(newId)
       }
-      navigate(`/facilities/${fileNumber}`, { state: { tab: 'permits' } })
+      navigate(facilityPath(fileNumber), { state: { tab: 'permits' } })
     } catch (err) {
       setError(`Failed to save: ${err.message}`)
       setSubmitting(false)
@@ -131,7 +134,7 @@ export default function PermitForm() {
 
   return (
     <div className="page">
-      <button className="btn btn--ghost btn--sm btn--back" onClick={() => navigate(`/facilities/${fileNumber}`, { state: { tab: 'permits' } })}>
+      <button className="btn btn--ghost btn--sm btn--back" onClick={() => navigate(facilityPath(fileNumber), { state: { tab: 'permits' } })}>
         <ArrowLeft size={14} /> Back to Facility
       </button>
 
@@ -235,7 +238,7 @@ export default function PermitForm() {
         </div>
 
         <div className="form-actions">
-          <button type="button" className="btn btn--ghost" onClick={() => navigate(`/facilities/${fileNumber}`, { state: { tab: 'permits' } })} disabled={submitting}>
+          <button type="button" className="btn btn--ghost" onClick={() => navigate(facilityPath(fileNumber), { state: { tab: 'permits' } })} disabled={submitting}>
             Cancel
           </button>
           <button type="submit" className="btn btn--primary" disabled={submitting}>

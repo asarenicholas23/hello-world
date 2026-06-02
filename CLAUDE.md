@@ -82,7 +82,7 @@ After login, the app fetches `staff/{uid}` to get the role.
 See `DATA_MODEL.md` for full field lists.
 
 ```
-counters/{CU,CI,CH,CT,CE,PP,CA,CM}   ← sector counters for file number generation
+counters/{CU,CI,CH,CT,CE,PP,CA,CM}   ← legacy sector counters
 staff/{uid}                           ← staff profiles (uid = Firebase Auth UID)
 facilities/{file_number}              ← facility profiles
   /permits/{id}

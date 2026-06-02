@@ -7,6 +7,7 @@ import { SITE_VERIFICATION_CHECKLISTS } from '../data/siteVerificationChecklists
 import { MONITORING_CHECKLISTS } from '../data/monitoringChecklists'
 import { DISTRICTS, ENFORCEMENT_ACTIONS } from '../data/constants'
 import { fmtDate } from '../utils/records'
+import { facilityPath } from '../utils/fileNumbers'
 
 function val(v) { return v && String(v).trim() ? String(v).trim() : '—' }
 function districtName(code) { return DISTRICTS.find((d) => d.code === code)?.name ?? code ?? '—' }
@@ -42,10 +43,10 @@ const DOC_TITLES = {
 }
 
 const EDIT_ROUTES = {
-  screening:         (fn, id) => `/facilities/${fn}/screenings/${id}/edit`,
-  site_verification: (fn, id) => `/facilities/${fn}/site-verifications/${id}/edit`,
-  monitoring:        (fn, id) => `/facilities/${fn}/monitoring/${id}/edit`,
-  enforcement:       (fn, id) => `/facilities/${fn}/enforcement/${id}/edit`,
+  screening:         (fn, id) => facilityPath(fn, `/screenings/${id}/edit`),
+  site_verification: (fn, id) => facilityPath(fn, `/site-verifications/${id}/edit`),
+  monitoring:        (fn, id) => facilityPath(fn, `/monitoring/${id}/edit`),
+  enforcement:       (fn, id) => facilityPath(fn, `/enforcement/${id}/edit`),
 }
 
 // ── Screening document — matches official EPA Screening Report form ──────────

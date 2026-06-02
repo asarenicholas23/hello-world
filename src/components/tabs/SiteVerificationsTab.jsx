@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Plus, Edit2, Trash2, AlertCircle, Image, FileText } from 'lucide-react'
 import { listSubRecords, deleteSubRecord } from '../../firebase/subrecords'
 import { fmtDate } from '../../utils/records'
+import { facilityPath } from '../../utils/fileNumbers'
 import Spinner from '../Spinner'
 import RecordDocumentModal from '../RecordDocumentModal'
 import { ADMIN_VIEW_ROLES, FIELD_ROLES } from '../../data/constants'
@@ -91,7 +92,7 @@ export default function SiteVerificationsTab({ fileNumber, role }) {
       )}
       {canEdit && (
         <div className="tab-toolbar">
-          <button className="btn btn--primary btn--sm" onClick={() => navigate(`/facilities/${fileNumber}/site-verifications/new`)}>
+          <button className="btn btn--primary btn--sm" onClick={() => navigate(facilityPath(fileNumber, '/site-verifications/new'))}>
             <Plus size={14} /> Add Verification
           </button>
         </div>
@@ -146,7 +147,7 @@ export default function SiteVerificationsTab({ fileNumber, role }) {
                 </button>
                 {canEdit && (
                   <>
-                    <button className="btn btn--ghost btn--xs" onClick={() => navigate(`/facilities/${fileNumber}/site-verifications/${r.id}/edit`)}>
+                    <button className="btn btn--ghost btn--xs" onClick={() => navigate(facilityPath(fileNumber, `/site-verifications/${r.id}/edit`))}>
                       <Edit2 size={12} /> Edit
                     </button>
                     <button className="btn btn--ghost btn--xs btn--danger" onClick={() => handleDelete(r.id)} disabled={deletingId === r.id}>

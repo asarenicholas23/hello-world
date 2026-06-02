@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext'
 import { useSync } from '../context/SyncContext'
 import { ADMIN_VIEW_ROLES } from '../data/constants'
 import NotificationBell from './NotificationBell'
+import ChatWidget from './ChatWidget'
 import { onForegroundMessage } from '../firebase/fcm'
 import {
   LayoutDashboard, Building2, FileText, Banknote,
@@ -26,6 +27,7 @@ const ADMIN_NAV = [
   { label: 'Complaints',       icon: MessageSquare,   path: '/complaints',    dividerBefore: true },
   { label: 'Env. Education',   icon: GraduationCap,   path: '/env-education' },
   { label: 'SMS',              icon: BellRing,        path: '/sms',           dividerBefore: true },
+  { label: 'Chat with Osei',   icon: MessageSquare,   path: '/chat' },
 ]
 
 const FIELD_NAV = [
@@ -38,6 +40,7 @@ const FIELD_NAV = [
   { label: 'My Assignments',    icon: Briefcase,       path: '/my-assignments', dividerBefore: true },
   { label: 'Complaints',        icon: MessageSquare,   path: '/complaints',     dividerBefore: true },
   { label: 'Env. Education',    icon: GraduationCap,   path: '/env-education' },
+  { label: 'Chat with Osei',   icon: MessageSquare,   path: '/chat',          dividerBefore: true },
 ]
 
 const NAV_BY_ROLE = {
@@ -52,6 +55,7 @@ const NAV_BY_ROLE = {
     { label: 'Facilities', icon: Building2,       path: '/facilities' },
     { label: 'Finance',    icon: Banknote,        path: '/finance' },
     { label: 'Field Reports', icon: Flag,          path: '/field-reports' },
+    { label: 'Chat with Osei', icon: MessageSquare, path: '/chat',          dividerBefore: true },
   ],
 }
 
@@ -72,6 +76,7 @@ const PAGE_TITLE = {
   '/field-reports':      'Field Reports',
   '/complaints':         'Complaints',
   '/env-education':      'Environmental Education',
+  '/chat':               'Chat with Osei',
   '/profile':            'My Profile',
   '/sms':               'SMS Notifications',
 }
@@ -96,6 +101,23 @@ const ROLE_COLOR = {
   finance:           '#065f46',
 }
 
+const DEFAULT_MOBILE_TAB_PATHS = ['/', '/facilities', '/field-reports', '/my-assignments']
+const ADMIN_MOBILE_TAB_PATHS = ['/', '/facilities', '/finance', '/permits']
+
+function pickMobileTabs(navItems, role) {
+  const paths = role === 'admin' || role === 'director'
+    ? ADMIN_MOBILE_TAB_PATHS
+    : DEFAULT_MOBILE_TAB_PATHS
+  const allKnownItems = [
+    ...navItems,
+    ...ADMIN_NAV,
+    ...FIELD_NAV,
+    ...(NAV_BY_ROLE.finance ?? []),
+  ]
+  const byPath = new Map(allKnownItems.map((item) => [item.path, item]))
+  return paths.map((path) => byPath.get(path)).filter(Boolean)
+}
+
 export default function Layout() {
   const { staff, logout } = useAuth()
   const navigate = useNavigate()
@@ -112,6 +134,7 @@ export default function Layout() {
     })
   }, [pushToast])
   const navItems = ADMIN_VIEW_ROLES.has(staff?.role) ? ADMIN_NAV : (NAV_BY_ROLE[staff?.role] ?? [])
+  const mobileTabItems = pickMobileTabs(navItems, staff?.role)
   const initials = staff?.name
     ?.split(' ')
     .map((n) => n[0])
@@ -124,8 +147,12 @@ export default function Layout() {
     navigate('/login', { replace: true })
   }
 
+  function handleRefreshApp() {
+    window.location.reload()
+  }
+
   return (
-    <div className="app-shell">
+    <div className={`app-shell${sidebarOpen ? ' app-shell--nav-open' : ''}`}>
       {sidebarOpen && (
         <div className="sidebar-overlay" onClick={() => setSidebarOpen(false)} />
       )}
@@ -204,6 +231,9 @@ export default function Layout() {
             <span className="topbar__page-title">{pageTitle}</span>
           </span>
           <SyncIndicator status={syncStatus} />
+          <button className="topbar__icon-btn" onClick={handleRefreshApp} title="Refresh app" aria-label="Refresh app">
+            <RefreshCw size={17} />
+          </button>
           <NotificationBell uid={staff?.uid ?? staff?.id} />
           <span
             className="badge"
@@ -221,6 +251,27 @@ export default function Layout() {
           <Outlet />
         </div>
       </div>
+
+      <nav className="mobile-tabbar" aria-label="Primary navigation">
+        {mobileTabItems.map((item) => {
+          const Icon = item.icon
+          return (
+            <NavLink
+              key={item.path}
+              to={item.path}
+              end={item.path === '/'}
+              className={({ isActive }) =>
+                `mobile-tab${isActive ? ' mobile-tab--active' : ''}`
+              }
+            >
+              <Icon size={20} />
+              <span>{item.label}</span>
+            </NavLink>
+          )
+        })}
+      </nav>
+
+      <ChatWidget />
 
       <ToastStack toasts={toasts} onDismiss={dismissToast} />
     </div>

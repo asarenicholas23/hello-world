@@ -114,7 +114,7 @@ function rowToFacility(row, mapping) {
   const sectorRaw = get('sector')
   const sector = matchSector(sectorRaw)
   return {
-    file_number:         get('file_number').replace(/\s+/g, '') || null,
+    file_number:         get('file_number') || null,
     name:                get('name'),
     sector:              sector?.name ?? sectorRaw,
     sector_prefix:       sector?.prefix ?? '',
@@ -134,6 +134,7 @@ function rowToFacility(row, mapping) {
 function validateFacility(f) {
   const errors = []
   if (!f.name)          errors.push('Name is required')
+  if (!f.file_number)   errors.push('File number is required')
   if (!f.sector_prefix) errors.push(`Unknown sector "${f.sector}" — use sector name or prefix (e.g. Manufacturing or CU)`)
   return errors
 }
@@ -152,7 +153,7 @@ function rowToPermit(row, mapping) {
   return {
     permit_id:      get('permit_id'),
     entity_name:    get('entity_name'),
-    file_number:    get('file_number').replace(/\s+/g, ''),
+    file_number:    get('file_number'),
     permit_number:  get('permit_number'),
     issue_date:     parseDateStr(get('issue_date')),
     effective_date: parseDateStr(get('effective_date')),
@@ -225,7 +226,7 @@ function rowToFinance(row, mapping, paymentStatus) {
 
   return {
     invoice_no:        get('invoice_no'),
-    file_number:       get('file_number').replace(/\s+/g, ''),
+    file_number:       get('file_number'),
     client_name:       get('client_name'),
     contact:           get('contact'),
     amount:            parseAmount(get('amount')),
@@ -446,7 +447,7 @@ function normalizeYesNo(value) {
 function rowToScreening(row, mapping) {
   const get = (field) => (mapping[field] != null ? (row[mapping[field]] ?? '').trim() : '')
   return {
-    file_number:             get('file_number').replace(/\s+/g, ''),
+    file_number:             get('file_number'),
     inspection_date:         parseDateStr(get('inspection_date')),
     proponent_name:          get('proponent_name'),
     company_name:            get('company_name'),
@@ -692,30 +693,22 @@ export default function ImportPage() {
 
   // ── Import ───────────────────────────────────────────────────────────
 
-  // Standard file number format: one or more letters then digits (e.g. CI42, CU1547, PP035)
-  function isStandardFileNumber(fn) {
-    return /^[A-Z]{1,4}\d+$/i.test((fn ?? '').trim())
-  }
-
   function resolveScreeningFacility(record) {
     const fn = record.file_number
     if (fn && existingFacilitiesById.has(fn)) {
       return { fileNumber: fn, name: existingFacilitiesById.get(fn), matchMethod: 'file number' }
     }
-    // Non-standard or missing file number: try name-based matching
-    if (!fn || !isStandardFileNumber(fn)) {
-      const nameKey = normalizeEntityName(record.proponent_name || record.company_name || '')
-      if (nameKey) {
-        // 1. Try registered facilities by name
-        const facilityMatch = existingFacilitiesByName.get(nameKey)
-        if (facilityMatch?.fileNumber && !facilityMatch.duplicate) {
-          return { fileNumber: facilityMatch.fileNumber, name: facilityMatch.name, matchMethod: 'facility name' }
-        }
-        // 2. Fall back to field reports that have an assigned file number
-        const reportMatch = fieldReportsByName.get(nameKey)
-        if (reportMatch?.fileNumber) {
-          return { fileNumber: reportMatch.fileNumber, name: reportMatch.facilityName, matchMethod: 'field report name' }
-        }
+    const nameKey = normalizeEntityName(record.proponent_name || record.company_name || '')
+    if (nameKey) {
+      // 1. Try registered facilities by name
+      const facilityMatch = existingFacilitiesByName.get(nameKey)
+      if (facilityMatch?.fileNumber && !facilityMatch.duplicate) {
+        return { fileNumber: facilityMatch.fileNumber, name: facilityMatch.name, matchMethod: 'facility name' }
+      }
+      // 2. Fall back to field reports that have an assigned file number
+      const reportMatch = fieldReportsByName.get(nameKey)
+      if (reportMatch?.fileNumber) {
+        return { fileNumber: reportMatch.fileNumber, name: reportMatch.facilityName, matchMethod: 'field report name' }
       }
     }
     return null

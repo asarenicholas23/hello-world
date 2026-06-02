@@ -6,6 +6,7 @@ import { useSync } from '../context/SyncContext'
 import { listFacilities, deleteFacility } from '../firebase/facilities'
 import { getPermitStatusMap, getPermitReadySet } from '../firebase/dashboard'
 import { SECTORS, DISTRICTS, SECTOR_COLORS, ADMIN_ROLES } from '../data/constants'
+import { facilityPath } from '../utils/fileNumbers'
 import Spinner from '../components/Spinner'
 
 const SORT_OPTIONS = [
@@ -412,7 +413,7 @@ export default function Facilities() {
         view === 'table' ? (
           <FacilityTable
             facilities={filtered}
-            onRowClick={(f) => navigate(`/facilities/${f.file_number}`)}
+            onRowClick={(f) => navigate(facilityPath(f.file_number))}
             canSelect={canBulkManage}
             selectedIdSet={selectedIdSet}
             onToggleSelect={toggleFacilitySelection}
@@ -425,7 +426,7 @@ export default function Facilities() {
               <FacilityCard
                 key={f.file_number}
                 facility={f}
-                onClick={() => navigate(`/facilities/${f.file_number}`)}
+                onClick={() => navigate(facilityPath(f.file_number))}
                 selectable={canBulkManage}
                 selected={selectedIdSet.has(f.file_number)}
                 onToggleSelect={() => toggleFacilitySelection(f.file_number)}

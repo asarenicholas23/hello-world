@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, AlertCircle, Save, Loader, WifiOff } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useSync } from '../context/SyncContext'
 import { getSubRecord, createSubRecord, updateSubRecord, listSubRecords } from '../firebase/subrecords'
+import { linkPermitWorkflowRecord } from '../firebase/workflow'
 import { uploadFile } from '../firebase/storage'
 import { tsToInput, inputToTs } from '../utils/records'
+import { decodeFileNumberParam, facilityDocId, facilityPath } from '../utils/fileNumbers'
 import { PAYMENT_TYPES } from '../data/constants'
 import FileAttachmentField from '../components/FileAttachmentField'
 import Spinner from '../components/Spinner'
@@ -26,9 +28,12 @@ const EMPTY_URLS  = { invoice_url: '', receipt_url: '' }
 const EMPTY_FILES = { invoice: null, receipt: null }
 
 export default function FinanceForm() {
-  const { fileNumber, recordId } = useParams()
+  const params = useParams()
+  const fileNumber = decodeFileNumberParam(params.fileNumber)
+  const { recordId } = params
   const isEditing = Boolean(recordId)
   const navigate = useNavigate()
+  const location = useLocation()
   const { user } = useAuth()
   const { isOnline } = useSync()
 
@@ -48,7 +53,18 @@ export default function FinanceForm() {
     setPermitsLoading(true)
     listSubRecords(fileNumber, 'permits')
       .then((rows) => {
-        if (!cancelled) setPermits(rows)
+        if (cancelled) return
+        setPermits(rows)
+        if (!isEditing && location.state?.permitId) {
+          const permit = rows.find((row) => row.id === location.state.permitId)
+          if (permit) {
+            setFormData((p) => ({
+              ...p,
+              permit_id: permit.id,
+              permit_number: permit.permit_number ?? '',
+            }))
+          }
+        }
       })
       .catch(() => {
         if (!cancelled) setPermits([])
@@ -58,7 +74,7 @@ export default function FinanceForm() {
       })
 
     return () => { cancelled = true }
-  }, [fileNumber])
+  }, [fileNumber, isEditing, location.state?.permitId])
 
   useEffect(() => {
     if (!isEditing) return
@@ -119,7 +135,7 @@ export default function FinanceForm() {
       if (file) {
         setUploadingSlot(key)
         const ext  = file.name.split('.').pop()
-        const path = `facilities/${fileNumber}/finance/${id}/${key}.${ext}`
+        const path = `facilities/${facilityDocId(fileNumber)}/finance/${id}/${key}.${ext}`
         updates[urlKey] = await uploadFile(file, path)
       } else if (urls[urlKey] === '') {
         updates[urlKey] = ''
@@ -152,14 +168,25 @@ export default function FinanceForm() {
     }
 
     try {
+      let savedId = recordId
       if (isEditing) {
         await updateSubRecord(fileNumber, 'finance', recordId, payload, user.uid)
         await uploadAttachments(recordId)
       } else {
         const newId = await createSubRecord(fileNumber, 'finance', payload, user.uid)
+        savedId = newId
         await uploadAttachments(newId)
       }
-      navigate(`/facilities/${fileNumber}`, { state: { tab: 'finance' } })
+      if (location.state?.fromWorkflow && location.state?.permitId) {
+        await linkPermitWorkflowRecord({
+          fileNumber,
+          permitId: location.state.permitId,
+          category: 'finance',
+          recordId: savedId,
+          uid: user.uid,
+        })
+      }
+      navigate(facilityPath(fileNumber), { state: { tab: 'finance' } })
     } catch (err) {
       setError(`Failed to save: ${err.message}`)
       setSubmitting(false)
@@ -171,7 +198,7 @@ export default function FinanceForm() {
 
   return (
     <div className="page">
-      <button className="btn btn--ghost btn--sm btn--back" onClick={() => navigate(`/facilities/${fileNumber}`, { state: { tab: 'finance' } })}>
+      <button className="btn btn--ghost btn--sm btn--back" onClick={() => navigate(facilityPath(fileNumber), { state: { tab: 'finance' } })}>
         <ArrowLeft size={14} /> Back to Facility
       </button>
 
@@ -311,7 +338,7 @@ export default function FinanceForm() {
         </div>
 
         <div className="form-actions">
-          <button type="button" className="btn btn--ghost" onClick={() => navigate(`/facilities/${fileNumber}`, { state: { tab: 'finance' } })} disabled={submitting}>
+          <button type="button" className="btn btn--ghost" onClick={() => navigate(facilityPath(fileNumber), { state: { tab: 'finance' } })} disabled={submitting}>
             Cancel
           </button>
           <button type="submit" className="btn btn--primary" disabled={submitting}>

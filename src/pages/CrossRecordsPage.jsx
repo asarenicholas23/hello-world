@@ -5,6 +5,7 @@ import { Search, AlertCircle, Download, Plus, LayoutGrid, Table2, Trash2 } from 
 import { getCrossRecords, buildFacilityMap } from '../firebase/dashboard'
 import { deleteSubRecord } from '../firebase/subrecords'
 import { fmtDate, permitStatus } from '../utils/records'
+import { facilityPath } from '../utils/fileNumbers'
 import {
   SECTOR_COLORS, ENFORCEMENT_ACTIONS, COMPLIANCE_STATUS, FIELD_ROLES, ADMIN_ROLES,
   PAYMENT_TYPES, SECTORS, DISTRICTS,
@@ -258,6 +259,11 @@ export default function CrossRecordsPage() {
   useEffect(() => {
     async function load() {
       setLoading(true)
+      if (!collection) {
+        setError('Unknown module.')
+        setLoading(false)
+        return
+      }
       try {
         const facilityMap = await buildFacilityMap()
         const recs = await getCrossRecords(collection, facilityMap)
@@ -747,7 +753,7 @@ export default function CrossRecordsPage() {
                     <tr
                       key={`${r.fileNumber}-${r.id}`}
                       className={`facility-table__row${selectedKeySet.has(recordKey) ? ' facility-table__row--selected' : ''}`}
-                      onClick={() => navigate(`/facilities/${r.fileNumber}`, { state: { tab: config.tab } })}
+                      onClick={() => navigate(facilityPath(r.fileNumber), { state: { tab: config.tab } })}
                     >
                       {canBulkManage && (
                         <td onClick={(e) => e.stopPropagation()}>
@@ -797,7 +803,7 @@ export default function CrossRecordsPage() {
                   key={`${r.fileNumber}-${r.id}`}
                   className={`cross-record-item${selectedKeySet.has(recordKey) ? ' cross-record-item--selected' : ''}`}
                   onClick={() =>
-                    navigate(`/facilities/${r.fileNumber}`, { state: { tab: config.tab } })
+                    navigate(facilityPath(r.fileNumber), { state: { tab: config.tab } })
                   }
                 >
                   <div className="cross-record__topbar">

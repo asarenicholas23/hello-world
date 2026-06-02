@@ -8,6 +8,7 @@ import { getSubRecord, createSubRecord, updateSubRecord } from '../firebase/subr
 import { getFacility } from '../firebase/facilities'
 import { createFieldReport } from '../firebase/fieldReports'
 import { tsToInput, inputToTs } from '../utils/records'
+import { decodeFileNumberParam, facilityPath } from '../utils/fileNumbers'
 import { ENFORCEMENT_ACTIONS } from '../data/constants'
 import PhotoCapture from '../components/PhotoCapture'
 import GPSField from '../components/GPSField'
@@ -23,7 +24,9 @@ const EMPTY = {
 }
 
 export default function EnforcementForm() {
-  const { fileNumber, recordId } = useParams()
+  const params = useParams()
+  const fileNumber = decodeFileNumberParam(params.fileNumber)
+  const { recordId } = params
   const isEditing = Boolean(recordId)
   const navigate = useNavigate()
   const { user, staff } = useAuth()
@@ -117,7 +120,7 @@ export default function EnforcementForm() {
           invoice_status:       'pending',
         }, user.uid).catch(() => {})
       }
-      navigate(`/facilities/${fileNumber}`, { state: { tab: 'enforcement' } })
+      navigate(facilityPath(fileNumber), { state: { tab: 'enforcement' } })
     } catch (err) {
       setError(`Failed to save: ${err.message}`)
       setSubmitting(false)
@@ -128,7 +131,7 @@ export default function EnforcementForm() {
 
   return (
     <div className="page">
-      <button className="btn btn--ghost btn--sm btn--back" onClick={() => navigate(`/facilities/${fileNumber}`, { state: { tab: 'enforcement' } })}>
+      <button className="btn btn--ghost btn--sm btn--back" onClick={() => navigate(facilityPath(fileNumber), { state: { tab: 'enforcement' } })}>
         <ArrowLeft size={14} /> Back to Facility
       </button>
 
@@ -224,7 +227,7 @@ export default function EnforcementForm() {
         </div>
 
         <div className="form-actions">
-          <button type="button" className="btn btn--ghost" onClick={() => navigate(`/facilities/${fileNumber}`, { state: { tab: 'enforcement' } })} disabled={submitting}>
+          <button type="button" className="btn btn--ghost" onClick={() => navigate(facilityPath(fileNumber), { state: { tab: 'enforcement' } })} disabled={submitting}>
             Cancel
           </button>
           <button type="submit" className="btn btn--primary" disabled={submitting}>

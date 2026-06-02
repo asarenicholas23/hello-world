@@ -29,6 +29,7 @@ import ComplaintForm from './pages/ComplaintForm'
 import EnvironmentalEducationPage from './pages/EnvironmentalEducationPage'
 import EnvEducationForm from './pages/EnvEducationForm'
 import SmsPage from './pages/SmsPage'
+import ChatPage from './pages/ChatPage'
 
 export default function App() {
   return (
@@ -91,6 +92,9 @@ export default function App() {
               <Route path="field-reports/new" element={<FieldReportForm />} />
               <Route path="field-reports/:id/edit" element={<FieldReportForm />} />
 
+              {/* Top-level module overviews */}
+              <Route path=":module" element={<CrossRecordsPage />} />
+
               {/* Permit Analytics */}
               <Route path="permit-analytics" element={<PermitAnalyticsPage />} />
 
@@ -114,8 +118,8 @@ export default function App() {
               {/* SMS */}
               <Route path="sms" element={<SmsPage />} />
 
-              {/* Cross-facility module views */}
-              <Route path=":module" element={<CrossRecordsPage />} />
+              {/* Chat */}
+              <Route path="chat" element={<ChatPage />} />
             </Route>
 
             <Route path="*" element={<Navigate to="/" replace />} />

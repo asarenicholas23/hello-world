@@ -301,6 +301,7 @@ export default function FacilityForm() {
               error={gpsError}
               onCapture={handleCaptureGPS}
               onClear={clearCoordinates}
+              onChange={setCoordinates}
             />
           </div>
         </div>

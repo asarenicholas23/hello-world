@@ -713,6 +713,18 @@ body {
   gap: 4px;
 }
 .gps-coords a { color: #065f46; }
+.gps-manual-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  margin-top: 8px;
+}
+@media (max-width: 560px) {
+  .gps-manual-row {
+    grid-template-columns: 1fr;
+  }
+}
 
 /* ── Sub-record tabs ──────────────────────────────────── */
 .tabs {

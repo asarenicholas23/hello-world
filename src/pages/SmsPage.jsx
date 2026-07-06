@@ -125,7 +125,7 @@ function ComposeTab() {
     setPmLoading(true)
     getPermitStatusMap()
       .then(setPermitStatusMap)
-      .catch(() => {})
+      .catch(() => setPermitStatusMap({}))
       .finally(() => setPmLoading(false))
   }, [mode, groupSource, groupPermit, permitStatusMap, pmLoading])
 

@@ -115,23 +115,15 @@ export async function getFieldStats() {
 }
 
 export async function getPermitStats() {
-  const snap = await getDocs(collectionGroup(db, 'permits'))
-  const now  = Date.now()
-  const in60 = now + 60 * 24 * 60 * 60 * 1000
+  const statusMap = await getPermitStatusMap()
+  const statuses = Object.values(statusMap)
 
-  let active = 0, expiring = 0, expired = 0
-
-  snap.docs.forEach((d) => {
-    const ts = d.data().expiry_date
-    if (ts) {
-      const ms = ts.toMillis()
-      if (ms < now) expired++
-      else if (ms < in60) expiring++
-      else active++
-    }
-  })
-
-  return { total: snap.size, active, expiring, expired }
+  return {
+    total: statuses.length,
+    active: statuses.filter((status) => status === 'active').length,
+    expiring: statuses.filter((status) => status === 'expiring').length,
+    expired: statuses.filter((status) => status === 'expired').length,
+  }
 }
 
 /**

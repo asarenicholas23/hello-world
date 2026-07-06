@@ -75,6 +75,14 @@ export default function ScreeningForm() {
   const [error, setError]             = useState('')
 
   const set = (field, value) => setForm((f) => ({ ...f, [field]: value }))
+  const setManualCoordinates = (nextCoordinates) => {
+    setCoordinates(nextCoordinates)
+    setForm((f) => ({
+      ...f,
+      latitude: nextCoordinates ? String(nextCoordinates.lat) : '',
+      longitude: nextCoordinates ? String(nextCoordinates.lng) : '',
+    }))
+  }
 
   useEffect(() => {
     if (isEditing) {
@@ -409,6 +417,7 @@ export default function ScreeningForm() {
             error={gpsError}
             onCapture={captureGPS}
             onClear={clearGPS}
+            onChange={setManualCoordinates}
           />
           <div className="form-row" style={{ marginTop: 8 }}>
             <div className="form-group">

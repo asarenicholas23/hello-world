@@ -122,7 +122,7 @@ export default function FieldReportForm() {
   const [reportType, setReportType] = useState((isAdmin || isFinance) ? 'walk_in' : 'enforcement')
   const [formData, setFormData]     = useState(EMPTY)
   const [photos, setPhotos]         = useState([])
-  const { coordinates, loading: gpsLoading, error: gpsError, capture: captureGPS, clear: clearGPS } = useGPS()
+  const { coordinates, setCoordinates, loading: gpsLoading, error: gpsError, capture: captureGPS, clear: clearGPS } = useGPS()
 
   // Screening
   const [addScreening, setAddScreening] = useState(false)
@@ -134,6 +134,7 @@ export default function FieldReportForm() {
     error: sGpsError,
     capture: captureScreeningGPS,
     clear: clearScreeningGPS,
+    setCoordinates: setScreeningCoords,
   } = useGPS()
 
   const [submitting, setSubmitting] = useState(false)
@@ -701,7 +702,7 @@ export default function FieldReportForm() {
               </div>
 
               <GPSField coordinates={coordinates} loading={gpsLoading} error={gpsError}
-                onCapture={captureGPS} onClear={clearGPS} />
+                onCapture={captureGPS} onClear={clearGPS} onChange={setCoordinates} />
 
               <div className="form-group">
                 <label>Notes</label>
@@ -901,7 +902,7 @@ export default function FieldReportForm() {
                   </div>
                 </div>
                 <GPSField coordinates={screeningCoords} loading={sGpsLoading} error={sGpsError}
-                  onCapture={captureScreeningGPS} onClear={clearScreeningGPS} />
+                  onCapture={captureScreeningGPS} onClear={clearScreeningGPS} onChange={setScreeningCoords} />
 
                 {/* Site Assessment */}
                 <div className="form-section-title" style={{ marginTop: 16, marginBottom: 8 }}>Site Assessment</div>

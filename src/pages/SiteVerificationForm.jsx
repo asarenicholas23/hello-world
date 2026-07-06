@@ -238,6 +238,7 @@ export default function SiteVerificationForm() {
               error={gpsError}
               onCapture={captureGPS}
               onClear={clearGPS}
+              onChange={setCoordinates}
             />
           </div>
         </div>

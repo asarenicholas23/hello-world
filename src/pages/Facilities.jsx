@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { Building2, MapPin, Phone, Plus, Search, User, AlertCircle, Clock, Trash2, CheckCircle, LayoutGrid, Table2, MessageSquare, PackageCheck } from 'lucide-react'
+import { Building2, MapPin, Phone, Plus, Search, User, AlertCircle, Clock, Trash2, CheckCircle, LayoutGrid, Table2, MessageSquare, PackageCheck, Download } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useSync } from '../context/SyncContext'
 import { listFacilities, deleteFacility } from '../firebase/facilities'
@@ -16,12 +16,78 @@ const SORT_OPTIONS = [
   { value: 'sector',  label: 'By sector' },
 ]
 
+function isPlainObject(value) {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value) && typeof value.toDate !== 'function'
+}
+
+function formatFieldValue(value) {
+  if (value == null) return ''
+  if (typeof value.toDate === 'function') return value.toDate().toISOString()
+  if (value instanceof Date) return value.toISOString()
+  if (Array.isArray(value)) return value.map(formatFieldValue).filter(Boolean).join('; ')
+  if (typeof value === 'object') return JSON.stringify(value)
+  return String(value)
+}
+
+function flattenRecord(record, prefix = '') {
+  return Object.entries(record ?? {}).reduce((acc, [key, value]) => {
+    const field = prefix ? `${prefix}.${key}` : key
+    if (isPlainObject(value)) {
+      return { ...acc, ...flattenRecord(value, field) }
+    }
+    acc[field] = formatFieldValue(value)
+    return acc
+  }, {})
+}
+
+function fieldLabel(field) {
+  return field
+    .replaceAll('_', ' ')
+    .replaceAll('.', ' ')
+    .replace(/\b\w/g, (char) => char.toUpperCase())
+}
+
+function searchableText(record, field = '') {
+  const flat = flattenRecord(record)
+  if (field) return (flat[field] ?? '').toLowerCase()
+  return Object.values(flat).join(' ').toLowerCase()
+}
+
+function csvEscape(value) {
+  const str = value == null ? '' : String(value)
+  return /[",\n\r]/.test(str) ? `"${str.replaceAll('"', '""')}"` : str
+}
+
+function toFacilitiesCSV(rows, fields) {
+  const header = fields.map(csvEscape).join(',')
+  const body = rows.map((row) => {
+    const flat = flattenRecord(row)
+    return fields.map((field) => csvEscape(flat[field] ?? '')).join(',')
+  })
+  return [header, ...body].join('\n')
+}
+
+function downloadCSV(content, filename) {
+  const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
 function sortFacilities(list, sort) {
   const copy = [...list]
   if (sort === 'az')     return copy.sort((a, b) => a.name.localeCompare(b.name))
   if (sort === 'za')     return copy.sort((a, b) => b.name.localeCompare(a.name))
   if (sort === 'sector') return copy.sort((a, b) => (a.sector_prefix ?? '').localeCompare(b.sector_prefix ?? ''))
   return copy // newest — already ordered by created_at desc from Firestore
+}
+
+function permitStatusForFacility(map, facility) {
+  const fileNumber = String(facility.file_number ?? '').trim()
+  return map[fileNumber] ?? 'none'
 }
 
 export default function Facilities() {
@@ -37,15 +103,23 @@ export default function Facilities() {
   const draftSaved = location.state?.draftSaved ?? false
 
   const [search, setSearch]                 = useState('')
+  const [searchField, setSearchField]       = useState('')
   const [sectorFilter, setSectorFilter]     = useState('')
   const [districtFilter, setDistrictFilter] = useState('')
-  const [permitFilter, setPermitFilter]     = useState('')
+  const [permitFilter, setPermitFilter]     = useState(location.state?.permitFilter ?? '')
   const [officerFilter, setOfficerFilter]   = useState(location.state?.officerUid ?? '')
 
   // Re-sync on every navigation (handles same-route re-navigation)
   useEffect(() => {
-    setOfficerFilter(location.state?.officerUid ?? '')
-  }, [location.key])
+    const nextOfficer = location.state?.officerUid ?? ''
+    const nextPermit = location.state?.permitFilter ?? ''
+    let cancelled = false
+    Promise.resolve().then(() => {
+      if (!cancelled) setOfficerFilter((current) => current === nextOfficer ? current : nextOfficer)
+      if (!cancelled) setPermitFilter((current) => current === nextPermit ? current : nextPermit)
+    })
+    return () => { cancelled = true }
+  }, [location.key, location.state?.officerUid, location.state?.permitFilter])
   const [permitStatusMap, setPermitStatusMap] = useState(null)
   const [permitMapLoading, setPermitMapLoading] = useState(false)
   const [permitReadySet, setPermitReadySet]   = useState(null)
@@ -69,51 +143,77 @@ export default function Facilities() {
   }, [])
 
   useEffect(() => {
-    if (!permitFilter || permitStatusMap !== null || permitMapLoading) return
-    setPermitMapLoading(true)
-    getPermitStatusMap()
-      .then(setPermitStatusMap)
-      .catch(() => {})
-      .finally(() => setPermitMapLoading(false))
-  }, [permitFilter, permitStatusMap, permitMapLoading])
+    if (!permitFilter || permitStatusMap !== null) return
+    let cancelled = false
+    Promise.resolve().then(async () => {
+      setPermitMapLoading(true)
+      try {
+        const map = await getPermitStatusMap()
+        if (!cancelled) setPermitStatusMap(map)
+      } catch {
+        // Keep the filter settled if permit status lookup fails.
+        if (!cancelled) setPermitStatusMap({})
+      } finally {
+        if (!cancelled) setPermitMapLoading(false)
+      }
+    })
+    return () => { cancelled = true }
+  }, [permitFilter, permitStatusMap])
 
   useEffect(() => {
-    if (!readyFilter || permitReadySet !== null || readySetLoading) return
-    setReadySetLoading(true)
-    getPermitReadySet()
-      .then(setPermitReadySet)
-      .catch(() => {})
-      .finally(() => setReadySetLoading(false))
-  }, [readyFilter, permitReadySet, readySetLoading])
+    if (!readyFilter || permitReadySet !== null) return
+    let cancelled = false
+    Promise.resolve().then(async () => {
+      setReadySetLoading(true)
+      try {
+        const set = await getPermitReadySet()
+        if (!cancelled) setPermitReadySet(set)
+      } catch {
+        // Keep the filter non-blocking if permit readiness lookup fails.
+      } finally {
+        if (!cancelled) setReadySetLoading(false)
+      }
+    })
+    return () => { cancelled = true }
+  }, [readyFilter, permitReadySet])
+
+  const databaseFields = useMemo(() => {
+    const fields = new Set()
+    facilities.forEach((facility) => {
+      Object.keys(flattenRecord(facility)).forEach((field) => fields.add(field))
+    })
+    return [...fields].sort((a, b) => a.localeCompare(b))
+  }, [facilities])
 
   const filtered = useMemo(() => {
-    const q = search.toLowerCase()
+    const q = search.trim().toLowerCase()
     const base = facilities.filter((f) => {
-      const matchesSearch =
-        !q ||
-        f.file_number?.toLowerCase().includes(q) ||
-        f.name?.toLowerCase().includes(q) ||
-        f.contact_person?.toLowerCase().includes(q) ||
-        f.location?.toLowerCase().includes(q)
+      const matchesSearch = !q || searchableText(f, searchField).includes(q)
       const matchesSector   = !sectorFilter   || f.sector_prefix === sectorFilter
       const matchesDistrict = !districtFilter || f.district       === districtFilter
       const matchesOfficer  = !officerFilter  || f.primary_officer === officerFilter
       let matchesPermit = true
-      if (permitFilter && permitStatusMap !== null) {
-        const status = permitStatusMap[f.file_number] ?? 'none'
+      if (permitFilter) {
+        if (permitStatusMap === null) return false
+        const status = permitStatusForFacility(permitStatusMap, f)
         matchesPermit = status === permitFilter
       }
       const matchesReady = !readyFilter || (permitReadySet !== null && permitReadySet.has(f.file_number))
       return matchesSearch && matchesSector && matchesDistrict && matchesPermit && matchesOfficer && matchesReady
     })
     return sortFacilities(base, sort)
-  }, [facilities, search, sectorFilter, districtFilter, permitFilter, officerFilter, permitStatusMap, sort, readyFilter, permitReadySet])
+  }, [facilities, search, searchField, sectorFilter, districtFilter, permitFilter, officerFilter, permitStatusMap, sort, readyFilter, permitReadySet])
 
-  const activeFilters = [sectorFilter, districtFilter, permitFilter, officerFilter, readyFilter ? 'ready' : ''].filter(Boolean).length
+  const activeFilters = [search.trim(), searchField, sectorFilter, districtFilter, permitFilter, officerFilter, readyFilter ? 'ready' : ''].filter(Boolean).length
   const canBulkManage = ADMIN_ROLES.has(role)
   const selectedIdSet = useMemo(() => new Set(selectedIds), [selectedIds])
   const visibleFacilityIds = filtered.map((f) => f.file_number)
   const allVisibleSelected = visibleFacilityIds.length > 0 && visibleFacilityIds.every((id) => selectedIdSet.has(id))
+
+  function handleExportCSV() {
+    const fields = databaseFields.length > 0 ? databaseFields : ['file_number', 'name']
+    downloadCSV(toFacilitiesCSV(filtered, fields), `epa-facilities-${new Date().toISOString().slice(0, 10)}.csv`)
+  }
 
   function toggleFacilitySelection(fileNumber) {
     setSelectedIds((prev) => (
@@ -204,6 +304,15 @@ export default function Facilities() {
               <MessageSquare size={14} /> SMS ({filtered.length})
             </button>
           )}
+          {filtered.length > 0 && (
+            <button
+              className="btn btn--ghost"
+              onClick={handleExportCSV}
+              title="Export the current filtered facility view to CSV"
+            >
+              <Download size={14} /> Export CSV
+            </button>
+          )}
           {role === 'admin' && (
             <button className="btn btn--primary" onClick={() => navigate('/facilities/new')}>
               <Plus size={16} /> New Facility
@@ -218,10 +327,19 @@ export default function Facilities() {
           <Search size={15} className="search-icon" />
           <input
             className="search-input"
-            placeholder="Search by name, file number, location, contact…"
+            placeholder={searchField ? `Search ${fieldLabel(searchField)}…` : 'Search all database fields…'}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
+        </div>
+
+        <div className="filter-group">
+          <select className="select" value={searchField} onChange={(e) => setSearchField(e.target.value)}>
+            <option value="">All database fields</option>
+            {databaseFields.map((field) => (
+              <option key={field} value={field}>{fieldLabel(field)}</option>
+            ))}
+          </select>
         </div>
 
         <div className="filter-group">
@@ -293,6 +411,18 @@ export default function Facilities() {
       {/* Active filter pills */}
       {activeFilters > 0 && (
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
+          {search.trim() && (
+            <span className="filter-pill">
+              Search: {searchField ? `${fieldLabel(searchField)} = ` : ''}{search.trim()}
+              <button onClick={() => setSearch('')}>✕</button>
+            </span>
+          )}
+          {searchField && !search.trim() && (
+            <span className="filter-pill">
+              Search field: {fieldLabel(searchField)}
+              <button onClick={() => setSearchField('')}>✕</button>
+            </span>
+          )}
           {officerFilter && (
             <span className="filter-pill">
               Showing: your assigned facilities
@@ -327,7 +457,7 @@ export default function Facilities() {
           )}
           <button
             className="btn btn--ghost btn--xs"
-            onClick={() => { setSectorFilter(''); setDistrictFilter(''); setPermitFilter(''); setOfficerFilter(''); setSearch(''); setReadyFilter(false) }}
+            onClick={() => { setSectorFilter(''); setDistrictFilter(''); setPermitFilter(''); setOfficerFilter(''); setSearch(''); setSearchField(''); setReadyFilter(false) }}
           >
             Clear all
           </button>

@@ -204,6 +204,7 @@ export default function EnforcementForm() {
               error={gpsError}
               onCapture={captureGPS}
               onClear={clearGPS}
+              onChange={setCoordinates}
             />
 
             <div className="form-group">

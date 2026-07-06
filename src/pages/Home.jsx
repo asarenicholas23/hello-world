@@ -218,23 +218,23 @@ export default function Home() {
               icon={<FileText size={20} color="#166534" />}
               bg="#dcfce7"
               value={permitStats.active}
-              label="Active Permits"
-              onClick={() => navigate('/permits', { state: { statusFilter: 'active' } })}
+              label="Active Permit Facilities"
+              onClick={() => navigate('/facilities', { state: { permitFilter: 'active' } })}
             />
             <KpiCard
               icon={<AlertTriangle size={20} color="#854d0e" />}
               bg="#fef9c3"
               value={permitStats.expiring}
-              label="Expiring ≤60 days"
-              onClick={() => navigate('/permits', { state: { statusFilter: 'expiring' } })}
+              label="Expiring Permit Facilities"
+              onClick={() => navigate('/facilities', { state: { permitFilter: 'expiring' } })}
               highlight={permitStats.expiring > 0}
             />
             <KpiCard
               icon={<XCircle size={20} color="#991b1b" />}
               bg="#fee2e2"
               value={permitStats.expired}
-              label="Expired Permits"
-              onClick={() => navigate('/permits', { state: { statusFilter: 'expired' } })}
+              label="Expired Permit Facilities"
+              onClick={() => navigate('/facilities', { state: { permitFilter: 'expired' } })}
               highlight={permitStats.expired > 0}
             />
             {stats?.stuckWorkflow > 0 && (

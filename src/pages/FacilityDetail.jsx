@@ -4,14 +4,14 @@ import {
   ArrowLeft, Edit2, Trash2, MapPin, Phone, Mail, User,
   Building2, Hash, FileText, Banknote, ClipboardList,
   Activity, ShieldAlert, AlertCircle, ExternalLink, CheckSquare,
-  UserCheck, Clock,
+  UserCheck, Clock, FileCheck,
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { getFacility, deleteFacility } from '../firebase/facilities'
 import { assignRecord, unassignRecord, addSupportingOfficerToRecord, getRecordAssignmentHistory } from '../firebase/assignments'
 import { listStaff } from '../firebase/staff'
 import { createNotification } from '../firebase/notifications'
-import { SECTOR_COLORS, DISTRICTS, FIELD_ROLES, ADMIN_ROLES, ADMIN_VIEW_ROLES } from '../data/constants'
+import { SECTOR_COLORS, DISTRICTS, FIELD_ROLES, ADMIN_ROLES, ADMIN_VIEW_ROLES, ROLE_LABEL } from '../data/constants'
 import Spinner from '../components/Spinner'
 import AssignOfficerDialog from '../components/AssignOfficerDialog'
 import WorkflowPanel from '../components/WorkflowPanel'
@@ -20,6 +20,7 @@ import FinanceTab from '../components/tabs/FinanceTab'
 import ScreeningsTab from '../components/tabs/ScreeningsTab'
 import SiteVerificationsTab from '../components/tabs/SiteVerificationsTab'
 import MonitoringTab from '../components/tabs/MonitoringTab'
+import MonitoringReportsTab from '../components/tabs/MonitoringReportsTab'
 import EnforcementTab from '../components/tabs/EnforcementTab'
 import { decodeFileNumberParam, facilityPath } from '../utils/fileNumbers'
 
@@ -29,6 +30,7 @@ const SUB_RECORD_TABS = [
   { key: 'screenings',         label: 'Screening',          icon: ClipboardList },
   { key: 'site_verifications', label: 'Site Verification',  icon: CheckSquare },
   { key: 'monitoring',         label: 'Monitoring',         icon: Activity },
+  { key: 'monitoring_reports', label: 'Reports',            icon: FileCheck },
   { key: 'enforcement',        label: 'Enforcement',        icon: ShieldAlert },
 ]
 
@@ -289,7 +291,7 @@ export default function FacilityDetail() {
                 <span className="assignment-history__action">{ACTION_LABELS[h.action] ?? h.action}</span>
                 {h.to_officer && <span> → {h.to_officer}</span>}
                 <span className="assignment-history__meta">
-                  · {h.actor_role?.replace(/_/g, ' ')}
+                  · {ROLE_LABEL[h.actor_role] ?? h.actor_role}
                   {h.timestamp && ` · ${new Date(h.timestamp.toMillis()).toLocaleDateString('en-GH', { day: 'numeric', month: 'short', year: 'numeric' })}`}
                 </span>
               </div>
@@ -370,6 +372,7 @@ export default function FacilityDetail() {
           {activeTab === 'screenings'         && <ScreeningsTab        fileNumber={fileNumber} role={role} />}
           {activeTab === 'site_verifications' && <SiteVerificationsTab fileNumber={fileNumber} role={role} />}
           {activeTab === 'monitoring'         && <MonitoringTab        fileNumber={fileNumber} role={role} />}
+          {activeTab === 'monitoring_reports' && <MonitoringReportsTab fileNumber={fileNumber} facilityName={facility.name} />}
           {activeTab === 'enforcement'        && <EnforcementTab       fileNumber={fileNumber} role={role} />}
         </div>
       </div>

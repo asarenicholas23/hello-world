@@ -19,7 +19,7 @@ export async function getSmsLog(limitCount = 100) {
 
 // Template previews for the compose UI (mirrors functions/sms/templates.js)
 const OFFICE  = 'EPA Konongo Area Office'
-const CONTACT = '05411405654'
+const CONTACT = '0541405654'
 
 export const SMS_TEMPLATES = [
   { value: 'permit_expiry_60',     label: 'Permit Expiry — 60 days',       requiresFacility: true },

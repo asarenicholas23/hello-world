@@ -1,15 +1,19 @@
 // ── Role system ────────────────────────────────────────
+// The single source of truth for role display labels — every place in the
+// app that shows a role name must read from ROLE_LABEL (below), not
+// hardcode or derive its own wording.
 export const ROLES = [
-  { value: 'director',          label: 'Area Head',          level: 1 },
-  { value: 'admin',             label: 'Administer',             level: 2 },
+  { value: 'director',          label: 'Area Head',                   level: 1 },
+  { value: 'admin',             label: 'Administrator',               level: 2 },
   { value: 'senior_officer',    label: 'Senior Programme Officer',    level: 3 },
   { value: 'officer',           label: 'Programme Officer',           level: 4 },
   { value: 'assistant_officer', label: 'Assistant Programme Officer', level: 5 },
-  { value: 'junior_officer',    label: 'Programme Assistant',    level: 6 },
-  { value: 'finance',           label: 'Finance Officer',           level: null },
+  { value: 'junior_officer',    label: 'Programme Assistant',         level: 6 },
+  { value: 'finance',           label: 'Finance Officer',             level: null },
 ]
 
 export const ROLE_LEVEL = Object.fromEntries(ROLES.map((r) => [r.value, r.level]))
+export const ROLE_LABEL = Object.fromEntries(ROLES.map((r) => [r.value, r.label]))
 
 // Roles that do field work (enforcement, screening, monitoring, etc.)
 export const FIELD_ROLES = new Set(['senior_officer', 'officer', 'assistant_officer', 'junior_officer'])
@@ -30,6 +34,22 @@ export const OFFICE_OVERVIEW_ROLES = new Set([
   'junior_officer',
   'finance',
 ])
+
+// ── Attendance / Geofence ──────────────────────────────────
+// Konongo Area Office coordinates.
+export const OFFICE_LOCATION = {
+  lat: 6.642988439057645,
+  lng: -1.2055787708256163,
+  radiusMeters: 150,
+}
+
+// Expected office hours, used only to flag "late" in attendance reports.
+// Purely informational — does not block clock-in/out.
+export const OFFICE_HOURS = {
+  start: '08:00',
+  end: '17:00',
+  graceMinutes: 15,
+}
 
 export const SECTORS = [
   { prefix: 'CU', name: 'Manufacturing' },

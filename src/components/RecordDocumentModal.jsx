@@ -27,6 +27,19 @@ function SecTitle({ children }) {
   return <div className="doc-sec-title">{children}</div>
 }
 
+function SignatureItem({ label, name, signatureUrl }) {
+  return (
+    <div className="doc-sig-item">
+      <span className="doc-sig-item__label">{label}</span>
+      <span className="doc-sig-item__value">{name || '—'}</span>
+      {signatureUrl
+        ? <img src={signatureUrl} alt="Signature" className="doc-sig-item__img" />
+        : <div className="doc-sig-item__line" />
+      }
+    </div>
+  )
+}
+
 function ChecklistValue({ v }) {
   if (!v || v === '') return <span className="doc-check doc-check--blank">—</span>
   if (v === 'Yes')    return <span className="doc-check doc-check--yes">Yes</span>
@@ -68,7 +81,7 @@ function ScreeningDoc({ record: r, facility: f }) {
         <tbody>
           <tr>
             <td className="srd-il">Date of Receipt of Form EA1:</td>
-            <td className="srd-iv">__________</td>
+            <td className="srd-iv">{fmtDate(r.ea1_receipt_date)}</td>
             <td className="srd-il">Inspection Date:</td>
             <td className="srd-iv">{fmtDate(r.inspection_date ?? r.date)}</td>
           </tr>
@@ -102,7 +115,7 @@ function ScreeningDoc({ record: r, facility: f }) {
           </tr>
           <tr>
             <td className="srd-dl">1.4 Land Take</td>
-            <td className="srd-dv">—</td>
+            <td className="srd-dv">{val(r.land_take)}</td>
           </tr>
         </tbody>
       </table>
@@ -136,7 +149,7 @@ function ScreeningDoc({ record: r, facility: f }) {
         <tbody>
           <tr>
             <td className="srd-il">2.1 Plot No.</td>
-            <td className="srd-iv">—</td>
+            <td className="srd-iv">{val(r.plot_no)}</td>
             <td className="srd-il">Street/Area name:</td>
             <td className="srd-iv">{val(r.street_area)}</td>
           </tr>
@@ -159,7 +172,7 @@ function ScreeningDoc({ record: r, facility: f }) {
         <tbody>
           <tr>
             <td className="srd-dl">2.2 Current Zoning</td>
-            <td className="srd-dv">—</td>
+            <td className="srd-dv">{val(r.current_zoning)}</td>
           </tr>
           <tr>
             <td className="srd-dl srd-dl--sub">Adjacent Land Use</td>
@@ -193,7 +206,7 @@ function ScreeningDoc({ record: r, facility: f }) {
       </table>
 
       <div className="srd-field-lbl">2.5 Comment on site Information (appropriateness, sensitivity, compatibility, etc.)</div>
-      <div className="srd-box srd-box--tall">{' '}</div>
+      <div className="srd-box srd-box--tall">{r.site_information_comments || ' '}</div>
 
       {/* ── Section C ── */}
       <div className="srd-sec-hd"><span className="srd-sec-label">Section C</span> Environmental Impacts</div>
@@ -616,6 +629,7 @@ const PRINT_CSS = `
   .doc-sig-item__label { font-size: 8.5pt; color: #555; font-weight: 600; text-transform: uppercase; }
   .doc-sig-item__value { font-size: 10.5pt; font-weight: 600; }
   .doc-sig-item__line { border-bottom: 1px solid #333; height: 26px; margin-top: 3px; }
+  .doc-sig-item__img { height: 32px; max-width: 160px; object-fit: contain; margin-top: 3px; }
 
   .doc-photos { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 8px; }
   .doc-photo { width: 120px; height: 90px; object-fit: cover; border: 1px solid #ccc; border-radius: 3px; }
@@ -641,6 +655,7 @@ export default function RecordDocumentModal({ type, record, fileNumber, onClose 
   }, [])
 
   useEffect(() => {
+    if (!fileNumber) return
     getFacility(fileNumber).then(setFacility).catch(() => {})
   }, [fileNumber])
 
@@ -661,7 +676,7 @@ export default function RecordDocumentModal({ type, record, fileNumber, onClose 
     <div class="doc-header__org">Environmental Protection Authority</div>
     <div class="doc-header__office">Konongo Area Office &middot; Ashanti Region</div>
     <div class="doc-header__title">${DOC_TITLES[type]}</div>
-    <div class="doc-header__fileno">REGISTRATION/FILE NO: <strong>${fileNumber}</strong></div>
+    <div class="doc-header__fileno">REGISTRATION/FILE NO: <strong>${fileNumber || 'Not yet registered'}</strong></div>
     <div class="doc-header__meta">
       <span>Date: ${docDate}</span>
       <span>Officer: ${record.officer_name || '—'}</span>
@@ -695,9 +710,11 @@ export default function RecordDocumentModal({ type, record, fileNumber, onClose 
             <button className="btn btn--ghost btn--sm" onClick={handlePrint} title="Print or save as PDF">
               <Printer size={14} /> Print / PDF
             </button>
-            <button className="btn btn--ghost btn--sm" onClick={handleEdit} title="Edit this record">
-              <Edit2 size={14} /> Edit
-            </button>
+            {fileNumber && record?.id && (
+              <button className="btn btn--ghost btn--sm" onClick={handleEdit} title="Edit this record">
+                <Edit2 size={14} /> Edit
+              </button>
+            )}
             <button className="btn btn--ghost btn--sm" onClick={onClose} title="Close">
               <X size={14} />
             </button>
@@ -713,7 +730,7 @@ export default function RecordDocumentModal({ type, record, fileNumber, onClose 
               <div className="doc-paper-header__office">Konongo Area Office · Ashanti Region</div>
               <div className="doc-paper-header__title">{DOC_TITLES[type]}</div>
               <div className="doc-paper-header__fileno">
-                REGISTRATION/FILE NO: <strong>{fileNumber}</strong>
+                REGISTRATION/FILE NO: <strong>{fileNumber || 'Not yet registered'}</strong>
               </div>
               <div className="doc-paper-header__meta">
                 <span>Date: <strong>{docDate}</strong></span>
@@ -727,45 +744,55 @@ export default function RecordDocumentModal({ type, record, fileNumber, onClose 
               ) : (
                 <div style={{ color: '#6b7280', padding: 16 }}>Unknown document type.</div>
               )}
-            </div>
 
-            {/* Signature block */}
-            <div className="doc-sig-block">
-              <div className="doc-sig-grid">
-                <div className="doc-sig-item">
-                  <span className="doc-sig-item__label">Officer Name</span>
-                  <span className="doc-sig-item__value">{record.officer_name || '—'}</span>
+              {/* Signature block */}
+              {type === 'screening' ? (
+                <div className="doc-sig-block">
+                  <div className="doc-sig-grid">
+                    <SignatureItem label="Officer 1" name={record.officer_name} signatureUrl={record.officer_signature_url} />
+                    <SignatureItem label="Officer 2" name={record.second_officer_name} signatureUrl={record.second_officer_signature_url} />
+                  </div>
+                  <div style={{ marginTop: 10, fontSize: '9.5pt', color: '#555' }}>Date: <strong>{docDate}</strong></div>
                 </div>
-                <div className="doc-sig-item">
-                  <span className="doc-sig-item__label">Date</span>
-                  <span className="doc-sig-item__value">{docDate}</span>
+              ) : (
+                <div className="doc-sig-block">
+                  <div className="doc-sig-grid">
+                    <div className="doc-sig-item">
+                      <span className="doc-sig-item__label">Officer Name</span>
+                      <span className="doc-sig-item__value">{record.officer_name || '—'}</span>
+                    </div>
+                    <div className="doc-sig-item">
+                      <span className="doc-sig-item__label">Date</span>
+                      <span className="doc-sig-item__value">{docDate}</span>
+                    </div>
+                    <div className="doc-sig-item">
+                      <span className="doc-sig-item__label">Signature</span>
+                      <div className="doc-sig-item__line" />
+                    </div>
+                    <div className="doc-sig-item">
+                      <span className="doc-sig-item__label">Official Stamp</span>
+                      <div className="doc-sig-item__line" />
+                    </div>
+                  </div>
                 </div>
-                <div className="doc-sig-item">
-                  <span className="doc-sig-item__label">Signature</span>
-                  <div className="doc-sig-item__line" />
-                </div>
-                <div className="doc-sig-item">
-                  <span className="doc-sig-item__label">Official Stamp</span>
-                  <div className="doc-sig-item__line" />
-                </div>
-              </div>
-            </div>
+              )}
 
-            {record.photos?.length > 0 && (
-              <>
-                <div className="doc-sec-title" style={{ marginTop: 20 }}>Photos ({record.photos.length})</div>
-                <div className="doc-photos-grid">
-                  {record.photos.map((p, i) => (
-                    <img
-                      key={i}
-                      src={typeof p === 'string' ? p : p.url}
-                      alt={`Photo ${i + 1}`}
-                      className="doc-photo-thumb"
-                    />
-                  ))}
-                </div>
-              </>
-            )}
+              {record.photos?.length > 0 && (
+                <>
+                  <div className="doc-sec-title" style={{ marginTop: 20 }}>Photos ({record.photos.length})</div>
+                  <div className="doc-photos-grid">
+                    {record.photos.map((p, i) => (
+                      <img
+                        key={i}
+                        src={typeof p === 'string' ? p : p.url}
+                        alt={`Photo ${i + 1}`}
+                        className="doc-photo-thumb"
+                      />
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
 
           </div>
         </div>

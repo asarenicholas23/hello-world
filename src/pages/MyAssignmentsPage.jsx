@@ -1,24 +1,32 @@
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { Briefcase, AlertCircle, UserCheck, Users, Flag, CheckSquare } from 'lucide-react'
+import { useNavigate, useLocation } from 'react-router-dom'
+import {
+  Briefcase, AlertCircle, UserCheck, Users, Flag, CheckSquare,
+  ClipboardList, ArrowDownToLine, ArrowUpFromLine,
+} from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { listFacilities } from '../firebase/facilities'
 import { listFieldReports } from '../firebase/fieldReports'
 import { listStaff } from '../firebase/staff'
 import { markAssignmentStatus } from '../firebase/assignments'
-import { FIELD_ROLES } from '../data/constants'
+import { listMyTasks, isTaskAssignee } from '../firebase/tasks'
+import { FIELD_ROLES, ROLE_LABEL } from '../data/constants'
 import { facilityPath } from '../utils/fileNumbers'
 import Spinner from '../components/Spinner'
 import WorkflowPanel from '../components/WorkflowPanel'
+import TaskList from '../components/tasks/TaskList'
 
 export default function MyAssignmentsPage() {
   const { user, staff, role, roleLevel } = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
 
-  const [tab, setTab]                 = useState('mine')
+  const [tab, setTab]                 = useState(location.state?.tab ?? 'mine')
   const [statusTab, setStatusTab]     = useState('active')
+  const [taskSubTab, setTaskSubTab]   = useState('to_me')
   const [myRecords, setMyRecords]     = useState([])
   const [teamRecords, setTeamRecords] = useState([])
+  const [tasks, setTasks]             = useState([])
   const [loading, setLoading]         = useState(true)
   const [error, setError]             = useState('')
   const [savingStatusId, setSavingStatusId] = useState('')
@@ -32,11 +40,13 @@ export default function MyAssignmentsPage() {
     if (!user?.uid) return
     setLoading(true)
     try {
-      const [facilities, reports, allStaff] = await Promise.all([
+      const [facilities, reports, allStaff, myTasks] = await Promise.all([
         listFacilities(),
         listFieldReports(),
         showTeamTab ? listStaff() : Promise.resolve([]),
+        listMyTasks(user.uid),
       ])
+      setTasks(myTasks)
 
       const uid = user.uid
 
@@ -165,7 +175,7 @@ export default function MyAssignmentsPage() {
           <Briefcase size={20} className="page-header__icon" />
           <div>
             <h1 className="page-title">My Assignments</h1>
-            <p className="page-subtitle">{staff?.name} · {staff?.role?.replace(/_/g, ' ')}</p>
+            <p className="page-subtitle">{staff?.name} · {ROLE_LABEL[staff?.role] ?? staff?.role}</p>
           </div>
         </div>
       </div>
@@ -191,17 +201,25 @@ export default function MyAssignmentsPage() {
         )}
       </div>
 
-      {showTeamTab && (
-        <div className="tab-bar" style={{ marginBottom: 16 }}>
-          <button className={`tab${tab === 'mine' ? ' tab--active' : ''}`} onClick={() => setTab('mine')}>
-            <UserCheck size={14} /> My Facilities ({myRecords.length})
-          </button>
+      <div className="tab-bar" style={{ marginBottom: 16 }}>
+        <button className={`tab${tab === 'mine' ? ' tab--active' : ''}`} onClick={() => setTab('mine')}>
+          <UserCheck size={14} /> My Facilities ({myRecords.length})
+        </button>
+        {showTeamTab && (
           <button className={`tab${tab === 'team' ? ' tab--active' : ''}`} onClick={() => setTab('team')}>
             <Users size={14} /> Team ({teamRecords.length})
           </button>
-        </div>
-      )}
+        )}
+        <button className={`tab${tab === 'tasks' ? ' tab--active' : ''}`} onClick={() => setTab('tasks')}>
+          <ClipboardList size={14} /> Tasks ({tasks.length})
+        </button>
+      </div>
 
+      {tab === 'tasks' ? (
+        <TasksPanel tasks={tasks} userUid={user.uid} navigate={navigate}
+          taskSubTab={taskSubTab} setTaskSubTab={setTaskSubTab} />
+      ) : (
+        <>
       <div className="tab-bar" style={{ marginBottom: 16 }}>
         <button className={`tab${statusTab === 'active' ? ' tab--active' : ''}`} onClick={() => setStatusTab('active')}>
           <CheckSquare size={14} /> Active Assignments ({activeCount})
@@ -273,6 +291,8 @@ export default function MyAssignmentsPage() {
           })}
         </div>
       )}
+      </>
+      )}
 
       {workflowFacility && (
         <WorkflowPanel
@@ -281,6 +301,27 @@ export default function MyAssignmentsPage() {
           onUpdated={handleWorkflowUpdated}
         />
       )}
+    </div>
+  )
+}
+
+function TasksPanel({ tasks, userUid, navigate, taskSubTab, setTaskSubTab }) {
+  const toMe = tasks.filter((t) => isTaskAssignee(t, userUid))
+  const byMe = tasks.filter((t) => t.assigned_by === userUid)
+  const list = taskSubTab === 'by_me' ? byMe : toMe
+
+  return (
+    <div>
+      <div className="tab-bar" style={{ marginBottom: 16 }}>
+        <button className={`tab${taskSubTab === 'to_me' ? ' tab--active' : ''}`} onClick={() => setTaskSubTab('to_me')}>
+          <ArrowDownToLine size={13} /> Assigned to Me ({toMe.length})
+        </button>
+        <button className={`tab${taskSubTab === 'by_me' ? ' tab--active' : ''}`} onClick={() => setTaskSubTab('by_me')}>
+          <ArrowUpFromLine size={13} /> Assigned by Me ({byMe.length})
+        </button>
+      </div>
+
+      <TaskList tasks={list} userUid={userUid} navigate={navigate} />
     </div>
   )
 }

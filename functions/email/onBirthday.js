@@ -68,10 +68,11 @@ exports.birthdayReminders = onSchedule({
 
   // Notify admins
   if (admins.length > 0) {
-    const names   = celebrants.map((s) => `${s.name} (${s.staff_id ?? ''})`).join(', ')
+    const label   = (s) => s.staff_id ? `${s.name} (${s.staff_id})` : s.name
+    const names   = celebrants.map(label).join(', ')
     const message = celebrants.length === 1
       ? `Today is ${names}'s birthday. Consider sending a message or acknowledgement.`
-      : `The following staff members have birthdays today:\n${celebrants.map((s) => `• ${s.name} (${s.staff_id ?? ''})`).join('\n')}`
+      : `The following staff members have birthdays today:\n${celebrants.map((s) => `• ${label(s)}`).join('\n')}`
 
     for (const adm of admins) {
       try {

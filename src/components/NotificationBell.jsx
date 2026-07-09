@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Bell, CheckCheck, Building2, Briefcase } from 'lucide-react'
+import { Bell, CheckCheck, Building2, Briefcase, ClipboardList } from 'lucide-react'
 import { subscribeNotifications, markRead, markAllRead } from '../firebase/notifications'
 import { facilityPath } from '../utils/fileNumbers'
 
@@ -19,6 +19,18 @@ function fmtTs(ts) {
 const TYPE_ICONS = {
   facility_assigned: Building2,
   supporting_assigned: Briefcase,
+  task_assigned: ClipboardList,
+  task_submitted: ClipboardList,
+  task_changes_requested: ClipboardList,
+  task_approved: ClipboardList,
+}
+
+// Which task action screen a task-related notification should open
+const TASK_NOTIF_ROUTE = {
+  task_assigned:          'fill',
+  task_changes_requested: 'fill',
+  task_submitted:         'review',
+  task_approved:          'review',
 }
 
 export default function NotificationBell({ uid }) {
@@ -47,7 +59,11 @@ export default function NotificationBell({ uid }) {
   async function handleClick(n) {
     if (!n.read) await markRead(n.id)
     setOpen(false)
-    if (n.metadata?.fileNumber) navigate(facilityPath(n.metadata.fileNumber))
+    if (n.metadata?.taskId) {
+      navigate(`/tasks/${n.metadata.taskId}/${TASK_NOTIF_ROUTE[n.type] ?? 'review'}`)
+    } else if (n.metadata?.fileNumber) {
+      navigate(facilityPath(n.metadata.fileNumber))
+    }
   }
 
   async function handleMarkAll() {

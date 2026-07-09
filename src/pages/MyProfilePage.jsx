@@ -1,24 +1,24 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { updateOwnProfile, changeOwnPassword, uploadStaffPhoto } from '../firebase/staff'
+import { updateOwnProfile, changeOwnPassword, uploadStaffPhoto, uploadStaffSignature } from '../firebase/staff'
 import { getMyActivityStats } from '../firebase/dashboard'
-import { ADMIN_ROLES } from '../data/constants'
+import { ADMIN_ROLES, ROLE_LABEL } from '../data/constants'
 import {
   Mail, Phone, Hash, Calendar, MapPin, BookOpen, Briefcase,
   Edit2, Lock, Check, AlertCircle, Camera, PartyPopper,
   Building2, ClipboardList, Activity, ShieldAlert, CheckSquare, FileText,
-  MessageSquare, GraduationCap,
+  MessageSquare, GraduationCap, PenTool,
 } from 'lucide-react'
 
 const ROLE_META = {
-  director:          { label: 'Area Head',            color: '#7c3aed', bg: '#faf5ff' },
-  admin:             { label: 'Administrator',                color: '#1d4ed8', bg: '#eff6ff' },
-  senior_officer:    { label: 'Senior Programme Officer', color: '#0369a1', bg: '#f0f9ff' },
-  officer:           { label: 'Programme Officer',        color: '#c2410c', bg: '#fff7ed' },
-  assistant_officer: { label: 'Asst. Programme Officer',  color: '#b45309', bg: '#fffbeb' },
-  junior_officer:    { label: 'Programme Assistant', color: '#6b7280', bg: '#f9fafb' },
-  finance:           { label: 'Finance Officer',              color: '#065f46', bg: '#ecfdf5' },
+  director:          { color: '#7c3aed', bg: '#faf5ff' },
+  admin:             { color: '#1d4ed8', bg: '#eff6ff' },
+  senior_officer:    { color: '#0369a1', bg: '#f0f9ff' },
+  officer:           { color: '#c2410c', bg: '#fff7ed' },
+  assistant_officer: { color: '#b45309', bg: '#fffbeb' },
+  junior_officer:    { color: '#6b7280', bg: '#f9fafb' },
+  finance:           { color: '#065f46', bg: '#ecfdf5' },
 }
 
 function fmtDate(val) {
@@ -49,6 +49,8 @@ export default function MyProfilePage() {
   const [photoFile, setPhotoFile]         = useState(null)
   const [photoPreview, setPhotoPreview]   = useState(null)
   const [uploadingPhoto, setUploadingPhoto] = useState(false)
+  const [signatureFile, setSignatureFile]       = useState(null)
+  const [signaturePreview, setSignaturePreview] = useState(null)
   const [savingProfile, setSavingProfile] = useState(false)
   const [profileMsg, setProfileMsg]       = useState(null)
 
@@ -93,9 +95,12 @@ export default function MyProfilePage() {
       date_of_birth:      staff.date_of_birth ?? '',
       address:            staff.address ?? '',
       notification_email: staff.notification_email ?? '',
+      staff_id:           staff.staff_id ?? '',
     })
     setPhotoFile(null)
     setPhotoPreview(null)
+    setSignatureFile(null)
+    setSignaturePreview(null)
   }
 
   async function loadStats(startMs, endMs) {
@@ -133,6 +138,13 @@ export default function MyProfilePage() {
     }
   }
 
+  function handleSignatureSelect(e) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setSignatureFile(file)
+    setSignaturePreview(URL.createObjectURL(file))
+  }
+
   async function handleSaveProfile(e) {
     e.preventDefault()
     if (!form.name.trim()) { setProfileMsg({ type: 'err', text: 'Name is required.' }); return }
@@ -143,7 +155,12 @@ export default function MyProfilePage() {
         picture_url = await uploadStaffPhoto(user.uid, photoFile)
         setPhotoPreview(picture_url)
       }
-      await updateOwnProfile(user.uid, { ...form, name: form.name.trim(), picture_url })
+      let signature_url
+      if (signatureFile) {
+        signature_url = await uploadStaffSignature(user.uid, signatureFile)
+        setSignaturePreview(signature_url)
+      }
+      await updateOwnProfile(user.uid, { ...form, name: form.name.trim(), picture_url, signature_url })
       await refreshStaff()
       setEditMode(false)
       flash(setProfileMsg, { type: 'ok', text: 'Profile updated.' })
@@ -242,7 +259,7 @@ export default function MyProfilePage() {
             className="staff-role-badge"
             style={{ background: meta.bg, color: meta.color, marginBottom: 8, display: 'inline-flex' }}
           >
-            {meta.label}
+            {ROLE_LABEL[role] ?? role}
           </span>
           {staff.designation && (
             <div style={{ fontSize: 13, color: '#374151', marginBottom: 6 }}>{staff.designation}</div>
@@ -262,6 +279,14 @@ export default function MyProfilePage() {
             {staff.date_of_birth && <InfoItem icon={Calendar} label="Date of Birth" value={fmtDate(staff.date_of_birth)} />}
             {staff.date_of_appointment && <InfoItem icon={Briefcase} label="Appointed" value={fmtDate(staff.date_of_appointment)} />}
             <InfoItem icon={Calendar} label="Joined" value={fmtJoined(staff.created_at)} />
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10 }}>
+            <PenTool size={12} style={{ flexShrink: 0, color: '#9ca3af' }} />
+            <span style={{ fontSize: 12, color: '#9ca3af' }}>Signature:</span>
+            {staff.signature_url
+              ? <img src={staff.signature_url} alt="Signature" style={{ height: 28, maxWidth: 120, objectFit: 'contain' }} />
+              : <span style={{ fontSize: 12, color: '#d1d5db' }}>Not uploaded — click Edit to add</span>
+            }
           </div>
         </div>
 
@@ -306,6 +331,32 @@ export default function MyProfilePage() {
             />
           </div>
 
+          {/* Signature in edit mode */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 20 }}>
+            <div
+              className="profile-signature-box"
+              onClick={() => document.getElementById('edit-signature-input').click()}
+            >
+              {(signaturePreview || staff.signature_url)
+                ? <img src={signaturePreview || staff.signature_url} alt="Signature" className="profile-signature-box__img" />
+                : <span style={{ fontSize: 11, color: '#9ca3af' }}>No signature</span>
+              }
+            </div>
+            <div>
+              <button type="button" className="btn btn--ghost btn--sm" onClick={() => document.getElementById('edit-signature-input').click()}>
+                <PenTool size={13} /> {(signaturePreview || staff.signature_url) ? 'Change Signature' : 'Upload Signature'}
+              </button>
+              <div className="form-hint" style={{ marginTop: 4 }}>Used on Screening and other forms that require your signature.</div>
+            </div>
+            <input
+              id="edit-signature-input"
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              style={{ display: 'none' }}
+              onChange={handleSignatureSelect}
+            />
+          </div>
+
           <div className="form-row">
             <div className="form-group">
               <label className="form-label">Full Name *</label>
@@ -315,6 +366,11 @@ export default function MyProfilePage() {
               <label className="form-label">Contact / Phone</label>
               <input className="form-input" value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} placeholder="+233 24 000 0000" />
             </div>
+          </div>
+
+          <div className="form-group">
+            <label className="form-label">Staff ID</label>
+            <input className="form-input" value={form.staff_id} onChange={(e) => setForm((f) => ({ ...f, staff_id: e.target.value }))} placeholder="Your official Staff ID, as issued by management" />
           </div>
 
           <div className="form-row">

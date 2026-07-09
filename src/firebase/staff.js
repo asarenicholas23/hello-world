@@ -19,10 +19,13 @@ function getSecondaryAuth() {
   return getAuth(app)
 }
 
-async function getNextStaffId() {
+// Internal, auto-generated record identifier (STF001, STF002, …) — not the
+// real Staff ID, which is issued by management and typed in manually by
+// each staff member (see `staff_id` below).
+async function getNextSystemId() {
   const snap = await getDocs(collection(db, 'staff'))
   const nums = snap.docs
-    .map((d) => parseInt((d.data().staff_id ?? '').replace('STF', ''), 10))
+    .map((d) => parseInt((d.data().system_id ?? '').replace('STF', ''), 10))
     .filter((n) => !isNaN(n))
   const max = nums.length ? Math.max(...nums) : 0
   return `STF${String(max + 1).padStart(3, '0')}`
@@ -44,19 +47,26 @@ export async function uploadStaffPhoto(uid, file) {
   return getDownloadURL(storageRef)
 }
 
+export async function uploadStaffSignature(uid, file) {
+  const storageRef = ref(storage, `staff-signatures/${uid}`)
+  await uploadBytes(storageRef, file)
+  return getDownloadURL(storageRef)
+}
+
 export async function createStaff(
   { name, email, password, role, phone, designation, qualification,
-    date_of_appointment, date_of_birth, address },
+    date_of_appointment, date_of_birth, address, staff_id },
   createdBy,
 ) {
   const secondaryAuth = getSecondaryAuth()
   const { user } = await createUserWithEmailAndPassword(secondaryAuth, email, password)
   await authSignOut(secondaryAuth)
 
-  const staffId = await getNextStaffId()
+  const systemId = await getNextSystemId()
   await setDoc(doc(db, 'staff', user.uid), {
     uid:                 user.uid,
-    staff_id:            staffId,
+    system_id:           systemId,
+    staff_id:            staff_id ?? '',
     name,
     email,
     role,
@@ -68,13 +78,14 @@ export async function createStaff(
     date_of_birth:       date_of_birth ?? '',
     address:             address ?? '',
     picture_url:         '',
+    signature_url:       '',
     created_at:          serverTimestamp(),
     created_by:          createdBy,
   })
   return user.uid
 }
 
-export async function updateStaff(uid, { name, role, phone, designation, qualification, date_of_appointment, date_of_birth, address, notification_email, picture_url }) {
+export async function updateStaff(uid, { name, role, phone, designation, qualification, date_of_appointment, date_of_birth, address, notification_email, picture_url, signature_url, staff_id }) {
   const data = {
     name,
     role,
@@ -86,9 +97,11 @@ export async function updateStaff(uid, { name, role, phone, designation, qualifi
     date_of_birth:       date_of_birth ?? '',
     address:             address ?? '',
     notification_email:  notification_email ?? '',
+    staff_id:            staff_id ?? '',
     updated_at:          serverTimestamp(),
   }
   if (picture_url !== undefined) data.picture_url = picture_url
+  if (signature_url !== undefined) data.signature_url = signature_url
   await updateDoc(doc(db, 'staff', uid), data)
 }
 
@@ -96,7 +109,7 @@ export async function deleteStaff(uid) {
   await deleteDoc(doc(db, 'staff', uid))
 }
 
-export async function updateOwnProfile(uid, { name, phone, designation, qualification, date_of_birth, address, notification_email, picture_url }) {
+export async function updateOwnProfile(uid, { name, phone, designation, qualification, date_of_birth, address, notification_email, picture_url, signature_url, staff_id }) {
   const data = {
     name,
     phone:              phone ?? '',
@@ -105,9 +118,11 @@ export async function updateOwnProfile(uid, { name, phone, designation, qualific
     date_of_birth:      date_of_birth ?? '',
     address:            address ?? '',
     notification_email: notification_email ?? '',
+    staff_id:           staff_id ?? '',
     updated_at:         serverTimestamp(),
   }
   if (picture_url !== undefined) data.picture_url = picture_url
+  if (signature_url !== undefined) data.signature_url = signature_url
   await updateDoc(doc(db, 'staff', uid), data)
 }
 

@@ -20,6 +20,18 @@ export function fmtDate(ts) {
   return d.toLocaleDateString('en-GH', { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
+/** Current date as 'YYYY-MM-DD' (Ghana has no DST, so UTC date = local date) */
+export function dateStr(d = new Date()) {
+  return d.toISOString().split('T')[0]
+}
+
+/** Firestore Timestamp → time-of-day, e.g. "8:32 AM" */
+export function fmtTime(ts) {
+  if (!ts) return '—'
+  const d = ts.toDate ? ts.toDate() : new Date(ts)
+  return d.toLocaleTimeString('en-GH', { hour: 'numeric', minute: '2-digit' })
+}
+
 /** Compute permit status from expiry Timestamp */
 export function permitStatus(expiryTs) {
   if (!expiryTs) return null

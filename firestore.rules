@@ -31,14 +31,15 @@ service cloud.firestore {
     // ── Staff ──────────────────────────────────────────────────
     // Any authenticated user can read staff docs (needed for name lookups).
     // Admin can do anything. A user can update their own doc provided they
-    // don't change their role, staff_id, or role_level.
+    // don't change their role, system_id, or role_level. staff_id (the real,
+    // management-issued ID) is intentionally self-editable.
     match /staff/{uid} {
       allow read:             if isAuthed();
       allow create, delete:   if isAdmin();
       allow update:           if isAdmin()
                                 || (isAuthed() && request.auth.uid == uid
                                     && request.resource.data.role       == resource.data.role
-                                    && request.resource.data.staff_id   == resource.data.staff_id
+                                    && request.resource.data.system_id  == resource.data.system_id
                                     && request.resource.data.role_level == resource.data.role_level);
     }
 
@@ -106,6 +107,12 @@ service cloud.firestore {
         allow read:        if isAuthed();
         allow write:       if canEditAllEntries() || isFieldRole();
       }
+
+      // Monitoring report uploads — tagged to a senior officer for review
+      match /monitoring_reports/{id} {
+        allow read:        if isAuthed();
+        allow write:       if canEditAllEntries() || isFieldRole();
+      }
     }
 
     // ── Field Reports (top-level collection for unregistered facilities) ──
@@ -120,6 +127,22 @@ service cloud.firestore {
         allow create:         if canEditAllEntries() || isFieldRole();
         allow update, delete: if false;
       }
+    }
+
+    // ── Tasks (standalone assign-a-specific-job feature) ───────────
+    match /tasks/{id} {
+      allow read:   if isAuthed();
+      allow create: if (canEditAllEntries() || isFieldRole())
+                     && request.resource.data.assigned_by == request.auth.uid;
+      // The assignee may update their own task (submit/resubmit) but may not
+      // set status to 'approved' themselves — only the assigner (or admin)
+      // can approve, preserving the review gate the feature exists for.
+      allow update: if canEditAllEntries()
+                     || (isAuthed() && resource.data.assigned_by == request.auth.uid)
+                     || (isAuthed()
+                         && (resource.data.assigned_to == request.auth.uid || resource.data.assigned_to_2 == request.auth.uid)
+                         && request.resource.data.status != 'approved');
+      allow delete: if canEditAllEntries();
     }
 
     // ── Complaints ─────────────────────────────────────────────────
@@ -138,6 +161,33 @@ service cloud.firestore {
       allow delete:        if isAdmin();
     }
 
+    // ── Attendance (clock in / clock out) ──────────────────────────
+    // Doc ID is `${uid}_${date}`, so the first write for a given day is
+    // necessarily a `create` and the second (clock-out) is an `update` —
+    // this lets us make clock-in fields immutable and clock-out settable
+    // exactly once, without a transaction.
+    match /attendance/{id} {
+      allow read: if isAuthed()
+                  && (resource == null || resource.data.staff_uid == request.auth.uid || canEditAllEntries());
+
+      allow create: if isAuthed()
+                    && request.resource.data.staff_uid == request.auth.uid
+                    && request.resource.data.clock_in_at == request.time
+                    && request.resource.data.clock_out_at == null;
+
+      allow update: if isAuthed()
+                    && resource.data.staff_uid == request.auth.uid
+                    && request.resource.data.staff_uid           == resource.data.staff_uid
+                    && request.resource.data.date                == resource.data.date
+                    && request.resource.data.clock_in_at         == resource.data.clock_in_at
+                    && request.resource.data.clock_in_coords     == resource.data.clock_in_coords
+                    && request.resource.data.clock_in_distance_m == resource.data.clock_in_distance_m
+                    && resource.data.clock_out_at == null
+                    && request.resource.data.clock_out_at == request.time;
+
+      allow delete: if isAdmin();
+    }
+
     // ── In-app notifications ─────────────────────────────────────
     match /notifications/{id} {
       allow read:   if isAuthed() && resource.data.recipient_uid == request.auth.uid;
@@ -153,6 +203,12 @@ service cloud.firestore {
     }
     match /sms_dedup/{id} {
       allow read, write: if false;
+    }
+
+    // ── Email log (written only by Cloud Functions via Admin SDK) ─
+    match /email_log/{id} {
+      allow read:  if isAdmin() || isDirector();
+      allow write: if false;
     }
 
     // ── collectionGroup reads (cross-facility views & dashboard) ──

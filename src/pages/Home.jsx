@@ -8,6 +8,7 @@ import {
   MessageSquare, GraduationCap, TrendingUp,
 } from 'lucide-react'
 import { getDashboardStats, getPermitStats, getMyActivityStats, getFinanceStats } from '../firebase/dashboard'
+import ClockInOutCard from '../components/ClockInOutCard'
 import {
   SECTORS,
   SECTOR_COLORS,
@@ -15,18 +16,9 @@ import {
   ADMIN_ROLES,
   ADMIN_VIEW_ROLES,
   OFFICE_OVERVIEW_ROLES,
+  ROLE_LABEL,
 } from '../data/constants'
 import { facilityPath } from '../utils/fileNumbers'
-
-const ROLE_LABEL = {
-  director:          'Area Head',
-  admin:             'Administrative Assistant',
-  senior_officer:    'Senior Programme Officer',
-  officer:           'Programme Officer',
-  assistant_officer: 'Assistant Programme Officer',
-  junior_officer:    'Programme Assistant',
-  finance:           'Finance Officer',
-}
 
 const FIELD_CARDS = [
   { icon: Building2,    color: '#1d4ed8', bg: '#eff6ff', title: 'Facilities',        path: '/facilities',         desc: 'Browse registered facilities.' },
@@ -112,10 +104,12 @@ export default function Home() {
         <div className="home-welcome__name">{staff?.name}</div>
         <div className="home-welcome__meta">
           <span className="home-welcome__badge">{ROLE_LABEL[role] ?? role}</span>
-          <span className="home-welcome__badge">{staff?.staff_id}</span>
+          {staff?.staff_id && <span className="home-welcome__badge">{staff.staff_id}</span>}
           {staff?.designation && <span className="home-welcome__badge">{staff.designation}</span>}
         </div>
       </div>
+
+      <ClockInOutCard />
 
       {/* ── Date range filter ───────────────────────────── */}
       {(showMyActivity || showFinanceOverview) && (

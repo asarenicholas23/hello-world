@@ -1,5 +1,5 @@
 const OFFICE  = 'EPA Konongo Area Office'
-const CONTACT = '05411405654'  // update with real office number
+const CONTACT = '0541405654'  // update with real office number
 
 function permitExpiry(facilityName, fileNumber, daysLeft, expiryDateStr) {
   return `Dear ${facilityName} (${fileNumber}), your EPA Environmental Permit expires in ${daysLeft} day(s) on ${expiryDateStr}. Contact ${OFFICE} to begin renewal. ${CONTACT}`

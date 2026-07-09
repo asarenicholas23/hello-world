@@ -23,12 +23,17 @@ import FieldReportForm from './pages/FieldReportForm'
 import PermitAnalyticsPage from './pages/PermitAnalyticsPage'
 import MyAssignmentsPage from './pages/MyAssignmentsPage'
 import AllAssignmentsPage from './pages/AllAssignmentsPage'
+import TaskFillPage from './pages/TaskFillPage'
+import TaskReviewPage from './pages/TaskReviewPage'
 import MyProfilePage from './pages/MyProfilePage'
+import MyAttendancePage from './pages/MyAttendancePage'
+import AttendancePage from './pages/AttendancePage'
 import ComplaintsPage from './pages/ComplaintsPage'
 import ComplaintForm from './pages/ComplaintForm'
 import EnvironmentalEducationPage from './pages/EnvironmentalEducationPage'
 import EnvEducationForm from './pages/EnvEducationForm'
 import SmsPage from './pages/SmsPage'
+import EmailPage from './pages/EmailPage'
 import ChatPage from './pages/ChatPage'
 
 export default function App() {
@@ -101,9 +106,15 @@ export default function App() {
               {/* Assignments */}
               <Route path="my-assignments" element={<MyAssignmentsPage />} />
               <Route path="all-assignments" element={<AllAssignmentsPage />} />
+              <Route path="tasks/:taskId/fill" element={<TaskFillPage />} />
+              <Route path="tasks/:taskId/review" element={<TaskReviewPage />} />
 
               {/* Profile */}
               <Route path="profile" element={<MyProfilePage />} />
+
+              {/* Attendance */}
+              <Route path="my-attendance" element={<MyAttendancePage />} />
+              <Route path="attendance" element={<AttendancePage />} />
 
               {/* Complaints */}
               <Route path="complaints" element={<ComplaintsPage />} />
@@ -117,6 +128,7 @@ export default function App() {
 
               {/* SMS */}
               <Route path="sms" element={<SmsPage />} />
+              <Route path="email" element={<EmailPage />} />
 
               {/* Chat */}
               <Route path="chat" element={<ChatPage />} />

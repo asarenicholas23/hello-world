@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useSync } from '../context/SyncContext'
-import { ADMIN_VIEW_ROLES } from '../data/constants'
+import { ADMIN_VIEW_ROLES, ROLE_LABEL } from '../data/constants'
 import NotificationBell from './NotificationBell'
 import ChatWidget from './ChatWidget'
 import { onForegroundMessage } from '../firebase/fcm'
@@ -10,8 +10,8 @@ import {
   LayoutDashboard, Building2, FileText, Banknote,
   Users, ClipboardList, Activity, CheckSquare,
   LogOut, Menu, X, Leaf, Upload, Flag, BarChart2,
-  Briefcase, LayoutList, MessageSquare, GraduationCap, BellRing,
-  WifiOff, RefreshCw, CheckCircle2,
+  Briefcase, LayoutList, MessageSquare, GraduationCap, BellRing, Mail,
+  WifiOff, RefreshCw, CheckCircle2, Clock,
 } from 'lucide-react'
 
 const ADMIN_NAV = [
@@ -22,11 +22,14 @@ const ADMIN_NAV = [
   { label: 'Finance',          icon: Banknote,        path: '/finance' },
   { label: 'Staff',            icon: Users,           path: '/staff' },
   { label: 'All Assignments',  icon: LayoutList,      path: '/all-assignments' },
+  { label: 'My Attendance',    icon: Clock,           path: '/my-attendance' },
+  { label: 'Attendance',       icon: ClipboardList,   path: '/attendance' },
   { label: 'Import Data',      icon: Upload,          path: '/import',        dividerBefore: true },
   { label: 'Field Reports',    icon: Flag,            path: '/field-reports' },
   { label: 'Complaints',       icon: MessageSquare,   path: '/complaints',    dividerBefore: true },
   { label: 'Env. Education',   icon: GraduationCap,   path: '/env-education' },
   { label: 'SMS',              icon: BellRing,        path: '/sms',           dividerBefore: true },
+  { label: 'Email',            icon: Mail,            path: '/email' },
   { label: 'Chat with Osei',   icon: MessageSquare,   path: '/chat' },
 ]
 
@@ -38,6 +41,7 @@ const FIELD_NAV = [
   { label: 'Field Reports',     icon: Flag,            path: '/field-reports' },
   { label: 'Site Verifications',icon: CheckSquare,     path: '/site-verifications' },
   { label: 'My Assignments',    icon: Briefcase,       path: '/my-assignments', dividerBefore: true },
+  { label: 'My Attendance',     icon: Clock,           path: '/my-attendance' },
   { label: 'Complaints',        icon: MessageSquare,   path: '/complaints',     dividerBefore: true },
   { label: 'Env. Education',    icon: GraduationCap,   path: '/env-education' },
   { label: 'Chat with Osei',   icon: MessageSquare,   path: '/chat',          dividerBefore: true },
@@ -55,6 +59,7 @@ const NAV_BY_ROLE = {
     { label: 'Facilities', icon: Building2,       path: '/facilities' },
     { label: 'Finance',    icon: Banknote,        path: '/finance' },
     { label: 'Field Reports', icon: Flag,          path: '/field-reports' },
+    { label: 'My Attendance', icon: Clock,         path: '/my-attendance' },
     { label: 'Chat with Osei', icon: MessageSquare, path: '/chat',          dividerBefore: true },
   ],
 }
@@ -78,7 +83,10 @@ const PAGE_TITLE = {
   '/env-education':      'Environmental Education',
   '/chat':               'Chat with Osei',
   '/profile':            'My Profile',
+  '/my-attendance':      'My Attendance',
+  '/attendance':         'Attendance',
   '/sms':               'SMS Notifications',
+  '/email':             'Email Notifications',
 }
 
 function usePageTitle() {
@@ -203,8 +211,8 @@ export default function Layout() {
               onClick={() => { navigate('/profile'); setSidebarOpen(false) }}
             >
               <span className="officer-name">{staff?.name}</span>
-              <span className="officer-role" style={{ textTransform: 'capitalize' }}>
-                {staff?.role} · {staff?.staff_id}
+              <span className="officer-role">
+                {ROLE_LABEL[staff?.role] ?? staff?.role}{staff?.staff_id ? ` · ${staff.staff_id}` : ''}
               </span>
             </div>
             <button
@@ -243,7 +251,7 @@ export default function Layout() {
               fontSize: 11,
             }}
           >
-            {staff?.role?.toUpperCase()}
+            {(ROLE_LABEL[staff?.role] ?? staff?.role ?? '').toUpperCase()}
           </span>
         </div>
 

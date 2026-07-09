@@ -434,6 +434,24 @@ body {
 .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 .form-group { display: flex; flex-direction: column; gap: 6px; }
 .form-group label { font-size: 12.5px; font-weight: 600; color: #374151; }
+
+/* Task review — per-field annotation callouts */
+.task-field-note {
+  display: flex; align-items: flex-start; gap: 6px;
+  background: #fff7ed; border: 1px solid #fed7aa; color: #9a3412;
+  border-radius: 6px; padding: 6px 9px; font-size: 12px; line-height: 1.4;
+}
+.doc-row--annotatable { cursor: pointer; }
+.doc-row--annotatable:hover { background: #f8fafc; }
+.doc-row--has-annotation { background: #fff7ed !important; }
+.doc-annotation-marker {
+  display: inline-flex; align-items: center; gap: 4px;
+  color: #c2410c; font-size: 11px; font-weight: 600; margin-left: 6px;
+}
+.task-annotation-popover {
+  margin-top: 8px; padding: 10px; background: #fff; border: 1px solid #e5e7eb;
+  border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,.06);
+}
 .input, .textarea {
   padding: 9px 12px;
   border: 1px solid #e5e7eb;
@@ -1132,6 +1150,24 @@ body {
   border-radius: 6px; padding: 3px 10px;
   font-size: 12px; font-weight: 600; color: #fff;
 }
+.clock-widget {
+  background: #fff; border-radius: 16px; padding: 20px 24px;
+  border: 1px solid #f3f4f6; box-shadow: 0 1px 3px rgba(0,0,0,.06);
+  margin-bottom: 24px;
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  flex-wrap: wrap;
+}
+.clock-widget__info { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.clock-widget__status {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 14px; font-weight: 600; color: #111827;
+}
+.clock-widget__error {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 12.5px; color: #dc2626;
+}
+.clock-widget__btn { flex-shrink: 0; }
+
 .home-section-title {
   font-size: 12px; font-weight: 700; color: #6b7280;
   margin-bottom: 12px; text-transform: uppercase; letter-spacing: .06em;
@@ -2421,6 +2457,24 @@ body {
   transition: opacity 0.15s;
 }
 .profile-avatar:hover .profile-avatar__overlay { opacity: 1; }
+.profile-signature-box {
+  width: 120px;
+  height: 60px;
+  border: 1px dashed #d1d5db;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  background: #fafafa;
+  overflow: hidden;
+}
+.profile-signature-box__img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
 .profile-name {
   font-size: 20px;
   font-weight: 700;
@@ -2701,6 +2755,9 @@ body {
 .doc-sig-item__value { font-size: 13px; font-weight: 600; }
 .doc-sig-item__line {
   border-bottom: 1px solid #374151; height: 30px; margin-top: 4px;
+}
+.doc-sig-item__img {
+  height: 34px; max-width: 180px; object-fit: contain; margin-top: 4px;
 }
 
 /* Photos */

@@ -1,29 +1,49 @@
 import { useEffect, useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { LayoutList, AlertCircle, UserCheck, Flag } from 'lucide-react'
+import { LayoutList, AlertCircle, UserCheck, Flag, ClipboardList, LayoutGrid } from 'lucide-react'
 import { listFacilities } from '../firebase/facilities'
 import { listFieldReports } from '../firebase/fieldReports'
 import { listStaff } from '../firebase/staff'
+import { useAuth } from '../context/AuthContext'
+import { createTask, listAllTasks } from '../firebase/tasks'
+import { createNotification } from '../firebase/notifications'
 import { facilityPath } from '../utils/fileNumbers'
 import Spinner from '../components/Spinner'
+import AssignTaskDialog from '../components/AssignTaskDialog'
+import TaskList from '../components/tasks/TaskList'
 
 export default function AllAssignmentsPage() {
   const navigate = useNavigate()
+  const { user, staff } = useAuth()
 
+  const [viewMode, setViewMode]   = useState('assignments') // 'assignments' | 'tasks'
   const [records, setRecords]     = useState([])
+  const [tasks, setTasks]         = useState([])
+  const [allStaff, setAllStaff]   = useState([])
+  const [allFacilities, setAllFacilities] = useState([])
   const [loading, setLoading]     = useState(true)
   const [error, setError]         = useState('')
+  const [taskDialogOpen, setTaskDialogOpen] = useState(false)
+  const [taskSuccess, setTaskSuccess]       = useState('')
 
   const [filterOfficer, setFilterOfficer]       = useState('')
   const [filterType, setFilterType]             = useState('')
   const [filterUnassigned, setFilterUnassigned] = useState(false)
+
+  const [taskFilterOfficer, setTaskFilterOfficer] = useState('')
+  const [taskFilterStatus, setTaskFilterStatus]   = useState('')
 
   useEffect(() => { load() }, [])
 
   async function load() {
     setLoading(true)
     try {
-      const [facilities, reports] = await Promise.all([listFacilities(), listFieldReports()])
+      const [facilities, reports, staffList, allTasks] = await Promise.all([
+        listFacilities(), listFieldReports(), listStaff(), listAllTasks(),
+      ])
+      setAllStaff(staffList)
+      setAllFacilities(facilities)
+      setTasks(allTasks)
       const combined = [
         ...facilities.map((f) => ({
           id:                  f.file_number,
@@ -81,11 +101,48 @@ export default function AllAssignmentsPage() {
 
   const unassignedCount = records.filter((r) => !r.primary_officer).length
 
+  const filteredTasks = useMemo(() => {
+    return tasks.filter((t) => {
+      if (taskFilterOfficer && t.assigned_to !== taskFilterOfficer && t.assigned_to_2 !== taskFilterOfficer) return false
+      if (taskFilterStatus && t.status !== taskFilterStatus) return false
+      return true
+    })
+  }, [tasks, taskFilterOfficer, taskFilterStatus])
+
+  const taskOfficers = useMemo(() => {
+    const seen = new Set()
+    const officers = []
+    for (const t of tasks) {
+      if (t.assigned_to && !seen.has(t.assigned_to)) { seen.add(t.assigned_to); officers.push({ uid: t.assigned_to, name: t.assigned_to_name ?? t.assigned_to }) }
+      if (t.assigned_to_2 && !seen.has(t.assigned_to_2)) { seen.add(t.assigned_to_2); officers.push({ uid: t.assigned_to_2, name: t.assigned_to_2_name ?? t.assigned_to_2 }) }
+    }
+    return officers
+  }, [tasks])
+
+  async function handleAssignTask(data) {
+    const taskId = await createTask({
+      ...data,
+      assignedByUid:  user.uid,
+      assignedByName: staff?.name ?? '',
+    })
+    const message = `${staff?.name ?? 'A colleague'} assigned you a "${data.taskType.replace(/_/g, ' ')}" task for ${data.facilityName}.`
+    createNotification(data.assignedToUid, 'task_assigned', message, { taskId }).catch(() => {})
+    if (data.assignedTo2Uid) createNotification(data.assignedTo2Uid, 'task_assigned', message, { taskId }).catch(() => {})
+    setTaskSuccess(`Task assigned to ${data.assignedToName}${data.assignedTo2Name ? ` and ${data.assignedTo2Name}` : ''}.`)
+    setTimeout(() => setTaskSuccess(''), 3500)
+    listAllTasks().then(setTasks).catch(() => {})
+  }
+
   if (loading) return <div className="tab-loading"><Spinner size={24} /></div>
   if (error)   return <div className="login-error" style={{ margin: '12px 0' }}><AlertCircle size={14} /> {error}</div>
 
   return (
     <div className="page-inner">
+      {taskSuccess && (
+        <div className="assign-success-banner" style={{ marginBottom: 12 }}>
+          <UserCheck size={14} /> {taskSuccess}
+        </div>
+      )}
       <div className="page-header">
         <div className="page-header__left">
           <LayoutList size={20} className="page-header__icon" />
@@ -94,8 +151,60 @@ export default function AllAssignmentsPage() {
             <p className="page-subtitle">{records.length} facilities · {unassignedCount} unassigned</p>
           </div>
         </div>
+        <button className="btn btn--primary btn--sm" onClick={() => setTaskDialogOpen(true)}>
+          <ClipboardList size={14} /> Assign Task
+        </button>
       </div>
 
+      <AssignTaskDialog
+        open={taskDialogOpen}
+        onClose={() => setTaskDialogOpen(false)}
+        onAssign={handleAssignTask}
+        allStaff={allStaff}
+        allFacilities={allFacilities}
+      />
+
+      <div className="tab-bar" style={{ marginTop: 12, marginBottom: 12 }}>
+        <button className={`tab${viewMode === 'assignments' ? ' tab--active' : ''}`} onClick={() => setViewMode('assignments')}>
+          <LayoutGrid size={14} /> Facility Assignments ({records.length})
+        </button>
+        <button className={`tab${viewMode === 'tasks' ? ' tab--active' : ''}`} onClick={() => setViewMode('tasks')}>
+          <ClipboardList size={14} /> Tasks ({tasks.length})
+        </button>
+      </div>
+
+      {viewMode === 'tasks' ? (
+        <div>
+          <div className="filter-bar">
+            <select className="select select--sm" value={taskFilterOfficer} onChange={(e) => setTaskFilterOfficer(e.target.value)}>
+              <option value="">All officers</option>
+              {taskOfficers.map((o) => (
+                <option key={o.uid} value={o.uid}>{o.name}</option>
+              ))}
+            </select>
+            <select className="select select--sm" value={taskFilterStatus} onChange={(e) => setTaskFilterStatus(e.target.value)}>
+              <option value="">All statuses</option>
+              <option value="assigned">Assigned</option>
+              <option value="submitted">Submitted</option>
+              <option value="changes_requested">Changes Requested</option>
+              <option value="approved">Approved</option>
+            </select>
+            {(taskFilterOfficer || taskFilterStatus) && (
+              <button className="btn btn--ghost btn--sm" onClick={() => { setTaskFilterOfficer(''); setTaskFilterStatus('') }}>
+                Clear
+              </button>
+            )}
+            <span style={{ marginLeft: 'auto', fontSize: 12, color: '#6b7280' }}>
+              {filteredTasks.length} result{filteredTasks.length !== 1 ? 's' : ''}
+            </span>
+          </div>
+
+          <div style={{ marginTop: 12 }}>
+            <TaskList tasks={filteredTasks} userUid={user.uid} navigate={navigate} emptyMessage="No tasks match this filter." />
+          </div>
+        </div>
+      ) : (
+      <>
       {workload.length > 0 && (
         <div className="workload-row">
           {workload.map((w) => (
@@ -188,6 +297,8 @@ export default function AllAssignmentsPage() {
             </div>
           ))}
         </div>
+      )}
+      </>
       )}
     </div>
   )

@@ -10,10 +10,16 @@ const APP_URL   = 'https://epa-kon-pms.web.app'
 const OFFICE    = 'EPA Konongo Area Office'
 
 const TYPE_SUBJECTS = {
-  facility_assigned:   'Facility Assignment',
-  supporting_assigned: 'Supporting Officer Assignment',
-  permit_expiry:       'Permit Expiry Alert',
-  enforcement:         'Enforcement Notice',
+  facility_assigned:          'Facility Assignment',
+  supporting_assigned:        'Supporting Officer Assignment',
+  permit_expiry:              'Permit Expiry Alert',
+  enforcement:                'Enforcement Notice',
+  monitoring_report_review:   'Monitoring Report — Review Requested',
+  monitoring_report_decision: 'Monitoring Report — Review Decision',
+  task_assigned:              'New Task Assigned',
+  task_submitted:              'Task Submitted for Review',
+  task_changes_requested:      'Task — Changes Requested',
+  task_approved:               'Task Approved',
 }
 
 function buildHtml(message) {

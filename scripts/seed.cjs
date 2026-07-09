@@ -39,7 +39,7 @@ const STAFF = [
     password:    'Director@1234',
     name:        'Emmanuel Boateng',
     role:        'director',
-    staff_id:    'STF004',
+    system_id:  'STF004',
     designation: 'Regional Director',
     phone:       '+233244000004',
   },
@@ -48,7 +48,7 @@ const STAFF = [
     password:    'Admin@1234',
     name:        'Kofi Mensah',
     role:        'admin',
-    staff_id:    'STF001',
+    system_id:  'STF001',
     designation: 'Administrative Officer',
     phone:       '+233244000001',
   },
@@ -57,7 +57,7 @@ const STAFF = [
     password:    'Senior@1234',
     name:        'Abena Frimpong',
     role:        'senior_officer',
-    staff_id:    'STF005',
+    system_id:  'STF005',
     designation: 'Senior Environmental Officer',
     phone:       '+233244000005',
   },
@@ -66,7 +66,7 @@ const STAFF = [
     password:    'Officer@1234',
     name:        'Kwame Asante',
     role:        'officer',
-    staff_id:    'STF003',
+    system_id:  'STF003',
     designation: 'Environmental Officer',
     phone:       '+233244000003',
   },
@@ -75,7 +75,7 @@ const STAFF = [
     password:    'Assistant@1234',
     name:        'Yaw Darko',
     role:        'assistant_officer',
-    staff_id:    'STF006',
+    system_id:  'STF006',
     designation: 'Assistant Environmental Officer',
     phone:       '+233244000006',
   },
@@ -84,7 +84,7 @@ const STAFF = [
     password:    'Junior@1234',
     name:        'Akosua Mensah',
     role:        'junior_officer',
-    staff_id:    'STF007',
+    system_id:  'STF007',
     designation: 'Junior Environmental Officer',
     phone:       '+233244000007',
   },
@@ -93,7 +93,7 @@ const STAFF = [
     password:    'Finance@1234',
     name:        'Ama Owusu',
     role:        'finance',
-    staff_id:    'STF002',
+    system_id:  'STF002',
     designation: 'Finance Officer',
     phone:       '+233244000002',
   },
@@ -136,7 +136,8 @@ async function seed() {
     await db.collection('staff').doc(uid).set(
       {
         uid,
-        staff_id:    s.staff_id,
+        system_id:   s.system_id,
+        staff_id:    '', // real, management-issued ID — left blank for the staff member to fill in
         name:        s.name,
         email:       s.email,
         role:        s.role,
@@ -147,7 +148,7 @@ async function seed() {
       { merge: true }
     )
 
-    console.log(`  [staff doc] ${s.staff_id} → role: ${s.role} (level: ${ROLE_LEVEL[s.role] ?? 'n/a'})\n`)
+    console.log(`  [staff doc] ${s.system_id} → role: ${s.role} (level: ${ROLE_LEVEL[s.role] ?? 'n/a'})\n`)
   }
 
   // ── Counters ───────────────────────────────────────

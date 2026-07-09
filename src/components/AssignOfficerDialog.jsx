@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { X, UserCheck } from 'lucide-react'
-import { FIELD_ROLES, ADMIN_ROLES, ROLE_LEVEL } from '../data/constants'
+import { FIELD_ROLES, ADMIN_ROLES, ROLE_LEVEL, ROLE_LABEL } from '../data/constants'
 
 function getEligibleOfficers(allStaff, currentRole, currentUid) {
   if (ADMIN_ROLES.has(currentRole)) {
@@ -86,7 +86,7 @@ export default function AssignOfficerDialog({
               <option value="">Select officer…</option>
               {eligible.map((s) => (
                 <option key={s.id} value={s.id}>
-                  {s.name} ({s.role.replace(/_/g, ' ')}) · {s.staff_id}
+                  {s.name} ({ROLE_LABEL[s.role] ?? s.role})
                 </option>
               ))}
             </select>

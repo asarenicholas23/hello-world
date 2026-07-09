@@ -3,15 +3,16 @@ import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, UserPlus, Pencil, Trash2, Shield, Banknote, Briefcase, Star, Eye, PartyPopper } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { listStaff, deleteStaff } from '../firebase/staff'
+import { ROLE_LABEL } from '../data/constants'
 
 const ROLE_META = {
-  director:          { label: 'Director',          icon: Eye,      bg: '#faf5ff', color: '#7c3aed' },
-  admin:             { label: 'Admin',             icon: Shield,   bg: '#eff6ff', color: '#1d4ed8' },
-  senior_officer:    { label: 'Senior Officer',    icon: Star,     bg: '#f0f9ff', color: '#0369a1' },
-  officer:           { label: 'Officer',           icon: Briefcase,bg: '#fff7ed', color: '#c2410c' },
-  assistant_officer: { label: 'Asst. Officer',     icon: Briefcase,bg: '#fffbeb', color: '#b45309' },
-  junior_officer:    { label: 'Junior Officer',    icon: Briefcase,bg: '#f9fafb', color: '#6b7280' },
-  finance:           { label: 'Finance',           icon: Banknote, bg: '#ecfdf5', color: '#065f46' },
+  director:          { icon: Eye,      bg: '#faf5ff', color: '#7c3aed' },
+  admin:             { icon: Shield,   bg: '#eff6ff', color: '#1d4ed8' },
+  senior_officer:    { icon: Star,     bg: '#f0f9ff', color: '#0369a1' },
+  officer:           { icon: Briefcase,bg: '#fff7ed', color: '#c2410c' },
+  assistant_officer: { icon: Briefcase,bg: '#fffbeb', color: '#b45309' },
+  junior_officer:    { icon: Briefcase,bg: '#f9fafb', color: '#6b7280' },
+  finance:           { icon: Banknote, bg: '#ecfdf5', color: '#065f46' },
 }
 
 export default function StaffPage() {
@@ -25,7 +26,7 @@ export default function StaffPage() {
   useEffect(() => {
     listStaff()
       .then((data) => {
-        data.sort((a, b) => (a.staff_id ?? '').localeCompare(b.staff_id ?? ''))
+        data.sort((a, b) => (a.name ?? '').localeCompare(b.name ?? ''))
         setMembers(data)
       })
       .catch(() => setError('Failed to load staff. Check your connection.'))
@@ -37,7 +38,7 @@ export default function StaffPage() {
       alert('You cannot delete your own account.')
       return
     }
-    if (!window.confirm(`Remove ${member.name} (${member.staff_id})? This cannot be undone.`)) return
+    if (!window.confirm(`Remove ${member.name}${member.staff_id ? ` (${member.staff_id})` : ''}? This cannot be undone.`)) return
     try {
       await deleteStaff(member.id)
       setMembers((prev) => prev.filter((m) => m.id !== member.id))
@@ -124,7 +125,7 @@ export default function StaffPage() {
                 const avatarBg = m.picture_url ? 'transparent' : meta.color
                 return (
                   <tr key={m.id} className={isSelf ? 'staff-table__self' : ''}>
-                    <td className="staff-table__id">{m.staff_id}</td>
+                    <td className="staff-table__id">{m.staff_id || <span style={{ color: '#9ca3af' }}>—</span>}</td>
                     <td className="staff-table__name">
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                         <div
@@ -145,7 +146,7 @@ export default function StaffPage() {
                     <td>
                       <span className="staff-role-badge" style={{ background: meta.bg, color: meta.color }}>
                         <RoleIcon size={11} />
-                        {meta.label}
+                        {ROLE_LABEL[m.role] ?? m.role}
                       </span>
                     </td>
                     <td className="staff-table__email">{m.email}</td>

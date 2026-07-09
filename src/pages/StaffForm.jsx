@@ -1,15 +1,15 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, Camera } from 'lucide-react'
+import { ArrowLeft, Camera, PenTool } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
-import { createStaff, updateStaff, getStaffMember, uploadStaffPhoto } from '../firebase/staff'
+import { createStaff, updateStaff, getStaffMember, uploadStaffPhoto, uploadStaffSignature } from '../firebase/staff'
 import { ROLES as ROLE_DEFS } from '../data/constants'
 
 const EMPTY = {
   name: '', email: '', password: '', role: 'officer', phone: '',
   designation: '', qualification: '',
   date_of_appointment: '', date_of_birth: '', address: '',
-  notification_email: '',
+  notification_email: '', staff_id: '',
 }
 
 export default function StaffForm() {
@@ -22,6 +22,9 @@ export default function StaffForm() {
   const [photoFile, setPhotoFile] = useState(null)
   const [photoPreview, setPhotoPreview] = useState(null)
   const [existingPhotoUrl, setExistingPhotoUrl] = useState('')
+  const [signatureFile, setSignatureFile] = useState(null)
+  const [signaturePreview, setSignaturePreview] = useState(null)
+  const [existingSignatureUrl, setExistingSignatureUrl] = useState('')
   const [loading, setLoading]   = useState(isEdit)
   const [saving, setSaving]     = useState(false)
   const [error, setError]       = useState('')
@@ -44,8 +47,10 @@ export default function StaffForm() {
           date_of_birth:       data.date_of_birth ?? '',
           address:             data.address ?? '',
           notification_email:  data.notification_email ?? '',
+          staff_id:            data.staff_id ?? '',
         })
         setExistingPhotoUrl(data.picture_url ?? '')
+        setExistingSignatureUrl(data.signature_url ?? '')
       })
       .catch(() => setError('Failed to load staff member.'))
       .finally(() => setLoading(false))
@@ -60,6 +65,13 @@ export default function StaffForm() {
     if (!file) return
     setPhotoFile(file)
     setPhotoPreview(URL.createObjectURL(file))
+  }
+
+  function handleSignatureSelect(e) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setSignatureFile(file)
+    setSignaturePreview(URL.createObjectURL(file))
   }
 
   async function handleSubmit(e) {
@@ -77,12 +89,15 @@ export default function StaffForm() {
       if (isEdit) {
         let picture_url
         if (photoFile) picture_url = await uploadStaffPhoto(uid, photoFile)
-        await updateStaff(uid, { ...form, picture_url })
+        let signature_url
+        if (signatureFile) signature_url = await uploadStaffSignature(uid, signatureFile)
+        await updateStaff(uid, { ...form, picture_url, signature_url })
       } else {
         const newUid = await createStaff(form, user.uid)
-        if (photoFile) {
-          const picture_url = await uploadStaffPhoto(newUid, photoFile)
-          await updateStaff(newUid, { ...form, role: form.role, picture_url })
+        if (photoFile || signatureFile) {
+          const picture_url = photoFile ? await uploadStaffPhoto(newUid, photoFile) : undefined
+          const signature_url = signatureFile ? await uploadStaffSignature(newUid, signatureFile) : undefined
+          await updateStaff(newUid, { ...form, role: form.role, picture_url, signature_url })
         }
       }
       navigate('/staff')
@@ -142,6 +157,33 @@ export default function StaffForm() {
             accept="image/jpeg,image/png,image/webp"
             style={{ display: 'none' }}
             onChange={handlePhotoSelect}
+          />
+        </div>
+
+        {/* Signature */}
+        <div className="form-section-title">E-Signature</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 20 }}>
+          <div
+            className="profile-signature-box"
+            onClick={() => document.getElementById('staff-signature-input').click()}
+          >
+            {(signaturePreview || existingSignatureUrl)
+              ? <img src={signaturePreview || existingSignatureUrl} alt="Signature" className="profile-signature-box__img" />
+              : <span style={{ fontSize: 11, color: '#9ca3af' }}>No signature</span>
+            }
+          </div>
+          <div>
+            <button type="button" className="btn btn--ghost btn--sm" onClick={() => document.getElementById('staff-signature-input').click()}>
+              <PenTool size={13} /> {(signaturePreview || existingSignatureUrl) ? 'Change Signature' : 'Upload Signature'}
+            </button>
+            <div className="form-hint" style={{ marginTop: 4 }}>Used on Screening and other forms that require this staff member's signature.</div>
+          </div>
+          <input
+            id="staff-signature-input"
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            style={{ display: 'none' }}
+            onChange={handleSignatureSelect}
           />
         </div>
 
@@ -223,6 +265,12 @@ export default function StaffForm() {
             <label className="form-label">Date of Appointment</label>
             <input className="form-input" type="date" value={form.date_of_appointment} onChange={(e) => set('date_of_appointment', e.target.value)} />
           </div>
+        </div>
+
+        <div className="form-group">
+          <label className="form-label">Staff ID</label>
+          <input className="form-input" value={form.staff_id} onChange={(e) => set('staff_id', e.target.value)} placeholder="As issued by management" />
+          <span className="form-hint">The official Staff ID issued by management — not auto-generated. Leave blank if not yet known; the staff member can also fill this in themselves from My Profile.</span>
         </div>
 
         {!isEdit && (

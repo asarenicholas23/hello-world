@@ -6,7 +6,11 @@ import { fmtDate } from '../../utils/records'
 import { facilityPath } from '../../utils/fileNumbers'
 import Spinner from '../Spinner'
 import RecordDocumentModal from '../RecordDocumentModal'
-import { ADMIN_VIEW_ROLES, FIELD_ROLES } from '../../data/constants'
+import { FIELD_ROLES, hasFullDataAccess } from '../../data/constants'
+
+function recordTitle(r) {
+  return (r.sector_prefix === 'PP' || r.facility_sub_type === 'PP') ? 'Pesticides Checklist' : 'Screening'
+}
 
 function DecisionBadge({ record }) {
   if (record.permit_declined === 'Yes') {
@@ -24,7 +28,7 @@ function DecisionBadge({ record }) {
   return null
 }
 
-export default function ScreeningsTab({ fileNumber, role }) {
+export default function ScreeningsTab({ fileNumber, role, dataAccess }) {
   const navigate = useNavigate()
   const [records, setRecords]   = useState([])
   const [loading, setLoading]   = useState(true)
@@ -56,7 +60,7 @@ export default function ScreeningsTab({ fileNumber, role }) {
     finally { setDeletingId(null) }
   }
 
-  const canEdit = ADMIN_VIEW_ROLES.has(role) || FIELD_ROLES.has(role)
+  const canEdit = hasFullDataAccess(role, dataAccess) || FIELD_ROLES.has(role)
   const selectedIdSet = new Set(selectedIds)
   const visibleRecordIds = records.map((r) => r.id)
   const allVisibleSelected = visibleRecordIds.length > 0 && visibleRecordIds.every((id) => selectedIdSet.has(id))
@@ -145,7 +149,7 @@ export default function ScreeningsTab({ fileNumber, role }) {
                     </label>
                   )}
                   {r.screening_id && <span className="file-num" style={{ fontSize: 11, marginRight: 6 }}>{r.screening_id}</span>}
-                  Screening — {fmtDate(r.inspection_date ?? r.date)}
+                  {recordTitle(r)} — {fmtDate(r.inspection_date ?? r.date)}
                 </span>
                 <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
                   <DecisionBadge record={r} />

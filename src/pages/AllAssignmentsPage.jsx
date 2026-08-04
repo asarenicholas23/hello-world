@@ -5,7 +5,7 @@ import { listFacilities } from '../firebase/facilities'
 import { listFieldReports } from '../firebase/fieldReports'
 import { listStaff } from '../firebase/staff'
 import { useAuth } from '../context/AuthContext'
-import { createTask, listAllTasks } from '../firebase/tasks'
+import { createTask, updateTaskAssignment, listAllTasks } from '../firebase/tasks'
 import { createNotification } from '../firebase/notifications'
 import { facilityPath } from '../utils/fileNumbers'
 import Spinner from '../components/Spinner'
@@ -21,9 +21,12 @@ export default function AllAssignmentsPage() {
   const [tasks, setTasks]         = useState([])
   const [allStaff, setAllStaff]   = useState([])
   const [allFacilities, setAllFacilities] = useState([])
+  const [allFieldReports, setAllFieldReports] = useState([])
   const [loading, setLoading]     = useState(true)
   const [error, setError]         = useState('')
   const [taskDialogOpen, setTaskDialogOpen] = useState(false)
+  const [editingTask, setEditingTask]       = useState(null)
+  const [dialogSession, setDialogSession]   = useState(0)
   const [taskSuccess, setTaskSuccess]       = useState('')
 
   const [filterOfficer, setFilterOfficer]       = useState('')
@@ -43,6 +46,7 @@ export default function AllAssignmentsPage() {
       ])
       setAllStaff(staffList)
       setAllFacilities(facilities)
+      setAllFieldReports(reports)
       setTasks(allTasks)
       const combined = [
         ...facilities.map((f) => ({
@@ -133,6 +137,19 @@ export default function AllAssignmentsPage() {
     listAllTasks().then(setTasks).catch(() => {})
   }
 
+  function handleEditTask(task) {
+    setEditingTask(task)
+    setDialogSession((n) => n + 1)
+    setTaskDialogOpen(true)
+  }
+
+  async function handleSaveTaskEdit(taskId, data) {
+    await updateTaskAssignment(taskId, data, user.uid)
+    setTaskSuccess('Task updated.')
+    setTimeout(() => setTaskSuccess(''), 3500)
+    listAllTasks().then(setTasks).catch(() => {})
+  }
+
   if (loading) return <div className="tab-loading"><Spinner size={24} /></div>
   if (error)   return <div className="login-error" style={{ margin: '12px 0' }}><AlertCircle size={14} /> {error}</div>
 
@@ -151,17 +168,21 @@ export default function AllAssignmentsPage() {
             <p className="page-subtitle">{records.length} facilities · {unassignedCount} unassigned</p>
           </div>
         </div>
-        <button className="btn btn--primary btn--sm" onClick={() => setTaskDialogOpen(true)}>
+        <button className="btn btn--primary btn--sm" onClick={() => { setEditingTask(null); setDialogSession((n) => n + 1); setTaskDialogOpen(true) }}>
           <ClipboardList size={14} /> Assign Task
         </button>
       </div>
 
       <AssignTaskDialog
+        key={dialogSession}
         open={taskDialogOpen}
-        onClose={() => setTaskDialogOpen(false)}
+        onClose={() => { setTaskDialogOpen(false); setEditingTask(null) }}
         onAssign={handleAssignTask}
+        onSaveEdit={handleSaveTaskEdit}
+        editTask={editingTask}
         allStaff={allStaff}
         allFacilities={allFacilities}
+        allFieldReports={allFieldReports}
       />
 
       <div className="tab-bar" style={{ marginTop: 12, marginBottom: 12 }}>
@@ -200,7 +221,7 @@ export default function AllAssignmentsPage() {
           </div>
 
           <div style={{ marginTop: 12 }}>
-            <TaskList tasks={filteredTasks} userUid={user.uid} navigate={navigate} emptyMessage="No tasks match this filter." />
+            <TaskList tasks={filteredTasks} userUid={user.uid} navigate={navigate} emptyMessage="No tasks match this filter." onEdit={handleEditTask} />
           </div>
         </div>
       ) : (

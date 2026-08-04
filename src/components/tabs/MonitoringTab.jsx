@@ -7,7 +7,7 @@ import { facilityPath } from '../../utils/fileNumbers'
 import { MONITORING_CHECKLISTS } from '../../data/monitoringChecklists'
 import Spinner from '../Spinner'
 import RecordDocumentModal from '../RecordDocumentModal'
-import { ADMIN_VIEW_ROLES, FIELD_ROLES } from '../../data/constants'
+import { FIELD_ROLES, hasFullDataAccess } from '../../data/constants'
 
 function complianceSummary(r) {
   const prefix = r.sector_prefix ?? r.mon_id?.split('-')[1]?.replace(/\d+$/, '')
@@ -42,7 +42,7 @@ function ComplianceBadge({ r }) {
   )
 }
 
-export default function MonitoringTab({ fileNumber, role }) {
+export default function MonitoringTab({ fileNumber, role, dataAccess }) {
   const navigate = useNavigate()
   const [records, setRecords] = useState([])
   const [loading, setLoading] = useState(true)
@@ -74,7 +74,7 @@ export default function MonitoringTab({ fileNumber, role }) {
     finally { setDeletingId(null) }
   }
 
-  const canEdit = ADMIN_VIEW_ROLES.has(role) || FIELD_ROLES.has(role)
+  const canEdit = hasFullDataAccess(role, dataAccess) || FIELD_ROLES.has(role)
   const selectedIdSet = new Set(selectedIds)
   const visibleRecordIds = records.map((r) => r.id)
   const allVisibleSelected = visibleRecordIds.length > 0 && visibleRecordIds.every((id) => selectedIdSet.has(id))

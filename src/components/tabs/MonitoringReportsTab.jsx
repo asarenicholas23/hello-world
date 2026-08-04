@@ -11,7 +11,7 @@ import {
 import { listStaff } from '../../firebase/staff'
 import { createNotification } from '../../firebase/notifications'
 import { fmtDate } from '../../utils/records'
-import { ADMIN_VIEW_ROLES, FIELD_ROLES } from '../../data/constants'
+import { FIELD_ROLES, hasFullDataAccess } from '../../data/constants'
 import Spinner from '../Spinner'
 
 // Roles eligible to review/approve an uploaded monitoring report
@@ -35,7 +35,7 @@ function StatusBadge({ status }) {
 }
 
 export default function MonitoringReportsTab({ fileNumber, facilityName }) {
-  const { user, staff, role } = useAuth()
+  const { user, staff, role, dataAccess } = useAuth()
   const navigate = useNavigate()
   const fileInputRef = useRef(null)
 
@@ -50,7 +50,7 @@ export default function MonitoringReportsTab({ fileNumber, facilityName }) {
   const [notesById, setNotesById] = useState({})
   const [deletingId, setDeletingId] = useState(null)
 
-  const canEdit = ADMIN_VIEW_ROLES.has(role) || FIELD_ROLES.has(role)
+  const canEdit = hasFullDataAccess(role, dataAccess) || FIELD_ROLES.has(role)
 
   useEffect(() => { load() }, [fileNumber])
 

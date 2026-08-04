@@ -24,8 +24,17 @@ service cloud.firestore {
       return isSeniorOfficer() || isOfficer() || isAssistantOfficer() || isJuniorOfficer();
     }
 
+    // Separately-granted, role-independent permission: lets a staff member
+    // update/create records and reports without changing their role. Only
+    // an admin can set this (see staff/{uid} rules below). Deliberately does
+    // NOT fold into isAdmin()/ADMIN_ROLES-gated actions (deletes, staff
+    // management, workflow approvals) — only into canEditAllEntries().
+    function hasDataAccess() {
+      return isAuthed() && get(/databases/$(database)/documents/staff/$(request.auth.uid)).data.get('data_access', false) == true;
+    }
+
     function canEditAllEntries() {
-      return isDirector() || isAdmin() || isSeniorOfficer() || isOfficer();
+      return isDirector() || isAdmin() || isSeniorOfficer() || isOfficer() || hasDataAccess();
     }
 
     // ── Staff ──────────────────────────────────────────────────
@@ -40,7 +49,8 @@ service cloud.firestore {
                                 || (isAuthed() && request.auth.uid == uid
                                     && request.resource.data.role       == resource.data.role
                                     && request.resource.data.system_id  == resource.data.system_id
-                                    && request.resource.data.role_level == resource.data.role_level);
+                                    && request.resource.data.role_level == resource.data.role_level
+                                    && request.resource.data.get('data_access', false) == resource.data.get('data_access', false));
     }
 
     // ── Counters ───────────────────────────────────────────────
@@ -52,14 +62,14 @@ service cloud.firestore {
     // ── Facilities ─────────────────────────────────────────────
     match /facilities/{fileNumber} {
       allow read:          if isAuthed();
-      allow create:        if isAdmin() || isFieldRole();
+      allow create:        if isAdmin() || isFieldRole() || hasDataAccess();
       allow update:        if canEditAllEntries() || isFinance() || isFieldRole();
       allow delete:        if canEditAllEntries();
 
       // Permits — admin/director full access; assigned field officer can create
       match /permits/{id} {
         allow read:           if isAuthed();
-        allow create:         if isAdmin() || isDirector()
+        allow create:         if isAdmin() || isDirector() || hasDataAccess()
                                 || (isFieldRole() && get(/databases/$(database)/documents/facilities/$(fileNumber)).data.primary_officer == request.auth.uid);
         allow update:         if canEditAllEntries();
         allow delete:         if canEditAllEntries();
@@ -198,7 +208,7 @@ service cloud.firestore {
 
     // ── SMS log (written only by Cloud Functions via Admin SDK) ───
     match /sms_log/{id} {
-      allow read:  if isAdmin() || isDirector();
+      allow read:  if isAdmin() || isDirector() || hasDataAccess();
       allow write: if false;
     }
     match /sms_dedup/{id} {
@@ -207,7 +217,7 @@ service cloud.firestore {
 
     // ── Email log (written only by Cloud Functions via Admin SDK) ─
     match /email_log/{id} {
-      allow read:  if isAdmin() || isDirector();
+      allow read:  if isAdmin() || isDirector() || hasDataAccess();
       allow write: if false;
     }
 

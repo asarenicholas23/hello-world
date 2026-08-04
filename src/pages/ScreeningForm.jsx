@@ -6,14 +6,27 @@ import { useSync } from '../context/SyncContext'
 import { useGPS } from '../hooks/useGPS'
 import { getSubRecord, createSubRecord, updateSubRecord, listSubRecords } from '../firebase/subrecords'
 import { linkPermitWorkflowRecord } from '../firebase/workflow'
+import { getFacility } from '../firebase/facilities'
 import { listStaff, getStaffMember } from '../firebase/staff'
-import { tsToInput } from '../utils/records'
+import { tsToInput, inputToTs } from '../utils/records'
 import { decodeFileNumberParam, facilityPath } from '../utils/fileNumbers'
 import Spinner from '../components/Spinner'
 import ScreeningFields from '../components/forms/ScreeningFields'
+import ChecklistFields from '../components/forms/ChecklistFields'
 import { EMPTY_SCREENING_FORM, buildScreeningPayload } from '../data/screeningFieldMeta'
+import { SITE_VERIFICATION_CHECKLISTS } from '../data/siteVerificationChecklists'
 
 const EMPTY = EMPTY_SCREENING_FORM
+const PP_CHECKLIST = SITE_VERIFICATION_CHECKLISTS.PP
+
+function buildChecklistDefaults(checklist) {
+  const defaults = {}
+  for (const section of checklist.sections) {
+    for (const item of section.items) defaults[item.key] = ''
+  }
+  for (const field of checklist.extraFields ?? []) defaults[field.key] = ''
+  return defaults
+}
 
 export default function ScreeningForm() {
   const params = useParams()
@@ -25,17 +38,22 @@ export default function ScreeningForm() {
   const { user, staff } = useAuth()
   const { isOnline } = useSync()
 
+  const [sectorPrefix, setSectorPrefix] = useState(null)
+  const isPesticide = sectorPrefix === 'PP'
+
   const [form, setForm]               = useState(EMPTY)
+  const [checklistData, setChecklistData] = useState({ date: '', notes: '', ...buildChecklistDefaults(PP_CHECKLIST) })
   const [screeningId, setScreeningId] = useState('')
   const [photos, setPhotos]           = useState([])
   const [allStaff, setAllStaff]       = useState([])
   const [secondOfficerUid, setSecondOfficerUid] = useState('')
   const { coordinates, setCoordinates, loading: gpsLoading, error: gpsError, capture: captureGPS, clear: clearGPS } = useGPS()
-  const [initialLoading, setInitialLoading] = useState(isEditing)
+  const [initialLoading, setInitialLoading] = useState(true)
   const [submitting, setSubmitting]   = useState(false)
   const [error, setError]             = useState('')
 
   const set = (field, value) => setForm((f) => ({ ...f, [field]: value }))
+  const setChecklistField = (key, value) => setChecklistData((p) => ({ ...p, [key]: value }))
   const setManualCoordinates = (nextCoordinates) => {
     setCoordinates(nextCoordinates)
     setForm((f) => ({
@@ -50,93 +68,151 @@ export default function ScreeningForm() {
   }, [])
 
   useEffect(() => {
-    if (isEditing) {
-      getSubRecord(fileNumber, 'screenings', recordId)
-        .then((rec) => {
+    async function load() {
+      try {
+        const facility = await getFacility(fileNumber).catch(() => null)
+        const loadedSectorPrefix = facility?.sector_prefix ?? null
+        setSectorPrefix(loadedSectorPrefix)
+        const usesPesticideChecklist = loadedSectorPrefix === 'PP'
+
+        if (isEditing) {
+          const rec = await getSubRecord(fileNumber, 'screenings', recordId)
           if (!rec) { setError('Record not found.'); return }
-          setForm({
-            ea1_receipt_date:        tsToInput(rec.ea1_receipt_date) ?? '',
-            inspection_date:         tsToInput(rec.inspection_date ?? rec.date) ?? '',
-            proponent_name:          rec.proponent_name         ?? '',
-            company_name:            rec.company_name           ?? '',
-            type_of_undertaking:     rec.type_of_undertaking    ?? '',
-            components:              rec.components             ?? '',
-            capacity:                rec.capacity               ?? '',
-            land_take:               rec.land_take              ?? '',
-            liquid_waste:            rec.liquid_waste           ?? '',
-            solid_waste:             rec.solid_waste            ?? '',
-            gaseous_waste:           rec.gaseous_waste          ?? '',
-            description_comments:    rec.description_comments   ?? '',
-            plot_no:                 rec.plot_no                ?? '',
-            street_area:             rec.street_area            ?? '',
-            town:                    rec.town                   ?? '',
-            district:                rec.district               ?? '',
-            major_landmark:          rec.major_landmark         ?? '',
-            current_zoning:          rec.current_zoning         ?? '',
-            adjacent_land_use:       rec.adjacent_land_use      ?? '',
-            north:                   rec.north                  ?? '',
-            south:                   rec.south                  ?? '',
-            east:                    rec.east                   ?? '',
-            west:                    rec.west                   ?? '',
-            latitude:                rec.latitude               ?? '',
-            longitude:               rec.longitude              ?? '',
-            existing_infrastructure: rec.existing_infrastructure?? '',
-            site_information_comments: rec.site_information_comments ?? '',
-            construction_impacts:    rec.construction_impacts   ?? '',
-            operational_impacts:     rec.operational_impacts    ?? '',
-            impacts_in_ea1:          rec.impacts_in_ea1         ?? '',
-            mitigation_measures:     rec.mitigation_measures    ?? '',
-            neighbour_name:          rec.neighbour_name         ?? '',
-            neighbour_contact:       rec.neighbour_contact      ?? '',
-            neighbour_location:      rec.neighbour_location     ?? '',
-            neighbour_comments:      rec.neighbour_comments     ?? '',
-            observations:            rec.observations           ?? '',
-            comments:                rec.comments               ?? '',
-            permit_recommended:      rec.permit_recommended     ?? '',
-            additional_info_required:rec.additional_info_required ?? '',
-            per_recommended:         rec.per_recommended        ?? '',
-            eia_recommended:         rec.eia_recommended        ?? '',
-            permit_declined:         rec.permit_declined        ?? '',
-            permit_declined_reason:  rec.permit_declined_reason ?? '',
-          })
+
+          if (usesPesticideChecklist) {
+            const defaults = buildChecklistDefaults(PP_CHECKLIST)
+            const merged = { ...defaults }
+            for (const key of Object.keys(defaults)) {
+              if (rec[key] !== undefined) merged[key] = rec[key]
+            }
+            setChecklistData({
+              date:  tsToInput(rec.date ?? rec.inspection_date),
+              notes: rec.notes ?? '',
+              ...merged,
+            })
+          } else {
+            setForm({
+              ea1_receipt_date:        tsToInput(rec.ea1_receipt_date) ?? '',
+              inspection_date:         tsToInput(rec.inspection_date ?? rec.date) ?? '',
+              proponent_name:          rec.proponent_name         ?? '',
+              company_name:            rec.company_name           ?? '',
+              type_of_undertaking:     rec.type_of_undertaking    ?? '',
+              components:              rec.components             ?? '',
+              capacity:                rec.capacity               ?? '',
+              land_take:               rec.land_take              ?? '',
+              liquid_waste:            rec.liquid_waste           ?? '',
+              solid_waste:             rec.solid_waste            ?? '',
+              gaseous_waste:           rec.gaseous_waste          ?? '',
+              description_comments:    rec.description_comments   ?? '',
+              plot_no:                 rec.plot_no                ?? '',
+              street_area:             rec.street_area            ?? '',
+              town:                    rec.town                   ?? '',
+              district:                rec.district               ?? '',
+              major_landmark:          rec.major_landmark         ?? '',
+              current_zoning:          rec.current_zoning         ?? '',
+              adjacent_land_use:       rec.adjacent_land_use      ?? '',
+              north:                   rec.north                  ?? '',
+              south:                   rec.south                  ?? '',
+              east:                    rec.east                   ?? '',
+              west:                    rec.west                   ?? '',
+              latitude:                rec.latitude               ?? '',
+              longitude:               rec.longitude              ?? '',
+              existing_infrastructure: rec.existing_infrastructure?? '',
+              site_information_comments: rec.site_information_comments ?? '',
+              construction_impacts:    rec.construction_impacts   ?? '',
+              operational_impacts:     rec.operational_impacts    ?? '',
+              impacts_in_ea1:          rec.impacts_in_ea1         ?? '',
+              mitigation_measures:     rec.mitigation_measures    ?? '',
+              neighbour_name:          rec.neighbour_name         ?? '',
+              neighbour_contact:       rec.neighbour_contact      ?? '',
+              neighbour_location:      rec.neighbour_location     ?? '',
+              neighbour_comments:      rec.neighbour_comments     ?? '',
+              observations:            rec.observations           ?? '',
+              comments:                rec.comments               ?? '',
+              permit_recommended:      rec.permit_recommended     ?? '',
+              additional_info_required:rec.additional_info_required ?? '',
+              per_recommended:         rec.per_recommended        ?? '',
+              eia_recommended:         rec.eia_recommended        ?? '',
+              permit_declined:         rec.permit_declined        ?? '',
+              permit_declined_reason:  rec.permit_declined_reason ?? '',
+            })
+          }
           setScreeningId(rec.screening_id ?? rec.id)
           setPhotos(rec.photos ?? [])
           setSecondOfficerUid(rec.second_officer_id ?? '')
           if (rec.coordinates) setCoordinates(rec.coordinates)
-        })
-        .catch(() => setError('Failed to load record.'))
-        .finally(() => setInitialLoading(false))
-    } else {
-      // Generate screening_id: SCR-{fileNumber}-{padded count}
-      listSubRecords(fileNumber, 'screenings')
-        .then((existing) => {
+        } else {
+          // Generate screening_id: SCR-{fileNumber}-{padded count}
+          const existing = await listSubRecords(fileNumber, 'screenings').catch(() => [])
           const next = String(existing.length + 1).padStart(3, '0')
           setScreeningId(`SCR-${fileNumber}-${next}`)
-        })
-        .catch(() => setScreeningId(`SCR-${fileNumber}-001`))
+        }
+      } catch {
+        setError('Failed to load data.')
+      } finally {
+        setInitialLoading(false)
+      }
     }
+    load()
   }, [fileNumber, recordId, isEditing, setCoordinates])
+
+  function isChecklistItemVisible(item) {
+    if (!item.conditional) return true
+    return checklistData[item.conditional.key] === item.conditional.value
+  }
 
   async function handleSubmit(e) {
     e.preventDefault()
-    if (!form.inspection_date) { setError('Inspection date is required.'); return }
+
+    if (isPesticide) {
+      if (!checklistData.date) { setError('Date is required.'); return }
+    } else if (!form.inspection_date) {
+      setError('Inspection date is required.'); return
+    }
 
     setSubmitting(true)
     setError('')
 
     const secondOfficer = secondOfficerUid ? await getStaffMember(secondOfficerUid).catch(() => null) : null
 
-    const payload = {
-      ...buildScreeningPayload(form, coordinates),
-      screening_id:                  screeningId,
-      linked_permit_id:              location.state?.permitId ?? '',
-      officer_id:                    user.uid,
-      officer_name:                  staff?.name ?? '',
-      officer_signature_url:         staff?.signature_url ?? '',
-      second_officer_id:             secondOfficerUid || '',
-      second_officer_name:           secondOfficer?.name ?? '',
-      second_officer_signature_url:  secondOfficer?.signature_url ?? '',
-      photos,
+    let payload
+    if (isPesticide) {
+      payload = {
+        date:                          inputToTs(checklistData.date),
+        screening_id:                  screeningId,
+        officer_id:                    user.uid,
+        officer_name:                  staff?.name ?? '',
+        officer_signature_url:         staff?.signature_url ?? '',
+        second_officer_id:             secondOfficerUid || '',
+        second_officer_name:           secondOfficer?.name ?? '',
+        second_officer_signature_url:  secondOfficer?.signature_url ?? '',
+        coordinates: coordinates ?? null,
+        photos,
+        notes: checklistData.notes.trim(),
+        sector_prefix: 'PP',
+        facility_sub_type: 'PP',
+      }
+      for (const section of PP_CHECKLIST.sections) {
+        for (const item of section.items) {
+          if (isChecklistItemVisible(item)) payload[item.key] = checklistData[item.key] ?? ''
+        }
+      }
+      for (const field of PP_CHECKLIST.extraFields ?? []) {
+        payload[field.key] = checklistData[field.key] ?? ''
+      }
+    } else {
+      payload = {
+        ...buildScreeningPayload(form, coordinates),
+        screening_id:                  screeningId,
+        linked_permit_id:              location.state?.permitId ?? '',
+        officer_id:                    user.uid,
+        officer_name:                  staff?.name ?? '',
+        officer_signature_url:         staff?.signature_url ?? '',
+        second_officer_id:             secondOfficerUid || '',
+        second_officer_name:           secondOfficer?.name ?? '',
+        second_officer_signature_url:  secondOfficer?.signature_url ?? '',
+        photos,
+      }
     }
 
     try {
@@ -173,7 +249,7 @@ export default function ScreeningForm() {
 
       <div className="page-header" style={{ marginTop: 12 }}>
         <div>
-          <div className="page-title">{isEditing ? 'Edit Screening' : 'New Screening'}</div>
+          <div className="page-title">{isEditing ? 'Edit' : 'New'} {isPesticide ? 'Pesticides Checklist' : 'Screening'}</div>
           <div className="page-subtitle">
             File: <span className="file-num">{fileNumber}</span>
             {screeningId && <> · ID: <span className="file-num">{screeningId}</span></>}
@@ -196,24 +272,52 @@ export default function ScreeningForm() {
 
       <form onSubmit={handleSubmit}>
 
-        <ScreeningFields
-          form={form}
-          set={set}
-          officerName={staff?.name}
-          coordinates={coordinates}
-          gpsLoading={gpsLoading}
-          gpsError={gpsError}
-          onCaptureGPS={captureGPS}
-          onClearGPS={clearGPS}
-          onManualCoordinates={setManualCoordinates}
-          photos={photos}
-          onPhotosChange={setPhotos}
-          photoFileNumber={fileNumber}
-          photoCategory="screenings"
-          secondOfficerUid={secondOfficerUid}
-          onSecondOfficerChange={setSecondOfficerUid}
-          staffOptions={allStaff.filter((s) => s.id !== user.uid)}
-        />
+        {isPesticide ? (
+          <ChecklistFields
+            checklist={PP_CHECKLIST}
+            detailsTitle="Inspection Details"
+            dateLabel="Inspection Date"
+            date={checklistData.date}
+            onDateChange={(v) => setChecklistField('date', v)}
+            officerName={staff?.name}
+            secondOfficerUid={secondOfficerUid}
+            onSecondOfficerChange={setSecondOfficerUid}
+            staffOptions={allStaff.filter((s) => s.id !== user.uid)}
+            coordinates={coordinates}
+            gpsLoading={gpsLoading}
+            gpsError={gpsError}
+            onCaptureGPS={captureGPS}
+            onClearGPS={clearGPS}
+            onManualCoordinates={setCoordinates}
+            formData={checklistData}
+            set={setChecklistField}
+            notes={checklistData.notes}
+            onNotesChange={(v) => setChecklistField('notes', v)}
+            photos={photos}
+            onPhotosChange={setPhotos}
+            photoFileNumber={fileNumber}
+            photoCategory="screenings"
+          />
+        ) : (
+          <ScreeningFields
+            form={form}
+            set={set}
+            officerName={staff?.name}
+            coordinates={coordinates}
+            gpsLoading={gpsLoading}
+            gpsError={gpsError}
+            onCaptureGPS={captureGPS}
+            onClearGPS={clearGPS}
+            onManualCoordinates={setManualCoordinates}
+            photos={photos}
+            onPhotosChange={setPhotos}
+            photoFileNumber={fileNumber}
+            photoCategory="screenings"
+            secondOfficerUid={secondOfficerUid}
+            onSecondOfficerChange={setSecondOfficerUid}
+            staffOptions={allStaff.filter((s) => s.id !== user.uid)}
+          />
+        )}
 
         <div className="form-actions">
           <button type="button" className="btn btn--ghost"

@@ -138,7 +138,7 @@ exports.weeklyUnpaidReminders = onSchedule({
     const key = `unpaid_${fileNumber}_${doc.id}_${weekKey}`
     if (await alreadySent(db, key)) continue
 
-    const msg = unpaidInvoice(facility.name, fileNumber, data.payment_type ?? 'invoice', data.amount ?? 0)
+    const msg = unpaidInvoice(facility.name, fileNumber, [{ payment_type: data.payment_type ?? 'invoice', amount: data.amount ?? 0 }])
     try {
       const resp = await sendSms(apiKey, [phone], msg)
       await logSms(db, { recipients: [phone], message: msg, template: 'unpaid_invoice', facility_id: fileNumber, triggered_by: 'scheduled', status: 'sent', arkesel_response: resp })

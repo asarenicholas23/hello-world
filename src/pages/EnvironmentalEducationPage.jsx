@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom'
 import { Plus, Search, Edit2, Trash2, AlertCircle, ChevronDown, ChevronUp, Users, Image } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { listEnvEducation, deleteEnvEducation } from '../firebase/envEducation'
-import { ADMIN_ROLES, FIELD_ROLES, ADMIN_VIEW_ROLES } from '../data/constants'
+import { ADMIN_ROLES, FIELD_ROLES, hasFullDataAccess } from '../data/constants'
 import { fmtDate } from '../utils/records'
 import Spinner from '../components/Spinner'
 
@@ -25,13 +25,13 @@ function typeLabel(value) {
 }
 
 export default function EnvironmentalEducationPage() {
-  const { user, role } = useAuth()
+  const { user, role, dataAccess } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
 
   const canWrite = ADMIN_ROLES.has(role) || FIELD_ROLES.has(role)
   const isAdmin  = ADMIN_ROLES.has(role)
-  const canEditAllEntries = ADMIN_VIEW_ROLES.has(role)
+  const canEditAllEntries = hasFullDataAccess(role, dataAccess)
 
   const [records, setRecords]       = useState([])
   const [loading, setLoading]       = useState(true)

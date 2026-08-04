@@ -1,4 +1,4 @@
-import { inputToTs } from '../utils/records'
+import { inputToTs, tsToInput } from '../utils/records'
 
 // Section/label metadata for the Screening form fields — used by the task
 // review UI to render a commentable list that mirrors ScreeningFields.jsx's
@@ -121,4 +121,25 @@ export function buildScreeningPayload(form, coordinates) {
   payload.ea1_receipt_date = inputToTs(form.ea1_receipt_date)
   payload.coordinates = coordinates ?? null
   return payload
+}
+
+const DATE_KEYS = ['inspection_date', 'ea1_receipt_date']
+
+/**
+ * Converts an already-captured screening record (e.g. the `screening` object
+ * embedded on a field_reports doc, or a facilities/{fn}/screenings doc) back
+ * into the flat form-state shape ScreeningFields/TaskFillPage expect, so
+ * previously-captured details can pre-fill a new screening task instead of
+ * the officer re-typing everything. Date fields come back as Timestamps, so
+ * they're converted back to 'YYYY-MM-DD' strings for the date inputs.
+ */
+export function screeningRecordToForm(record) {
+  if (!record) return null
+  const form = { ...EMPTY_SCREENING_FORM }
+  for (const key of Object.keys(EMPTY_SCREENING_FORM)) {
+    const val = record[key]
+    if (val === undefined || val === null || val === '') continue
+    form[key] = DATE_KEYS.includes(key) ? tsToInput(val) : val
+  }
+  return form
 }

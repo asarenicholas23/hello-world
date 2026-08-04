@@ -55,6 +55,16 @@ const DOC_TITLES = {
   enforcement:        'ENFORCEMENT ACTION RECORD',
 }
 
+/** Agrochemical/Pesticide facilities use the Pesticides Checklist for both
+ *  their Screening and Site Verification tasks — override the printed/modal
+ *  title accordingly regardless of which task type produced the record. */
+function docTitle(type, record) {
+  if ((type === 'screening' || type === 'site_verification') && record && (record.sector_prefix === 'PP' || record.facility_sub_type === 'PP')) {
+    return 'PESTICIDES CHECKLIST'
+  }
+  return DOC_TITLES[type] ?? ''
+}
+
 const EDIT_ROUTES = {
   screening:         (fn, id) => facilityPath(fn, `/screenings/${id}/edit`),
   site_verification: (fn, id) => facilityPath(fn, `/site-verifications/${id}/edit`),
@@ -62,8 +72,17 @@ const EDIT_ROUTES = {
   enforcement:       (fn, id) => facilityPath(fn, `/enforcement/${id}/edit`),
 }
 
+/** Agrochemical/Pesticide facilities file a Pesticides Checklist instead of
+ *  the standard EA1 screening — its data is checklist-shaped, not the fixed
+ *  screening field set, so it renders through SiteVerificationDoc instead. */
+function isPesticideChecklistRecord(r) {
+  return r.sector_prefix === 'PP' || r.facility_sub_type === 'PP'
+}
+
 // ── Screening document — matches official EPA Screening Report form ──────────
 function ScreeningDoc({ record: r, facility: f }) {
+  if (isPesticideChecklistRecord(r)) return <SiteVerificationDoc record={r} facility={f} />
+
   const gps = (r.latitude && r.longitude)
     ? `${r.latitude}, ${r.longitude}`
     : (r.coordinates?.lat != null)
@@ -668,14 +687,14 @@ export default function RecordDocumentModal({ type, record, fileNumber, onClose 
 <html>
 <head>
   <meta charset="utf-8">
-  <title>${DOC_TITLES[type]} — ${facility?.name ?? fileNumber}</title>
+  <title>${docTitle(type, record)} — ${facility?.name ?? fileNumber}</title>
   <style>${PRINT_CSS}</style>
 </head>
 <body>
   <div class="doc-header">
     <div class="doc-header__org">Environmental Protection Authority</div>
     <div class="doc-header__office">Konongo Area Office &middot; Ashanti Region</div>
-    <div class="doc-header__title">${DOC_TITLES[type]}</div>
+    <div class="doc-header__title">${docTitle(type, record)}</div>
     <div class="doc-header__fileno">REGISTRATION/FILE NO: <strong>${fileNumber || 'Not yet registered'}</strong></div>
     <div class="doc-header__meta">
       <span>Date: ${docDate}</span>
@@ -704,7 +723,7 @@ export default function RecordDocumentModal({ type, record, fileNumber, onClose 
 
         <div className="doc-modal-toolbar">
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <span className="doc-modal-toolbar__title">{DOC_TITLES[type]}</span>
+            <span className="doc-modal-toolbar__title">{docTitle(type, record)}</span>
           </div>
           <div style={{ display: 'flex', gap: 6 }}>
             <button className="btn btn--ghost btn--sm" onClick={handlePrint} title="Print or save as PDF">
@@ -728,7 +747,7 @@ export default function RecordDocumentModal({ type, record, fileNumber, onClose 
             <div className="doc-paper-header">
               <div className="doc-paper-header__org">ENVIRONMENTAL PROTECTION AUTHORITY</div>
               <div className="doc-paper-header__office">Konongo Area Office · Ashanti Region</div>
-              <div className="doc-paper-header__title">{DOC_TITLES[type]}</div>
+              <div className="doc-paper-header__title">{docTitle(type, record)}</div>
               <div className="doc-paper-header__fileno">
                 REGISTRATION/FILE NO: <strong>{fileNumber || 'Not yet registered'}</strong>
               </div>
@@ -746,7 +765,7 @@ export default function RecordDocumentModal({ type, record, fileNumber, onClose 
               )}
 
               {/* Signature block */}
-              {type === 'screening' ? (
+              {(type === 'screening' || type === 'site_verification') ? (
                 <div className="doc-sig-block">
                   <div className="doc-sig-grid">
                     <SignatureItem label="Officer 1" name={record.officer_name} signatureUrl={record.officer_signature_url} />

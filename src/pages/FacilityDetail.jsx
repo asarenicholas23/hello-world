@@ -11,7 +11,7 @@ import { getFacility, deleteFacility } from '../firebase/facilities'
 import { assignRecord, unassignRecord, addSupportingOfficerToRecord, getRecordAssignmentHistory } from '../firebase/assignments'
 import { listStaff } from '../firebase/staff'
 import { createNotification } from '../firebase/notifications'
-import { SECTOR_COLORS, DISTRICTS, FIELD_ROLES, ADMIN_ROLES, ADMIN_VIEW_ROLES, ROLE_LABEL } from '../data/constants'
+import { SECTOR_COLORS, DISTRICTS, FIELD_ROLES, ADMIN_ROLES, ROLE_LABEL, hasFullDataAccess } from '../data/constants'
 import Spinner from '../components/Spinner'
 import AssignOfficerDialog from '../components/AssignOfficerDialog'
 import WorkflowPanel from '../components/WorkflowPanel'
@@ -54,7 +54,7 @@ function districtName(code) {
 export default function FacilityDetail() {
   const params = useParams()
   const fileNumber = decodeFileNumberParam(params.fileNumber)
-  const { user, role } = useAuth()
+  const { user, role, dataAccess } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
 
@@ -76,7 +76,7 @@ export default function FacilityDetail() {
   const [successMsg, setSuccessMsg]         = useState('')
 
   const canAssign = ADMIN_ROLES.has(role) || FIELD_ROLES.has(role)
-  const canEditAllEntries = ADMIN_VIEW_ROLES.has(role)
+  const canEditAllEntries = hasFullDataAccess(role, dataAccess)
 
   useEffect(() => {
     getFacility(fileNumber)
@@ -368,12 +368,12 @@ export default function FacilityDetail() {
         </div>
         <div style={{ padding: '4px 0 8px' }}>
           {activeTab === 'permits'            && <PermitsTab           fileNumber={fileNumber} facilityOfficer={facility.primary_officer ?? null} />}
-          {activeTab === 'finance'            && <FinanceTab           fileNumber={fileNumber} role={role} />}
-          {activeTab === 'screenings'         && <ScreeningsTab        fileNumber={fileNumber} role={role} />}
-          {activeTab === 'site_verifications' && <SiteVerificationsTab fileNumber={fileNumber} role={role} />}
-          {activeTab === 'monitoring'         && <MonitoringTab        fileNumber={fileNumber} role={role} />}
+          {activeTab === 'finance'            && <FinanceTab           fileNumber={fileNumber} role={role} dataAccess={dataAccess} />}
+          {activeTab === 'screenings'         && <ScreeningsTab        fileNumber={fileNumber} role={role} dataAccess={dataAccess} />}
+          {activeTab === 'site_verifications' && <SiteVerificationsTab fileNumber={fileNumber} role={role} dataAccess={dataAccess} />}
+          {activeTab === 'monitoring'         && <MonitoringTab        fileNumber={fileNumber} role={role} dataAccess={dataAccess} />}
           {activeTab === 'monitoring_reports' && <MonitoringReportsTab fileNumber={fileNumber} facilityName={facility.name} />}
-          {activeTab === 'enforcement'        && <EnforcementTab       fileNumber={fileNumber} role={role} />}
+          {activeTab === 'enforcement'        && <EnforcementTab       fileNumber={fileNumber} role={role} dataAccess={dataAccess} />}
         </div>
       </div>
 

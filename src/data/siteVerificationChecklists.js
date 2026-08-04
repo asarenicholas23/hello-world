@@ -4,6 +4,7 @@
 // conditional: { key, value } — only show item when another field equals that value
 
 export const SV_CHECKLIST_OPTIONS = ['', 'Yes', 'No', 'N/A']
+const YN_OPTIONS = ['', 'Yes', 'No']
 
 export const SITE_VERIFICATION_CHECKLISTS = {
 
@@ -46,72 +47,259 @@ export const SITE_VERIFICATION_CHECKLISTS = {
     ],
   },
 
-  // ── Energy / Fuel/Filling Station (CE_FUEL_STATION) ─────────────
+  // ── Energy / Fuel Service and Filling Stations (CE_FUEL_STATION) ────
+  // Source: EPA "SITE VERIFICATION CHECKLIST — FUEL SERVICE AND FILLING STATIONS"
   CE_FUEL_STATION: {
-    label: 'Fuel/Filling Station',
+    label: 'Fuel Service and Filling Station',
     extraFields: [
-      { key: 'num_pumps',         label: 'Number of Dispenser Pumps',               type: 'text' },
-      { key: 'fuel_types',        label: 'Fuel Types Dispensed',                    type: 'text' },
-      { key: 'num_tanks',         label: 'Number of Storage Tanks',                 type: 'text' },
-      { key: 'total_storage_cap', label: 'Total Storage Capacity (litres)',         type: 'text' },
-      { key: 'tank_type',         label: 'Tank Type (underground / above ground)',  type: 'text' },
+      { key: 'undertaking_type', label: 'Type of Undertaking', type: 'select', options: ['', 'Fuel Filling Station', 'Fuel Service Station'] },
+      { key: 'num_workers',      label: 'Number of Workers',   type: 'text' },
     ],
     sections: [
       {
         title: 'Permits & Licenses',
         items: [
-          { key: 'env_permit',            label: 'Environmental Permit (EPA)' },
-          { key: 'env_certificate',       label: 'Environmental Certificate (EPA)' },
-          { key: 'energy_commission_lic', label: 'Energy Commission License' },
-          { key: 'fire_permit',           label: 'Fire Permit (Ghana National Fire Service)' },
-          { key: 'fire_certificate',      label: 'Fire Certificate (Ghana National Fire Service)' },
-          { key: 'dev_permit',            label: 'Development/Building Permit (MMDA)' },
-          { key: 'assembly_license',      label: 'District/Metro Assembly Operational License' },
-          { key: 'work_force',            label: 'Workforce', type: 'text' },
+          { key: 'env_permit',              label: 'Environmental Permit (EPA)' },
+          { key: 'env_certificate',         label: 'Environmental Certificate (EPA)' },
+          { key: 'npa_construction_permit', label: 'Construction Permit (National Petroleum Authority)' },
+          { key: 'npa_operational_permit',  label: 'Operational Permit (National Petroleum Authority)' },
+          { key: 'fire_permit',             label: 'Fire Permit (Ghana National Fire Service)' },
+          { key: 'fire_certificate',        label: 'Fire Certificate (Ghana National Fire Service)' },
+          { key: 'dev_permit',              label: 'Development Permit (Town and Country Planning Dept.)' },
+          { key: 'building_permit',         label: 'Building Permit (Town and Country Planning Dept.)' },
         ],
       },
       {
-        title: 'Storage Tanks & Equipment',
+        title: 'Site Description',
         items: [
-          { key: 'leak_detection',      label: 'Leak detection system available' },
-          { key: 'overfill_protection', label: 'Overfill protection devices in place' },
-          { key: 'double_wall_tanks',   label: 'Double-walled / secondary containment tanks' },
-          { key: 'vent_pipes',          label: 'Vent pipes installed on tanks' },
-          { key: 'tank_inspection_log', label: 'Tank inspection log maintained' },
-          { key: 'tank_condition',      label: 'Tank condition', type: 'select', options: ['', 'Excellent', 'Good', 'Fair', 'Poor'] },
+          { key: 'land_use_changes',            label: 'Changes in adjacent land uses since establishment' },
+          { key: 'land_use_changes_compatible', label: 'If yes — are the changes compatible with the facility?', conditional: { key: 'land_use_changes', value: 'Yes' } },
+          { key: 'current_zoning',              label: 'Current zoning',                            type: 'text' },
+          { key: 'distance_nearest_facility',   label: 'Approximate distance to the nearest facility', type: 'text' },
+          { key: 'adjacent_land_uses',          label: 'Adjacent land uses',                        type: 'text' },
+          { key: 'nearness_water_body',         label: 'Nearness to a water body',                  type: 'text' },
         ],
       },
       {
-        title: 'Spill Prevention & Containment',
+        title: 'Services Provided',
         items: [
-          { key: 'spill_containment',   label: 'Spill containment / forecourt bunding in place' },
-          { key: 'interceptor',         label: 'Oil/water interceptor separator installed' },
-          { key: 'forecourt_drainage',  label: 'Forecourt drainage connected to interceptor' },
-          { key: 'drainage_system',     label: 'Overall drainage system adequate' },
-          { key: 'spill_kit',           label: 'Spill response kit available' },
-          { key: 'spill_response_plan', label: 'Spill response / emergency plan in place' },
-          { key: 'wastewater_quantity', label: 'Approx. wastewater discharged per day', type: 'text' },
+          { key: 'dispensing_fuel',  label: 'Dispensing of Fuel' },
+          { key: 'lube_bay',         label: 'Lube Bay' },
+          { key: 'shopping_mart',    label: 'Shopping Mart' },
+          { key: 'washing_bay',      label: 'Washing Bay' },
+          { key: 'restaurant',       label: 'Restaurant' },
+          { key: 'banking_facility', label: 'Banking Facility' },
+          { key: 'lubricant_shop',   label: 'Lubricant Shop' },
+          { key: 'offices',         label: 'Offices' },
+          { key: 'services_other',  label: 'Others (specify)', type: 'text' },
         ],
       },
       {
-        title: 'Fire Safety',
+        title: 'Storage Tanks',
         items: [
-          { key: 'fire_extinguishers',  label: 'Fire extinguishers available and serviceable' },
-          { key: 'sand_buckets',        label: 'Sand buckets available' },
-          { key: 'no_smoking_signs',    label: 'No smoking / No naked flame signs displayed' },
-          { key: 'fire_alarms',         label: 'Fire alarms installed' },
-          { key: 'emergency_exits',     label: 'Emergency exits available and clearly marked' },
-          { key: 'fire_assembly_point', label: 'Fire assembly point designated' },
-          { key: 'staff_fire_trained',  label: 'Staff trained in fire fighting' },
+          { key: 'tank_type',                     label: 'Type of Tank',      type: 'select', options: ['', 'Steel', 'Fibreglass-Reinforced Plastics (FRP)'] },
+          { key: 'tank_placement',                label: 'Placement of Storage Tanks', type: 'select', options: ['', 'Surface', 'Underground'] },
+          { key: 'petrol_tank_count_capacity',    label: 'Petrol — number and capacity', type: 'text' },
+          { key: 'petrol_installation_year',      label: 'Petrol — year of installation', type: 'text' },
+          { key: 'petrol_replacement_year',       label: 'Petrol — year of replacement',  type: 'text' },
+          { key: 'diesel_tank_count_capacity',    label: 'Diesel — number and capacity', type: 'text' },
+          { key: 'diesel_installation_year',      label: 'Diesel — year of installation', type: 'text' },
+          { key: 'diesel_replacement_year',       label: 'Diesel — year of replacement',  type: 'text' },
+          { key: 'kerosene_tank_count_capacity',  label: 'Kerosene — number and capacity', type: 'text' },
+          { key: 'kerosene_installation_year',    label: 'Kerosene — year of installation', type: 'text' },
+          { key: 'kerosene_replacement_year',     label: 'Kerosene — year of replacement',  type: 'text' },
         ],
       },
       {
-        title: 'Waste Management',
+        title: 'Infrastructure & Utilities',
         items: [
-          { key: 'used_oil_management', label: 'Used oil collected and managed properly',        type: 'text' },
-          { key: 'oily_rag_disposal',   label: 'Oily rags / contaminated waste disposal method', type: 'text' },
-          { key: 'solid_waste',         label: 'Solid waste management',                         type: 'text' },
-          { key: 'sanitary_waste',      label: 'Sanitary waste management',                      type: 'text' },
+          { key: 'water_source',       label: 'Water source', type: 'select', options: ['', 'GWC', 'Water Tanker Service', 'Well/Borehole', 'Others'] },
+          { key: 'power_source',       label: 'Power source', type: 'select', options: ['', 'ECG', 'Stand-by Generator', 'Others'] },
+          { key: 'site_drainage_available', label: 'Site drainage system available' },
+          { key: 'forecourt_condition', label: 'Forecourt condition', type: 'select', options: ['', 'Paved', 'Unpaved'] },
+          { key: 'num_washrooms',      label: 'Number of washrooms', type: 'text' },
+          { key: 'washroom_condition', label: 'Condition of washroom(s)', type: 'text' },
+          { key: 'forecourt_comments', label: 'Comments and observations', type: 'text' },
+        ],
+      },
+      {
+        title: 'Traffic Management',
+        items: [
+          { key: 'access_entry_exit',    label: 'Access to facility: Entry and Exit available' },
+          { key: 'parking_capacity',     label: 'Parking spaces (capacity)', type: 'text' },
+          { key: 'accidents_last_year',  label: 'Number of accident(s) in the last year', type: 'text' },
+        ],
+      },
+      {
+        title: 'Occupational Health and Safety',
+        items: [
+          { key: 'attendant_ehs_training', label: 'Attendant(s) received training in environment, health and safety' },
+          { key: 'first_aid_kit',          label: 'First aid kit available' },
+          { key: 'assembly_point',         label: 'Assembly point for emergency available' },
+          { key: 'protective_clothing',    label: 'Protective clothing (list)', type: 'text' },
+        ],
+      },
+      {
+        title: 'Emergency Response Measures',
+        items: [
+          { key: 'emergency_response_plan',         label: 'Emergency response plan for Fire, Oil Spill and Vehicular Accidents' },
+          { key: 'emergency_spill_kit',              label: 'Emergency response spill kit available' },
+          { key: 'tanks_buried_bunkers',             label: 'Tanks buried in concrete bunkers' },
+          { key: 'staff_firefighting_trained',       label: 'Staff received training in fire fighting' },
+          { key: 'fire_drills_per_year',             label: 'Number of fire drills in a year', type: 'text' },
+          { key: 'staff_oil_spill_trained',          label: 'Staff received training in oil spill management' },
+          { key: 'attendants_safe_handling_trained', label: 'Attendants received training in safe product handling' },
+        ],
+      },
+      {
+        title: 'Environmental Monitoring (Record Keeping)',
+        items: [
+          { key: 'waste_oil_sludge_records',    label: 'Waste oil and sludge generation records kept' },
+          { key: 'spills_leaks_records',        label: 'Spills and leaks records kept' },
+          { key: 'disposal_waste_oil_records',  label: 'Disposal of waste oil and sludge records kept' },
+          { key: 'disposal_solid_waste_records',label: 'Disposal of solid waste records kept' },
+          { key: 'accidents_records',           label: 'Accidents records kept' },
+        ],
+      },
+    ],
+  },
+
+  // ── Energy / LPG Re-filling Plant (CE_LPG) ───────────────────────
+  // Source: EPA "SITE VERIFICATION CHECKLIST — PETROLEUM PRODUCTS RETAIL OUTLETS
+  // LIQUIFIED PETROLEUM GAS (LPG) RE-FILLING PLANT"
+  CE_LPG: {
+    label: 'LPG Re-filling Plant',
+    extraFields: [
+      { key: 'num_workers', label: 'Number of Workers', type: 'text' },
+    ],
+    sections: [
+      {
+        title: 'Permits & Licenses',
+        items: [
+          { key: 'env_permit',              label: 'Environmental Permit (EPA)' },
+          { key: 'env_certificate',         label: 'Environmental Certificate (EPA)' },
+          { key: 'npa_construction_permit', label: 'Construction Permit (National Petroleum Authority)' },
+          { key: 'npa_operational_permit',  label: 'Operational Permit (National Petroleum Authority)' },
+          { key: 'fire_permit',             label: 'Fire Permit (Ghana National Fire Service)' },
+          { key: 'fire_certificate',        label: 'Fire Certificate (Ghana National Fire Service)' },
+          { key: 'dev_permit',              label: 'Development Permit (Town and Country Planning Dept.)' },
+          { key: 'building_permit',         label: 'Building Permit (Town and Country Planning Dept.)' },
+          { key: 'non_destructive_test_cert', label: 'Non-Destructive Test Certificate (Ghana Atomic Energy Commission)' },
+          { key: 'fid_certificate',         label: 'FID Certificate (Factories Inspectorate Department)' },
+          { key: 'gsb_certificate',         label: 'GSB Certificate (Ghana Standards Board)' },
+          { key: 'insurance_certificate',   label: 'Valid Insurance Certificate' },
+        ],
+      },
+      {
+        title: 'Site Description',
+        items: [
+          { key: 'land_use_changes',            label: 'Changes in adjacent land uses since establishment' },
+          { key: 'land_use_changes_compatible', label: 'If yes — are the changes compatible with the facility?', conditional: { key: 'land_use_changes', value: 'Yes' } },
+          { key: 'current_zoning',                    label: 'Current zoning', type: 'text' },
+          { key: 'distance_nearest_facility_water',   label: 'Approximate distance to the nearest facility/water body', type: 'text' },
+        ],
+      },
+      {
+        title: 'Services and Facilities Provided',
+        items: [
+          { key: 'lpg_refilling',              label: 'LPG Re-filling' },
+          { key: 'auto_gas_dispensing',        label: 'Auto Gas Dispensing' },
+          { key: 'sale_filled_cylinders',      label: 'Sale of filled LPG Cylinders' },
+          { key: 'sale_bottles_accessories',   label: 'Sale of LPG Bottles and Accessories' },
+          { key: 'offices',                    label: 'Offices' },
+          { key: 'services_other',             label: 'Others (specify)', type: 'text' },
+        ],
+      },
+      {
+        title: 'Storage Tanks',
+        items: [
+          { key: 'tank_count_capacity',   label: 'Installed capacity — number and capacity', type: 'text' },
+          { key: 'tank_installation_year',label: 'Year of installation', type: 'text' },
+          { key: 'tank_replacement_year', label: 'Year of replacement',  type: 'text' },
+        ],
+      },
+      {
+        title: 'Safety Accessories',
+        items: [
+          { key: 'temperature_gauge',      label: 'Temperature Gauge' },
+          { key: 'pressure_gauge',         label: 'Pressure Gauge' },
+          { key: 'sight_glass',            label: 'Sight glass / Liquid level Gauge' },
+          { key: 'safety_relief_valve',    label: 'Safety Relief Valve / Emergency Shut-off Valve' },
+          { key: 'bottom_drain_valve',     label: 'Bottom Drained Valve' },
+          { key: 'water_sprinklers',       label: 'Water Sprinklers' },
+          { key: 'pressure_balancer',      label: 'Pressure Balancer' },
+          { key: 'stairway_platform',      label: 'Stair way and Platform' },
+          { key: 'grounding_earthing',     label: 'Grounding (Earthing)' },
+          { key: 'flame_fire_arresters',   label: 'Flame/Fire Arresters' },
+        ],
+      },
+      {
+        title: 'Infrastructure & Utilities',
+        items: [
+          { key: 'water_source',       label: 'Water source', type: 'select', options: ['', 'GWC', 'Water Tanker Service', 'Well/Borehole', 'Overhead Water Reservoir', 'Others'] },
+          { key: 'power_source',       label: 'Power source', type: 'select', options: ['', 'ECG', 'Stand-by Generator', 'Others'] },
+          { key: 'site_drainage_available', label: 'Site drainage system available' },
+          { key: 'forecourt_condition', label: 'Forecourt condition', type: 'select', options: ['', 'Paved', 'Unpaved'] },
+          { key: 'num_washrooms',      label: 'Number of washrooms', type: 'text' },
+          { key: 'washroom_condition', label: 'Condition of washroom(s)', type: 'text' },
+          { key: 'forecourt_restricted_public_areas', label: 'Forecourt divided into restricted and public areas' },
+          { key: 'emergency_procedures_displayed',    label: 'Emergency procedures displayed' },
+          { key: 'facility_fenced',    label: 'Facility fenced' },
+          { key: 'forecourt_comments', label: 'Comments and observations', type: 'text' },
+        ],
+      },
+      {
+        title: 'Traffic Management',
+        items: [
+          { key: 'access_entry_exit',   label: 'Access to facility: Entry and Exit available' },
+          { key: 'parking_capacity',    label: 'Parking spaces (capacity)', type: 'text' },
+          { key: 'accidents_last_year', label: 'Number of accident(s) in the last year', type: 'text' },
+        ],
+      },
+      {
+        title: 'Occupational Health and Safety',
+        items: [
+          { key: 'attendant_ehs_training', label: 'Attendant(s) received training in environment, health and safety' },
+          { key: 'first_aid_kit',          label: 'First aid kit available' },
+          { key: 'assembly_point',         label: 'Assembly point for emergency available' },
+          { key: 'protective_clothing',    label: 'Protective clothing (list)', type: 'text' },
+        ],
+      },
+      {
+        title: 'Fire Safety Equipment',
+        items: [
+          { key: 'smoke_detectors',   label: 'Smoke Detectors' },
+          { key: 'fire_alarms',       label: 'Fire Alarms' },
+          { key: 'fire_hydrants',     label: 'Fire Hydrants' },
+          { key: 'hose_reels',        label: 'Hose Reels' },
+          { key: 'warning_signs',     label: 'Warning Notices/Signs' },
+        ],
+      },
+      {
+        title: 'Emergency Response Measures',
+        items: [
+          { key: 'leak_explosion_procedures',        label: 'Procedures for handling gas leaks and explosions in place' },
+          { key: 'emergency_response_plan',          label: 'Emergency response plan available' },
+          { key: 'staff_firefighting_trained',       label: 'Staff received training in fire fighting' },
+          { key: 'fire_drills_per_year',              label: 'Number of fire drills in a year', type: 'text' },
+          { key: 'staff_gas_leak_trained',            label: 'Staff received training in gas leak management' },
+          { key: 'attendants_safe_handling_trained',  label: 'Attendants received training in safe product handling' },
+        ],
+      },
+      {
+        title: 'Environmental Monitoring',
+        items: [
+          { key: 'gas_leaks_explosion_records', label: 'Gas leaks and explosion records kept' },
+          { key: 'disposal_solid_waste_records',label: 'Disposal of solid waste records kept' },
+          { key: 'accidents_records',           label: 'Accidents records kept' },
+          { key: 'accident_investigation_reports', label: 'Accident (fire, leaks etc.) investigation reports available' },
+          { key: 'non_destructive_test_reports',    label: 'Non-destructive tests reports available' },
+        ],
+      },
+      {
+        title: 'Neighbourhood Consultation',
+        items: [
+          { key: 'neighbour_concerns', label: 'Concerns of immediate neighbours', type: 'text' },
         ],
       },
     ],
@@ -125,12 +313,25 @@ export const SITE_VERIFICATION_CHECKLISTS = {
       { key: 'env_officer_name',     label: 'Name of Environmental Officer',     type: 'text' },
       { key: 'env_officer_contact',  label: 'Environmental Officer Contact No.', type: 'text' },
       { key: 'relevant_permits',     label: 'List of Relevant Permits',          type: 'text' },
+      { key: 'car_park_capacity',    label: 'Capacity of Car Park',              type: 'text' },
     ],
     sections: [
       {
+        title: 'Permits & Licenses',
+        items: [
+          { key: 'env_permit',           label: 'Environmental Permit (EPA)' },
+          { key: 'env_certificate',      label: 'Environmental Certificate (EPA)' },
+          { key: 'health_service_license', label: 'Health Service License' },
+          { key: 'building_permit',      label: 'Building Permit' },
+          { key: 'dev_permit',           label: 'Development Permit' },
+          { key: 'fire_permit',          label: 'Fire Permit' },
+          { key: 'fire_certificate',     label: 'Fire Certificate' },
+        ],
+      },
+      {
         title: 'Facility Profile',
         items: [
-          { key: 'facility_type',      label: 'Type of Healthcare Facility', type: 'select', options: ['', 'Hospital', 'Veterinary', 'Clinic', 'Polyclinic', 'Midwifery', 'Medical Laboratory', 'Traditional Healthcare', 'Health-Post', 'Funeral Homes/Mortuary', 'Others'] },
+          { key: 'facility_type',      label: 'Type of Healthcare Facility', type: 'select', options: ['', 'Hospital', 'Clinic', 'Maternity Home', 'Diagnostic Centre', 'Polyclinic', 'Midwifery', 'Health-Post', 'Veterinary', 'Funeral Homes/Mortuary', 'Medical Laboratory', 'Traditional Health Care', 'Others'] },
           { key: 'hospital_type',      label: 'If Hospital — Type',          type: 'select', options: ['', 'Teaching Hospital', 'Regional', 'Polyclinic', 'District'], conditional: { key: 'facility_type', value: 'Hospital' } },
           { key: 'hospital_ownership', label: 'If Hospital — Ownership',     type: 'select', options: ['', 'Private', 'Public'],                                       conditional: { key: 'facility_type', value: 'Hospital' } },
           { key: 'num_beds',           label: 'Number of Beds',              type: 'text' },
@@ -145,6 +346,24 @@ export const SITE_VERIFICATION_CHECKLISTS = {
         ],
       },
       {
+        title: 'Services Provided & Facilities',
+        items: [
+          { key: 'svc_pharmacy',      label: 'Pharmacy' },
+          { key: 'svc_radiotherapy',  label: 'Radiotherapy' },
+          { key: 'svc_cardio_centre', label: 'Cardio Centre' },
+          { key: 'svc_theatres',      label: 'Theatre(s)' },
+          { key: 'svc_laboratory',    label: 'Laboratory' },
+          { key: 'svc_incinerators',  label: 'Incinerators' },
+          { key: 'svc_fitness_centre',label: 'Fitness Centre' },
+          { key: 'svc_eye_centre',    label: 'Eye Centre' },
+          { key: 'svc_xray',          label: 'X-ray' },
+          { key: 'svc_wards',         label: 'Wards' },
+          { key: 'svc_mortuary',      label: 'Mortuary' },
+          { key: 'svc_opd',           label: 'Out Patient Department (OPD)' },
+          { key: 'svc_other',         label: 'Others (specify)', type: 'text' },
+        ],
+      },
+      {
         title: 'Environmental Awareness',
         items: [
           { key: 'knows_env_laws',     label: 'Aware of country\'s environmental laws and regulations' },
@@ -152,6 +371,8 @@ export const SITE_VERIFICATION_CHECKLISTS = {
           { key: 'has_waste_guidelines', label: 'Has copy of Healthcare Waste Management Guidelines' },
           { key: 'liquid_waste_type',  label: 'Liquid waste generated (specify)', type: 'text' },
           { key: 'solid_waste_type',   label: 'Solid waste generated (specify)',  type: 'text' },
+          { key: 'hazardous_biomedical_waste', label: 'Hazardous/Biomedical waste generated (specify)', type: 'text' },
+          { key: 'incinerator_management', label: 'Management of incinerator (if any)', type: 'text' },
         ],
       },
       {
@@ -207,6 +428,8 @@ export const SITE_VERIFICATION_CHECKLISTS = {
       {
         title: 'Site Description',
         items: [
+          { key: 'land_use_changes',            label: 'Changes in adjacent land uses since project inception' },
+          { key: 'land_use_changes_compatible', label: 'If yes — are the changes compatible with the facility?', conditional: { key: 'land_use_changes', value: 'Yes' } },
           { key: 'current_zoning',      label: 'Current zoning',                              type: 'text' },
           { key: 'distance_nearest',    label: 'Approximate distance to nearest facility',    type: 'text' },
           { key: 'adjacent_land_use',   label: 'Adjacent land uses',                          type: 'text' },
@@ -226,6 +449,18 @@ export const SITE_VERIFICATION_CHECKLISTS = {
         ],
       },
       {
+        title: 'Eco-Tourism Facilities',
+        items: [
+          { key: 'eco_water_falls',      label: 'Water Falls' },
+          { key: 'eco_game_reserves',    label: 'Game Reserves' },
+          { key: 'eco_national_parks',   label: 'National Parks' },
+          { key: 'eco_botanical_gardens',label: 'Botanical Gardens' },
+          { key: 'eco_para_gliding',     label: 'Para Gliding' },
+          { key: 'eco_beaches',          label: 'Beaches' },
+          { key: 'eco_heritage_sites',   label: 'Heritage/Archaeological Sites' },
+        ],
+      },
+      {
         title: 'Infrastructure & Utilities',
         items: [
           { key: 'water_source',         label: 'Water source',                type: 'select', options: ['', 'GWCL', 'Tanker Services', 'Well', 'Others'] },
@@ -238,6 +473,7 @@ export const SITE_VERIFICATION_CHECKLISTS = {
           { key: 'sewage_treatment',     label: 'Type of sewage treatment facility', type: 'text' },
           { key: 'access_road',          label: 'Access road type',            type: 'select', options: ['', 'Paved', 'Unpaved'] },
           { key: 'parking_capacity',     label: 'Parking lot capacity',        type: 'text' },
+          { key: 'accidents_last_year',  label: 'Number of accident(s) in the last year', type: 'text' },
         ],
       },
       {
@@ -284,6 +520,7 @@ export const SITE_VERIFICATION_CHECKLISTS = {
           { key: 'records_accidents',    label: 'Accident records maintained' },
           { key: 'records_waste_vol',    label: 'Volume of waste generated — records maintained' },
           { key: 'records_guests',       label: 'Number of guests per annum — records maintained' },
+          { key: 'special_conditions',   label: 'Any special conditions for certification', type: 'text' },
         ],
       },
     ],
@@ -329,6 +566,7 @@ export const SITE_VERIFICATION_CHECKLISTS = {
           { key: 'water_source',      label: 'Water source',        type: 'select', options: ['', 'GWCL', 'Water Tanker Service', 'Well', 'Mechanized Borehole', 'Bore hole with hand pump', 'Rain harvest'] },
           { key: 'power_source',      label: 'Power/Energy source', type: 'select', options: ['', 'ECG', 'VRA', 'Wind', 'Stand by Generator Set', 'Solar', 'Others'] },
           { key: 'air_conditioner',   label: 'Air conditioner available' },
+          { key: 'ceiling_fans',      label: 'Ceiling/Standing fans available' },
           { key: 'standby_generator', label: 'Standby generating set available' },
           { key: 'generator_type',    label: 'Generator type', type: 'select', options: ['', 'Generator', 'Plant'], conditional: { key: 'standby_generator', value: 'Yes' } },
           { key: 'computers',         label: 'Desktop computers available' },
@@ -369,6 +607,301 @@ export const SITE_VERIFICATION_CHECKLISTS = {
       },
     ],
   },
+
+  // ── Infrastructure / General Construction (CI) ────────────────
+  // Source: EPA "ENVIRONMENTAL MANAGEMENT REPORT — RENEWAL OF ENVIRONMENTAL
+  // PERMIT — GENERAL CONSTRUCTION — FORM EMR-GC" (Environmental Assessment
+  // Regulations 1999, LI 1652). Tabular sections are flattened into
+  // Yes/No + supporting text fields to match this app's checklist pattern.
+  CI: {
+    label: 'General Construction / Infrastructure',
+    extraFields: [
+      { key: 'type_of_project',    label: 'Type of Project (e.g. Warehouse, Apartment, Shops and Offices)', type: 'text' },
+      { key: 'activities_description', label: 'Brief Description of Activities Undertaken', type: 'text' },
+      { key: 'equipment_facilities',   label: 'Equipment/Facilities Used in Operations',    type: 'text' },
+      { key: 'land_take',          label: 'Land Take (acres)',           type: 'text' },
+      { key: 'facility_capacity',  label: 'Capacity/Size of Facility',   type: 'text' },
+    ],
+    sections: [
+      {
+        title: 'Site Description',
+        items: [
+          { key: 'land_use_changes',         label: 'Changes in adjacent land uses since project inception' },
+          { key: 'land_use_changes_details', label: 'If yes — what are the changes', type: 'text', conditional: { key: 'land_use_changes', value: 'Yes' } },
+          { key: 'predominant_land_use',     label: 'Predominant land use of the area (commercial/residential/mixed/industrial)', type: 'text' },
+          { key: 'nearness_water_body',      label: 'Nearness to a water body' },
+          { key: 'water_body_distance',      label: 'If yes — approximate distance to the water body (m)', type: 'text', conditional: { key: 'nearness_water_body', value: 'Yes' } },
+          { key: 'nearness_sensitive_area',  label: 'Nearness to any environmentally sensitive area (wetlands, aquifer recharge areas, flood-prone areas, unstable slopes, swamps etc.)' },
+          { key: 'sensitive_area_distance',  label: 'If yes — approximate distance to the sensitive area (m)', type: 'text', conditional: { key: 'nearness_sensitive_area', value: 'Yes' } },
+        ],
+      },
+      {
+        title: 'Workforce',
+        items: [
+          { key: 'total_workers',    label: 'Total number of workers', type: 'text' },
+          { key: 'management_staff', label: 'Management staff',        type: 'text' },
+          { key: 'senior_staff',     label: 'Senior staff',            type: 'text' },
+          { key: 'junior_staff',     label: 'Junior staff',            type: 'text' },
+          { key: 'casuals',          label: 'Casuals',                 type: 'text' },
+        ],
+      },
+      {
+        title: 'Infrastructure & Utilities',
+        items: [
+          { key: 'water_source',              label: 'Water source', type: 'select', options: ['', 'GWCL', 'Water Tanker Service', 'Well/Borehole', 'Others'] },
+          { key: 'water_annual_consumption',  label: 'Total annual water consumption (litres/m³)', type: 'text' },
+          { key: 'power_source',              label: 'Power source', type: 'select', options: ['', 'ECG', 'Stand-by Generator', 'Solar', 'Others'] },
+          { key: 'power_annual_consumption',  label: 'Total annual power consumption (kWh)', type: 'text' },
+          { key: 'access_road',               label: 'Access road', type: 'select', options: ['', 'Paved', 'Unpaved'] },
+          { key: 'parking_capacity',          label: 'Parking lot capacity', type: 'text' },
+          { key: 'washrooms_available',       label: 'Washroom/toilet available at the facility' },
+          { key: 'washrooms_separate_sexes',  label: 'Separate washrooms for male and female', conditional: { key: 'washrooms_available', value: 'Yes' } },
+          { key: 'washroom_count',            label: 'Number of washrooms', type: 'text', conditional: { key: 'washrooms_available', value: 'Yes' } },
+          { key: 'washroom_cleaning_freq',    label: 'How often washrooms are cleaned', type: 'text', conditional: { key: 'washrooms_available', value: 'Yes' } },
+          { key: 'site_drainage_available',   label: 'Site drainage system available' },
+          { key: 'drainage_condition',        label: 'Condition of drain (choked, silted, free, covered or not, etc.)', type: 'text', conditional: { key: 'site_drainage_available', value: 'Yes' } },
+        ],
+      },
+      {
+        title: 'Legislative & Permits Compliance',
+        items: [
+          { key: 'relevant_policies_acts_regulations', label: 'Relevant national policies, acts & regulations for this sector, and obligations under them', type: 'text' },
+          { key: 'standards_guidelines',                label: 'Relevant national standards & guidelines, and obligations under them', type: 'text' },
+          { key: 'epa_permit',                     label: 'Availability of EPA Permit' },
+          { key: 'gnfs_fire_certificate',          label: 'Availability of GNFS Fire Certificate' },
+          { key: 'business_registration_certificate', label: 'Availability of Business/Company Registration Certificate (Registrar General)' },
+        ],
+      },
+      {
+        title: 'Environmental & OHS Policy',
+        items: [
+          { key: 'env_policy_available', label: 'Environmental Policy available' },
+          { key: 'env_policy_summary',   label: 'Environmental policy statement, objective and target', type: 'text', conditional: { key: 'env_policy_available', value: 'Yes' } },
+          { key: 'ohs_policy_available', label: 'Occupational Health and Safety (OHS) Policy available' },
+          { key: 'ohs_policy_summary',   label: 'OHS policy statement, objective and target', type: 'text', conditional: { key: 'ohs_policy_available', value: 'Yes' } },
+        ],
+      },
+      {
+        title: 'Environmental Impacts & Pollution Management',
+        items: [
+          { key: 'waste_litters_managed',          label: 'Waste/Litters (solid & liquid waste) managed adequately' },
+          { key: 'waste_litters_practices',        label: 'Sources & management practices', type: 'text', conditional: { key: 'waste_litters_managed', value: 'Yes' } },
+          { key: 'air_emissions_managed',          label: 'Air emissions managed adequately' },
+          { key: 'air_emissions_practices',        label: 'Sources & management practices', type: 'text', conditional: { key: 'air_emissions_managed', value: 'Yes' } },
+          { key: 'liquid_waste_managed',           label: 'Liquid waste/effluent discharges managed adequately' },
+          { key: 'liquid_waste_practices',         label: 'Sources & management practices', type: 'text', conditional: { key: 'liquid_waste_managed', value: 'Yes' } },
+          { key: 'soil_contamination_managed',     label: 'Soil contamination managed adequately' },
+          { key: 'soil_contamination_practices',   label: 'Sources & management practices', type: 'text', conditional: { key: 'soil_contamination_managed', value: 'Yes' } },
+          { key: 'stormwater_runoff_managed',      label: 'Stormwater runoffs managed adequately' },
+          { key: 'stormwater_runoff_practices',    label: 'Sources & management practices', type: 'text', conditional: { key: 'stormwater_runoff_managed', value: 'Yes' } },
+          { key: 'surface_water_quality_managed',  label: 'Surface water quality managed adequately' },
+          { key: 'surface_water_quality_practices',label: 'Management practices', type: 'text', conditional: { key: 'surface_water_quality_managed', value: 'Yes' } },
+          { key: 'noise_vibration_managed',        label: 'Ambient noise/vibration managed adequately' },
+          { key: 'noise_vibration_practices',      label: 'Management practices', type: 'text', conditional: { key: 'noise_vibration_managed', value: 'Yes' } },
+          { key: 'solid_waste_managed',            label: 'Solid waste managed adequately' },
+          { key: 'solid_waste_practices',          label: 'Management practices', type: 'text', conditional: { key: 'solid_waste_managed', value: 'Yes' } },
+          { key: 'hazardous_waste_managed',        label: 'Hazardous waste (electrical bulbs, car batteries, dry cells etc.) managed adequately' },
+          { key: 'hazardous_waste_practices',      label: 'Management practices', type: 'text', conditional: { key: 'hazardous_waste_managed', value: 'Yes' } },
+          { key: 'plastic_waste_managed',          label: 'Plastic waste managed adequately' },
+          { key: 'plastic_waste_practices',        label: 'Management practices', type: 'text', conditional: { key: 'plastic_waste_managed', value: 'Yes' } },
+          { key: 'traffic_managed',                label: 'Traffic (congestion, on-street parking, accidents) managed adequately' },
+          { key: 'traffic_practices',              label: 'Management practices', type: 'text', conditional: { key: 'traffic_managed', value: 'Yes' } },
+          { key: 'ohs_impacts_managed',            label: 'Occupational health and safety impacts managed adequately' },
+          { key: 'ohs_impacts_practices',          label: 'Management practices', type: 'text', conditional: { key: 'ohs_impacts_managed', value: 'Yes' } },
+        ],
+      },
+      {
+        title: 'Resource Efficiency & Emergency Response',
+        items: [
+          { key: 'water_mgmt_efficient',      label: 'Water management measures in place to reduce consumption' },
+          { key: 'water_mgmt_measures',       label: 'Control measures and management options', type: 'text', conditional: { key: 'water_mgmt_efficient', value: 'Yes' } },
+          { key: 'energy_mgmt_efficient',     label: 'Energy (fuel & electricity) management measures in place' },
+          { key: 'energy_mgmt_measures',      label: 'Control measures and management options', type: 'text', conditional: { key: 'energy_mgmt_efficient', value: 'Yes' } },
+          { key: 'waste_mgmt_efficient',      label: 'Waste management measures in place to reduce waste generation' },
+          { key: 'waste_mgmt_measures',       label: 'Control measures and management options', type: 'text', conditional: { key: 'waste_mgmt_efficient', value: 'Yes' } },
+          { key: 'equipment_mgmt_efficient',  label: 'Equipment and machine (e.g. forklift) management measures in place' },
+          { key: 'equipment_mgmt_measures',   label: 'Control measures and management options', type: 'text', conditional: { key: 'equipment_mgmt_efficient', value: 'Yes' } },
+          { key: 'fire_response',             label: 'Emergency response measures for Fire in place' },
+          { key: 'fire_response_measures',    label: 'Control measures and management options', type: 'text', conditional: { key: 'fire_response', value: 'Yes' } },
+          { key: 'chemical_oil_spill_response', label: 'Emergency response measures for Chemical and Oil Spill in place' },
+          { key: 'chemical_oil_spill_measures', label: 'Control measures and management options', type: 'text', conditional: { key: 'chemical_oil_spill_response', value: 'Yes' } },
+          { key: 'vehicular_accident_response', label: 'Emergency response measures for Vehicular Accidents in place' },
+          { key: 'vehicular_accident_measures', label: 'Control measures and management options', type: 'text', conditional: { key: 'vehicular_accident_response', value: 'Yes' } },
+          { key: 'flooding_response',         label: 'Emergency response measures for Flooding in place' },
+          { key: 'flooding_response_measures',label: 'Control measures and management options', type: 'text', conditional: { key: 'flooding_response', value: 'Yes' } },
+          { key: 'explosion_response',        label: 'Emergency response measures for Explosions in place' },
+          { key: 'explosion_response_measures', label: 'Control measures and management options', type: 'text', conditional: { key: 'explosion_response', value: 'Yes' } },
+        ],
+      },
+      {
+        title: 'Environmental Monitoring',
+        items: [
+          { key: 'air_emissions_records',        label: 'Air emissions — records kept' },
+          { key: 'air_emissions_details',        label: 'Parameters measured / quantity / frequency / storage, treatment and disposal', type: 'text', conditional: { key: 'air_emissions_records', value: 'Yes' } },
+          { key: 'vehicular_accidents_records',  label: 'Vehicular accidents — records kept' },
+          { key: 'vehicular_accidents_details',  label: 'Parameters measured / quantity / frequency / resolution', type: 'text', conditional: { key: 'vehicular_accidents_records', value: 'Yes' } },
+          { key: 'solid_waste_mgmt_records',     label: 'Management of solid waste — records kept' },
+          { key: 'solid_waste_mgmt_details',     label: 'Quantity measured / frequency / storage, treatment and disposal', type: 'text', conditional: { key: 'solid_waste_mgmt_records', value: 'Yes' } },
+          { key: 'liquid_waste_records',         label: 'Liquid waste — records kept' },
+          { key: 'liquid_waste_details',         label: 'Quantity measured / frequency / storage, treatment and disposal', type: 'text', conditional: { key: 'liquid_waste_records', value: 'Yes' } },
+          { key: 'spills_leaks_records',         label: 'Spills and leaks, waste oil — records kept' },
+          { key: 'spills_leaks_details',         label: 'Quantity measured / frequency / storage, treatment and disposal', type: 'text', conditional: { key: 'spills_leaks_records', value: 'Yes' } },
+          { key: 'fire_incidence_records',       label: 'Fire incidence — records kept' },
+          { key: 'fire_incidence_details',       label: 'Frequency / mode of resolution', type: 'text', conditional: { key: 'fire_incidence_records', value: 'Yes' } },
+        ],
+      },
+      {
+        title: 'Education & Training',
+        items: [
+          { key: 'training_env_mgmt',              label: 'Environmental Management training provided' },
+          { key: 'training_env_mgmt_details',      label: 'Date of training / number trained / purpose', type: 'text', conditional: { key: 'training_env_mgmt', value: 'Yes' } },
+          { key: 'training_firefighting',          label: 'Fire-fighting training provided' },
+          { key: 'training_firefighting_details',  label: 'Date of training / number trained / purpose', type: 'text', conditional: { key: 'training_firefighting', value: 'Yes' } },
+          { key: 'training_ohs',                   label: 'Occupational Health and Safety training provided' },
+          { key: 'training_ohs_details',           label: 'Date of training / number trained / purpose', type: 'text', conditional: { key: 'training_ohs', value: 'Yes' } },
+          { key: 'training_sops',                  label: 'Standard Operating Procedures (SOPs) training provided' },
+          { key: 'training_sops_details',          label: 'Date of training / number trained / purpose', type: 'text', conditional: { key: 'training_sops', value: 'Yes' } },
+          { key: 'training_materials_handling',    label: 'Raw Materials and Product Handling training provided' },
+          { key: 'training_materials_handling_details', label: 'Date of training / number trained / purpose', type: 'text', conditional: { key: 'training_materials_handling', value: 'Yes' } },
+          { key: 'training_spill_leaks',           label: 'Spill/Leaks Management training provided' },
+          { key: 'training_spill_leaks_details',   label: 'Date of training / number trained / purpose', type: 'text', conditional: { key: 'training_spill_leaks', value: 'Yes' } },
+        ],
+      },
+      {
+        title: 'Corporate Social Responsibility & Complaints',
+        items: [
+          { key: 'csr_policy',                  label: 'Has a CSR policy or social development scheme' },
+          { key: 'csr_activities',              label: 'Major CSR activities carried out within the past year', type: 'text', conditional: { key: 'csr_policy', value: 'Yes' } },
+          { key: 'complaint_register',          label: 'Maintains a complaint register' },
+          { key: 'complaint_procedure',         label: 'Has a procedure to deal with complaints from the public, regulators or staff' },
+          { key: 'complaints_received',         label: 'Received any complaints in the last year' },
+          { key: 'complaints_count',            label: 'If yes — how many', type: 'text', conditional: { key: 'complaints_received', value: 'Yes' } },
+          { key: 'complaints_nature',           label: 'Nature of complaint(s)', type: 'text', conditional: { key: 'complaints_received', value: 'Yes' } },
+          { key: 'complaints_resolution',       label: 'How the complaint(s) were dealt with', type: 'text', conditional: { key: 'complaints_received', value: 'Yes' } },
+        ],
+      },
+      {
+        title: 'Challenges & Improvement Measures',
+        items: [
+          { key: 'environmental_challenges', label: 'Major environmental challenges faced in operations in the past year', type: 'text' },
+          { key: 'improvement_measures',     label: 'Planned environmental improvement measures, timelines and budget for the permit duration', type: 'text' },
+        ],
+      },
+      {
+        title: 'Attachments Checklist',
+        items: [
+          { key: 'attach_old_env_permit',   label: 'Old Environmental Permit attached' },
+          { key: 'attach_fire_certificate', label: 'Fire Certificate attached' },
+          { key: 'attach_photos',           label: 'Photographs of Facility attached' },
+          { key: 'attach_company_reg_cert', label: 'Company Registration Certificate attached' },
+          { key: 'attach_env_ohs_policy',   label: "Company's Policy on Environment/OHS attached" },
+          { key: 'attach_csr_policy',       label: "Company's Policy on CSR attached" },
+        ],
+      },
+    ],
+  },
+
+  // ── Agrochemical & Pesticide (PP) ─────────────────────────────
+  // Source: EPA "CHECKLIST FOR INSPECTION OF PESTICIDES STORAGE/RETAIL PREMISES" (EPA/CCMC)
+  PP: {
+    label: 'Pesticides Checklist',
+    extraFields: [
+      { key: 'company_name',      label: 'Company Name',                 type: 'text' },
+      { key: 'owner_of_company',  label: 'Owner of Company',             type: 'text' },
+      { key: 'license_number',    label: 'License Number (if any)',      type: 'text' },
+      { key: 'num_employees',     label: 'Number of Persons Employed',   type: 'text' },
+    ],
+    sections: [
+      {
+        title: 'Siting of Premise',
+        items: [
+          { key: 'sensitive_area_distance',        label: 'Located at least 10–15m from sensitive areas (playgrounds, watercourses, feedlots, animal shelters, schools, food market, flammable materials, explosives etc.)' },
+          { key: 'flood_prone',                    label: 'Site subject/prone to flooding' },
+          { key: 'runoff_contamination_risk',      label: 'Possibility of run-off from site contaminating surface or ground water' },
+          { key: 'easy_access_delivery_firefighting', label: 'Easy access for pesticides delivery vehicles, fire fighting vehicles and equipment' },
+        ],
+      },
+      {
+        title: 'Storage/Retail Structure and Area',
+        items: [
+          { key: 'structure_metal',                label: 'Structure made of metal' },
+          { key: 'structure_sandcrete',             label: 'Structure made of sandcrete' },
+          { key: 'structure_wood',                  label: 'Structure made of wood' },
+          { key: 'site_drainage_system',            label: 'Presence of drainage system to contain run-off' },
+          { key: 'fireproof_childproof_burglarproof', label: 'Storage structure fireproof, child-proof, animal-proof and burglar-proof' },
+          { key: 'floor_chemical_resistant',        label: 'Storage floor resistant to chemical attack' },
+          { key: 'storekeeper_office_separate',     label: "Storekeeper's office separate from storage area" },
+          { key: 'walls_smooth_crack_free',         label: 'Internal walls smooth and free from cracks to allow easy cleaning' },
+          { key: 'washing_facilities',              label: 'Provision made for washing facilities' },
+          { key: 'protective_clothing_masks',       label: 'Protective clothing and respiratory masks available' },
+          { key: 'wooden_structure_bunding',        label: 'Where store is a wooden structure — concrete bunding present' },
+          { key: 'gangways_1m',                     label: 'Store marked with 1-metre wide gangways between shelves/stacks for easy inspection and airflow' },
+          { key: 'timber_brick_pallets',             label: 'Timber or brick used as pallets on floor' },
+        ],
+      },
+      {
+        title: 'Storage Capacity',
+        items: [
+          { key: 'storage_capacity_adequate',   label: 'Storage capacity adequate for easy access, movement and stacking of pesticides' },
+          { key: 'need_move_containers',        label: 'Need to move containers to select pesticides' },
+          { key: 'space_outdated_stock',        label: 'Sufficient space for storing out-of-date stocks' },
+          { key: 'space_empty_containers',      label: 'Sufficient space for storing empty containers awaiting disposal' },
+          { key: 'fifo_stock_rotation',         label: 'Stocks arranged to use the oldest first (first in first out) to prevent stocks from accumulating' },
+        ],
+      },
+      {
+        title: 'Spillage Containment',
+        items: [
+          { key: 'entrance_ramp',       label: 'Ramp at entrance to contain leakage/spills' },
+          { key: 'absorbent_material',  label: 'Presence of absorbent material (sand, sawdust, activated charcoal, absorptive clay) for emergency spillage situations' },
+          { key: 'floor_concrete_bunding', label: 'Floor concrete bunding available (if wooden structure)' },
+        ],
+      },
+      {
+        title: 'Ventilation & Light',
+        items: [
+          { key: 'building_ventilated',       label: 'Building well ventilated' },
+          { key: 'stored_away_sunlight',      label: 'Pesticides stored away from direct sunlight' },
+          { key: 'working_area_ventilated',   label: 'Working area for dispensing and repacking pesticides well ventilated and some distance from store entrance' },
+          { key: 'store_illuminated',         label: 'Store well illuminated' },
+        ],
+      },
+      {
+        title: 'Environmental Health and Safety',
+        items: [
+          { key: 'firefighting_equipment',           label: 'Fire-fighting equipment (fire extinguisher, fire-proof blanket etc.) available' },
+          { key: 'containers_minimize_handling',      label: 'Containers arranged to minimize handling to avoid mechanical damage' },
+          { key: 'firefighting_equipment_positioned', label: 'Fire fighting and decontamination equipment positioned at strategic, well-lit points and clearly indicated' },
+          { key: 'soap_water_available',              label: 'Soap and water readily available for washing' },
+          { key: 'drum_spanners_funnels',             label: 'Drum spanners and metal funnels available' },
+          { key: 'area_marked_warning_signs',         label: 'Area well marked and secured with weatherproof bright warning signs' },
+          { key: 'no_smoking_eating_signs',           label: "'No Smoking', 'No Eating', 'No Drinking' signs inside and outside of stores" },
+          { key: 'danger_warning_signs',              label: "Warning signs (e.g. 'Danger' and 'Keep off') adequate and visible" },
+          { key: 'stock_cards',                       label: 'Stock cards available' },
+          { key: 'containers_labelled',               label: 'Pesticide containers adequately and legibly labelled' },
+          { key: 'container_labels_intact',           label: 'Container labels intact' },
+          { key: 'ppe_available',                     label: 'Presence of personal protective equipment' },
+          { key: 'first_aid_box',                     label: 'First Aid box available' },
+        ],
+      },
+      {
+        title: 'Entrance and Exit',
+        items: [
+          { key: 'direct_access_outside',       label: 'The premise has direct access to outside' },
+          { key: 'sufficient_emergency_exits',  label: 'Sufficient emergency exits without passing through another room/building' },
+          { key: 'doors_windows_secured',       label: 'Doors and windows have secured locks to prevent unauthorized entry' },
+          { key: 'doors_open_outward',          label: 'All access doors open outward in the direction of escape' },
+          { key: 'security_guard',              label: 'Presence of security guard' },
+        ],
+      },
+      {
+        title: 'Pesticides Disposal Options',
+        items: [
+          { key: 'pesticide_disposal_system', label: 'Existence of pesticide disposal system' },
+        ],
+      },
+    ],
+  },
 }
 
 // Sectors without a dedicated site verification checklist — basic placeholder
@@ -388,7 +921,5 @@ const SV_PLACEHOLDER = (label) => ({
   ],
 })
 
-SITE_VERIFICATION_CHECKLISTS.CI = SV_PLACEHOLDER('Infrastructure')
-SITE_VERIFICATION_CHECKLISTS.PP = SV_PLACEHOLDER('Agrochemical & Pesticide')
 SITE_VERIFICATION_CHECKLISTS.CA = SV_PLACEHOLDER('Agriculture')
 SITE_VERIFICATION_CHECKLISTS.CM = SV_PLACEHOLDER('Mining')

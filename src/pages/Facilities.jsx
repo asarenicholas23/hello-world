@@ -4,7 +4,7 @@ import { Building2, MapPin, Phone, Plus, Search, User, AlertCircle, Clock, Trash
 import { useAuth } from '../context/AuthContext'
 import { useSync } from '../context/SyncContext'
 import { listFacilities, deleteFacility } from '../firebase/facilities'
-import { getPermitStatusMap, getPermitReadySet } from '../firebase/dashboard'
+import { getPermitDetailsMap, getPermitReadySet } from '../firebase/dashboard'
 import { SECTORS, DISTRICTS, SECTOR_COLORS, ADMIN_ROLES } from '../data/constants'
 import { facilityPath } from '../utils/fileNumbers'
 import Spinner from '../components/Spinner'
@@ -87,11 +87,11 @@ function sortFacilities(list, sort) {
 
 function permitStatusForFacility(map, facility) {
   const fileNumber = String(facility.file_number ?? '').trim()
-  return map[fileNumber] ?? 'none'
+  return map[fileNumber]?.status ?? 'none'
 }
 
 export default function Facilities() {
-  const { role } = useAuth()
+  const { role, dataAccess } = useAuth()
   const { drafts, removeDraft } = useSync()
   const navigate = useNavigate()
   const location = useLocation()
@@ -148,7 +148,7 @@ export default function Facilities() {
     Promise.resolve().then(async () => {
       setPermitMapLoading(true)
       try {
-        const map = await getPermitStatusMap()
+        const map = await getPermitDetailsMap()
         if (!cancelled) setPermitStatusMap(map)
       } catch {
         // Keep the filter settled if permit status lookup fails.
@@ -210,9 +210,27 @@ export default function Facilities() {
   const visibleFacilityIds = filtered.map((f) => f.file_number)
   const allVisibleSelected = visibleFacilityIds.length > 0 && visibleFacilityIds.every((id) => selectedIdSet.has(id))
 
-  function handleExportCSV() {
-    const fields = databaseFields.length > 0 ? databaseFields : ['file_number', 'name']
-    downloadCSV(toFacilitiesCSV(filtered, fields), `epa-facilities-${new Date().toISOString().slice(0, 10)}.csv`)
+  async function handleExportCSV() {
+    let permitMap = permitStatusMap
+    if (permitMap === null) {
+      try { permitMap = await getPermitDetailsMap() } catch { permitMap = {} }
+      setPermitStatusMap(permitMap)
+    }
+
+    const permitFields = ['permit_status', 'permit_number', 'permit_issue_date', 'permit_effective_date', 'permit_expiry_date']
+    const fields = [...(databaseFields.length > 0 ? databaseFields : ['file_number', 'name']), ...permitFields]
+    const rows = filtered.map((facility) => {
+      const entry = permitMap[String(facility.file_number ?? '').trim()]
+      return {
+        ...facility,
+        permit_status:          entry?.status ?? 'none',
+        permit_number:          entry?.permit_number ?? '',
+        permit_issue_date:      entry?.issue_date ?? null,
+        permit_effective_date:  entry?.effective_date ?? null,
+        permit_expiry_date:     entry?.expiry_date ?? null,
+      }
+    })
+    downloadCSV(toFacilitiesCSV(rows, fields), `epa-facilities-${new Date().toISOString().slice(0, 10)}.csv`)
   }
 
   function toggleFacilitySelection(fileNumber) {
@@ -313,7 +331,7 @@ export default function Facilities() {
               <Download size={14} /> Export CSV
             </button>
           )}
-          {role === 'admin' && (
+          {(role === 'admin' || dataAccess) && (
             <button className="btn btn--primary" onClick={() => navigate('/facilities/new')}>
               <Plus size={16} /> New Facility
             </button>

@@ -1,45 +1,92 @@
-import { useState } from 'react'
-import { X, ClipboardList, Building2, Search } from 'lucide-react'
+import { useMemo, useState } from 'react'
+import { X, ClipboardList, Building2, Search, Flag } from 'lucide-react'
 import { TASK_TYPES } from '../firebase/tasks'
 import { DISTRICTS, ROLE_LABEL } from '../data/constants'
 
-export default function AssignTaskDialog({ open, onClose, onAssign, allStaff, allFacilities }) {
-  const [assignedToUid, setAssignedToUid]   = useState('')
-  const [assignedTo2Uid, setAssignedTo2Uid] = useState('')
-  const [taskType, setTaskType]           = useState('screening')
-  const [facilityMode, setFacilityMode]   = useState('registered')
+// PP (Agrochemical/Pesticide) facilities always use the Pesticides Checklist
+// instead of the standard EA1 screening / site verification forms. Normally
+// that's detected automatically from the facility's registered sector_prefix
+// — but that detection has nothing to go on for a facility that isn't
+// registered in the app yet ("Not Registered" mode has no sector_prefix at
+// all), so a pesticide screening for a brand-new facility would silently
+// fall back to the old EA1 form. These two options let the assigner force
+// the Pesticides Checklist explicitly, regardless of facility registration.
+const PESTICIDE_ACTION_TYPE = { pesticides_new: 'screening', pesticides_renewal: 'site_verification' }
+const ACTION_OPTIONS = TASK_TYPES.flatMap((t) => {
+  if (t.value === 'screening') return [t, { value: 'pesticides_new', label: 'Pesticides Checklist (New Facility)' }]
+  if (t.value === 'site_verification') return [t, { value: 'pesticides_renewal', label: 'Pesticides Checklist (Renewal)' }]
+  return [t]
+})
+
+function initialActionSelection(editTask) {
+  if (!editTask) return 'screening'
+  if (editTask.task_type === 'screening' && editTask.sector_prefix === 'PP') return 'pesticides_new'
+  if (editTask.task_type === 'site_verification' && editTask.sector_prefix === 'PP') return 'pesticides_renewal'
+  return editTask.task_type ?? 'screening'
+}
+
+// Initial facility selection when editing an existing task — mirrors the
+// shape handleSave produces so re-saving without touching the facility
+// field is a no-op. Callers should mount this component with a `key` that
+// changes per edit target (see AllAssignmentsPage) so these lazy initial
+// values are recomputed fresh instead of carrying over stale local state.
+function initialSelectedFac(editTask) {
+  if (!editTask) return null
+  if (editTask.facility_mode === 'registered') {
+    return { kind: 'facility', key: editTask.file_number, file_number: editTask.file_number, name: editTask.facility_name, sector_prefix: editTask.sector_prefix }
+  }
+  if (editTask.field_report_id) {
+    return {
+      kind: 'field_report', key: editTask.field_report_id, id: editTask.field_report_id,
+      name: editTask.facility_name, ...(editTask.facility_details ?? {}), screening: null,
+    }
+  }
+  return null
+}
+
+export default function AssignTaskDialog({ open, onClose, onAssign, onSaveEdit, allStaff, allFacilities, allFieldReports = [], editTask = null }) {
+  const [assignedToUid, setAssignedToUid]   = useState(() => editTask?.assigned_to ?? '')
+  const [assignedTo2Uid, setAssignedTo2Uid] = useState(() => editTask?.assigned_to_2 ?? '')
+  const [actionSelection, setActionSelection] = useState(() => initialActionSelection(editTask))
+  const taskType = PESTICIDE_ACTION_TYPE[actionSelection] ?? actionSelection
+  const forcePesticideChecklist = Boolean(PESTICIDE_ACTION_TYPE[actionSelection])
+  const [facilityMode, setFacilityMode]   = useState(() => (
+    editTask && editTask.facility_mode !== 'registered' && !editTask.field_report_id ? 'unregistered' : 'registered'
+  ))
   const [facSearch, setFacSearch]         = useState('')
-  const [selectedFac, setSelectedFac]     = useState(null)
+  const [selectedFac, setSelectedFac]     = useState(() => initialSelectedFac(editTask))
   const [showFacList, setShowFacList]     = useState(false)
-  const [freeName, setFreeName]           = useState('')
-  const [freeDistrict, setFreeDistrict]   = useState('')
-  const [freeLocation, setFreeLocation]   = useState('')
-  const [freeContact, setFreeContact]     = useState('')
-  const [freePhone, setFreePhone]         = useState('')
-  const [dueDate, setDueDate]             = useState('')
-  const [notes, setNotes]                 = useState('')
+  const [freeName, setFreeName]           = useState(() => editTask?.facility_details?.name ?? '')
+  const [freeDistrict, setFreeDistrict]   = useState(() => editTask?.facility_details?.district ?? '')
+  const [freeLocation, setFreeLocation]   = useState(() => editTask?.facility_details?.location ?? '')
+  const [freeContact, setFreeContact]     = useState(() => editTask?.facility_details?.contact_person ?? '')
+  const [freePhone, setFreePhone]         = useState(() => editTask?.facility_details?.phone ?? '')
+  const [dueDate, setDueDate]             = useState(() => editTask?.due_date ?? '')
+  const [notes, setNotes]                 = useState(() => editTask?.notes ?? '')
   const [saving, setSaving]               = useState(false)
   const [error, setError]                 = useState('')
+
+  // Field reports not yet linked to a registered facility can also be picked
+  // as the task's facility — the officer gets the details (and any screening
+  // already captured) already filled in, rather than retyping from scratch.
+  const facilityOptions = useMemo(() => [
+    ...allFacilities.map((f) => ({ kind: 'facility', key: f.file_number, file_number: f.file_number, name: f.name, sector_prefix: f.sector_prefix })),
+    ...allFieldReports
+      .filter((r) => !r.assigned_file_number)
+      .map((r) => ({ kind: 'field_report', key: r.id, id: r.id, name: r.facility_name, district: r.district, location: r.location, contact_person: r.contact_person, phone: r.phone, screening: r.screening ?? null })),
+  ], [allFacilities, allFieldReports])
 
   if (!open) return null
 
   const searchFiltered = facSearch.trim()
-    ? allFacilities.filter((f) =>
+    ? facilityOptions.filter((f) =>
         f.name?.toLowerCase().includes(facSearch.trim().toLowerCase()) ||
         f.file_number?.toLowerCase().includes(facSearch.trim().toLowerCase()))
     : []
 
   const currentTaskType = TASK_TYPES.find((t) => t.value === taskType)
 
-  function reset() {
-    setAssignedToUid(''); setAssignedTo2Uid(''); setTaskType('screening'); setFacilityMode('registered')
-    setFacSearch(''); setSelectedFac(null); setShowFacList(false)
-    setFreeName(''); setFreeDistrict(''); setFreeLocation(''); setFreeContact(''); setFreePhone('')
-    setDueDate(''); setNotes(''); setError('')
-  }
-
   function handleClose() {
-    reset()
     onClose()
   }
 
@@ -53,21 +100,39 @@ export default function AssignTaskDialog({ open, onClose, onAssign, allStaff, al
     try {
       const officer = allStaff.find((s) => s.id === assignedToUid)
       const officer2 = assignedTo2Uid ? allStaff.find((s) => s.id === assignedTo2Uid) : null
-      await onAssign({
+      // A field report picked from the "In the App" search has no file
+      // number of its own yet, so it's stored the same way a manually-typed
+      // unregistered facility is — just with its already-captured details
+      // (and screening, if any) carried over instead of retyped.
+      const isFieldReportPick = facilityMode === 'registered' && selectedFac?.kind === 'field_report'
+      const payload = {
         taskType,
-        facilityMode,
-        fileNumber:      facilityMode === 'registered' ? selectedFac.file_number : null,
+        facilityMode:    isFieldReportPick ? 'unregistered' : facilityMode,
+        fileNumber:      facilityMode === 'registered' && !isFieldReportPick ? selectedFac.file_number : null,
         facilityName:    facilityMode === 'registered' ? selectedFac.name : freeName.trim(),
         facilityDetails: facilityMode === 'unregistered'
           ? { name: freeName.trim(), district: freeDistrict, location: freeLocation.trim(), contact_person: freeContact.trim(), phone: freePhone.trim() }
-          : null,
+          : isFieldReportPick
+            ? { name: selectedFac.name, district: selectedFac.district ?? '', location: selectedFac.location ?? '', contact_person: selectedFac.contact_person ?? '', phone: selectedFac.phone ?? '' }
+            : null,
+        fieldReportId:     isFieldReportPick ? selectedFac.id : null,
+        sectorPrefix:      forcePesticideChecklist
+          ? 'PP'
+          : (facilityMode === 'registered' && !isFieldReportPick ? (selectedFac.sector_prefix ?? null) : null),
         assignedToUid,
         assignedToName: officer?.name ?? '',
         assignedTo2Uid:  officer2?.id ?? null,
         assignedTo2Name: officer2?.name ?? '',
         dueDate:        dueDate || null,
         notes:          notes.trim(),
-      })
+      }
+      if (editTask) {
+        // Editing never re-derives screeningPrefill/form_data — that would
+        // risk clobbering a submission the assignee already made.
+        await onSaveEdit(editTask.id, payload)
+      } else {
+        await onAssign({ ...payload, screeningPrefill: isFieldReportPick ? selectedFac.screening : null })
+      }
       handleClose()
     } catch (err) {
       setError(err.message ?? 'Failed to assign task.')
@@ -80,7 +145,7 @@ export default function AssignTaskDialog({ open, onClose, onAssign, allStaff, al
     <div className="dialog-overlay" onClick={handleClose}>
       <div className="dialog" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 480 }}>
         <div className="dialog__header">
-          <span className="dialog__title"><ClipboardList size={16} /> Assign Task</span>
+          <span className="dialog__title"><ClipboardList size={16} /> {editTask ? 'Edit Task' : 'Assign Task'}</span>
           <button className="dialog__close" onClick={handleClose}><X size={16} /></button>
         </div>
 
@@ -112,10 +177,12 @@ export default function AssignTaskDialog({ open, onClose, onAssign, allStaff, al
 
           <div className="form-group">
             <label>Action</label>
-            <select className="select" value={taskType} onChange={(e) => setTaskType(e.target.value)}>
-              {TASK_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+            <select className="select" value={actionSelection} onChange={(e) => setActionSelection(e.target.value)}>
+              {ACTION_OPTIONS.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
             </select>
-            {!currentTaskType?.annotated && (
+            {forcePesticideChecklist ? (
+              <span className="form-hint">Uses the Pesticides Checklist regardless of the facility&apos;s registered sector — use this for pesticide/agrochemical facilities instead of the standard {actionSelection === 'pesticides_new' ? 'Screening' : 'Site Verification'} form.</span>
+            ) : !currentTaskType?.formFlow && (
               <span className="form-hint">This task type uses a simple file upload + approve/request-changes review.</span>
             )}
           </div>
@@ -141,8 +208,8 @@ export default function AssignTaskDialog({ open, onClose, onAssign, allStaff, al
                   <Search size={14} className="search-icon" />
                   <input
                     className="search-input"
-                    placeholder="Search facility by name or file number…"
-                    value={selectedFac ? `${selectedFac.file_number} — ${selectedFac.name}` : facSearch}
+                    placeholder="Search facility or field report by name/file number…"
+                    value={selectedFac ? (selectedFac.kind === 'field_report' ? selectedFac.name : `${selectedFac.file_number} — ${selectedFac.name}`) : facSearch}
                     onFocus={() => { setShowFacList(true); if (selectedFac) { setFacSearch(''); setSelectedFac(null) } }}
                     onChange={(e) => { setFacSearch(e.target.value); setShowFacList(true) }}
                   />
@@ -150,10 +217,19 @@ export default function AssignTaskDialog({ open, onClose, onAssign, allStaff, al
                 {showFacList && searchFiltered.length > 0 && (
                   <div className="sms-fac-dropdown">
                     {searchFiltered.slice(0, 8).map((f) => (
-                      <div key={f.file_number} className="sms-fac-dropdown__item"
+                      <div key={f.key} className="sms-fac-dropdown__item"
                         onMouseDown={() => { setSelectedFac(f); setFacSearch(''); setShowFacList(false) }}>
-                        <span className="file-num" style={{ fontSize: 12 }}>{f.file_number}</span>
+                        {f.kind === 'field_report' ? (
+                          <span className="record-badge" style={{ background: '#fff7ed', color: '#c2410c', fontSize: 11 }}>
+                            <Flag size={10} style={{ marginRight: 3 }} />Field Report
+                          </span>
+                        ) : (
+                          <span className="file-num" style={{ fontSize: 12 }}>{f.file_number}</span>
+                        )}
                         <span style={{ fontSize: 13 }}>{f.name}</span>
+                        {f.kind === 'field_report' && f.screening && (
+                          <span style={{ fontSize: 11, color: '#6b7280', marginLeft: 4 }}>(screening on file)</span>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -189,7 +265,7 @@ export default function AssignTaskDialog({ open, onClose, onAssign, allStaff, al
         <div className="dialog__footer">
           <button className="btn btn--ghost btn--sm" onClick={handleClose} disabled={saving}>Cancel</button>
           <button className="btn btn--primary btn--sm" onClick={handleSave} disabled={saving}>
-            {saving ? 'Assigning…' : 'Assign Task'}
+            {saving ? 'Saving…' : editTask ? 'Save Changes' : 'Assign Task'}
           </button>
         </div>
       </div>

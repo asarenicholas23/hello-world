@@ -4,7 +4,7 @@ import { Plus, Edit2, Trash2, AlertCircle, Image, FileText } from 'lucide-react'
 import { listSubRecords, deleteSubRecord } from '../../firebase/subrecords'
 import { fmtDate } from '../../utils/records'
 import { facilityPath } from '../../utils/fileNumbers'
-import { ADMIN_VIEW_ROLES, ENFORCEMENT_ACTIONS, FIELD_ROLES } from '../../data/constants'
+import { ENFORCEMENT_ACTIONS, FIELD_ROLES, hasFullDataAccess } from '../../data/constants'
 import Spinner from '../Spinner'
 import RecordDocumentModal from '../RecordDocumentModal'
 
@@ -16,7 +16,7 @@ const ACTION_COLORS = {
   other:   { bg: '#f3f4f6', color: '#374151' },
 }
 
-export default function EnforcementTab({ fileNumber, role }) {
+export default function EnforcementTab({ fileNumber, role, dataAccess }) {
   const navigate = useNavigate()
   const [records, setRecords] = useState([])
   const [loading, setLoading] = useState(true)
@@ -43,7 +43,7 @@ export default function EnforcementTab({ fileNumber, role }) {
     finally { setDeletingId(null) }
   }
 
-  const canEdit = ADMIN_VIEW_ROLES.has(role) || FIELD_ROLES.has(role)
+  const canEdit = hasFullDataAccess(role, dataAccess) || FIELD_ROLES.has(role)
   const actionLabel = (val) => ENFORCEMENT_ACTIONS.find((a) => a.value === val)?.label ?? val
 
   if (loading) return <div className="tab-loading"><Spinner size={24} /></div>

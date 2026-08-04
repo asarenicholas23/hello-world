@@ -4,10 +4,10 @@ import { Plus, Edit2, Trash2, AlertCircle, Paperclip } from 'lucide-react'
 import { listSubRecords, deleteSubRecord } from '../../firebase/subrecords'
 import { fmtDate } from '../../utils/records'
 import { facilityPath } from '../../utils/fileNumbers'
-import { ADMIN_ROLES, ADMIN_VIEW_ROLES } from '../../data/constants'
+import { ADMIN_ROLES, hasFullDataAccess } from '../../data/constants'
 import Spinner from '../Spinner'
 
-export default function FinanceTab({ fileNumber, role }) {
+export default function FinanceTab({ fileNumber, role, dataAccess }) {
   const navigate = useNavigate()
   const [records, setRecords] = useState([])
   const [loading, setLoading] = useState(true)
@@ -33,7 +33,7 @@ export default function FinanceTab({ fileNumber, role }) {
     finally { setDeletingId(null) }
   }
 
-  const canEdit = ADMIN_VIEW_ROLES.has(role) || role === 'finance'
+  const canEdit = hasFullDataAccess(role, dataAccess) || role === 'finance'
   const canDelete = ADMIN_ROLES.has(role) || role === 'finance'
 
   if (loading) return <div className="tab-loading"><Spinner size={24} /></div>

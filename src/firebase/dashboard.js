@@ -157,26 +157,57 @@ export async function getCrossRecords(category, facilityMap) {
   })
 }
 
-export async function getPermitStatusMap() {
+// Returns the "best" permit per facility (active > expiring > expired wins),
+// including its status plus the dates/number needed for reporting exports.
+export async function getPermitDetailsMap() {
   const snap = await getDocs(collectionGroup(db, 'permits'))
   const now   = Date.now()
   const in60  = now + 60 * 24 * 60 * 60 * 1000
   const map   = {}
+  const rank  = { active: 3, expiring: 2, expired: 1 }
   snap.docs.forEach((d) => {
     const fileNumber = decodeFileNumberParam(d.ref.parent.parent.id)
-    const ms = d.data().expiry_date?.toMillis?.() ?? null
+    const data = d.data()
+    const ms = data.expiry_date?.toMillis?.() ?? null
     let status = 'active'
     if (!ms)       status = 'active'
     else if (ms < now)  status = 'expired'
     else if (ms < in60) status = 'expiring'
     else               status = 'active'
-    // Promote: active > expiring > expired (best permit wins)
-    const rank = { active: 3, expiring: 2, expired: 1 }
-    if (!map[fileNumber] || rank[status] > rank[map[fileNumber]]) {
+    const existing = map[fileNumber]
+    if (!existing || rank[status] > rank[existing.status]) {
+      map[fileNumber] = {
+        status,
+        permit_number:  data.permit_number ?? '',
+        issue_date:     data.issue_date ?? null,
+        effective_date: data.effective_date ?? null,
+        expiry_date:    data.expiry_date ?? null,
+      }
+    }
+  })
+  return map // { [fileNumber]: { status, permit_number, issue_date, effective_date, expiry_date } }
+}
+
+export async function getPermitStatusMap() {
+  const details = await getPermitDetailsMap()
+  return Object.fromEntries(Object.entries(details).map(([fileNumber, d]) => [fileNumber, d.status]))
+  // { [fileNumber]: 'active' | 'expiring' | 'expired' }
+}
+
+// A facility is 'unpaid' if it has at least one unpaid finance record,
+// otherwise 'paid' if it has any finance records at all. Facilities with
+// no finance records don't appear in the map.
+export async function getFinanceStatusMap() {
+  const snap = await getDocs(collectionGroup(db, 'finance'))
+  const map = {}
+  snap.docs.forEach((d) => {
+    const fileNumber = decodeFileNumberParam(d.ref.parent.parent.id)
+    const status = (d.data().payment_status ?? 'paid') === 'unpaid' ? 'unpaid' : 'paid'
+    if (!map[fileNumber] || status === 'unpaid') {
       map[fileNumber] = status
     }
   })
-  return map // { [fileNumber]: 'active' | 'expiring' | 'expired' }
+  return map // { [fileNumber]: 'unpaid' | 'paid' }
 }
 
 // Returns Set of fileNumbers that have at least one permit with ready_to_collect: true

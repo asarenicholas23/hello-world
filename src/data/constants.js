@@ -24,6 +24,15 @@ export const ADMIN_ROLES = new Set(['director', 'admin'])
 // Roles that should see the full admin-style dashboard and navigation.
 export const ADMIN_VIEW_ROLES = new Set(['director', 'admin', 'senior_officer', 'officer'])
 
+// True if a staff member has ADMIN_VIEW_ROLES-equivalent edit/view rights —
+// either because their role grants it, or because they've been separately
+// given `data_access` on their staff doc without changing their role. This
+// is intentionally weaker than ADMIN_ROLES: it does not grant deletes, staff
+// management, or workflow approvals.
+export function hasFullDataAccess(role, dataAccess) {
+  return ADMIN_VIEW_ROLES.has(role) || Boolean(dataAccess)
+}
+
 // Roles that should see the full office-wide KPI breakdown on the dashboard.
 export const OFFICE_OVERVIEW_ROLES = new Set([
   'director',

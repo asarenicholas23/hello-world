@@ -3,7 +3,7 @@ import { useLocation } from 'react-router-dom'
 import { Send, Clock, CheckCircle, XCircle, Search, Plus, X, Users, Building2, ClipboardList } from 'lucide-react'
 import { listFacilities } from '../firebase/facilities'
 import { listFieldReports } from '../firebase/fieldReports'
-import { getPermitStatusMap } from '../firebase/dashboard'
+import { getPermitStatusMap, getFinanceStatusMap } from '../firebase/dashboard'
 import { sendFacilitySms, getSmsLog, SMS_TEMPLATES, previewTemplate } from '../firebase/sms'
 import { SECTORS, DISTRICTS } from '../data/constants'
 import Spinner from '../components/Spinner'
@@ -93,11 +93,20 @@ function ComposeTab() {
   const [groupSector, setGroupSector]     = useState('')
   const [groupDistrict, setGroupDistrict] = useState('')
   const [groupPermit, setGroupPermit]     = useState('')
+  const [groupPayment, setGroupPayment]   = useState('')
   const [reportDateFrom, setReportDateFrom] = useState('')
   const [reportDateTo, setReportDateTo] = useState('')
   const [reportingStatus, setReportingStatus] = useState('')
   const [permitStatusMap, setPermitStatusMap] = useState(null)
   const [pmLoading, setPmLoading]             = useState(false)
+  const [financeStatusMap, setFinanceStatusMap] = useState(null)
+  const [fmLoading, setFmLoading]               = useState(false)
+
+  // Group-mode manual list adjustments — filters build the base list, but
+  // the user can pin extra recipients in or drop specific ones out.
+  const [removedKeys, setRemovedKeys]       = useState(() => new Set())
+  const [manualAdditions, setManualAdditions] = useState([])
+  const [groupAddSearch, setGroupAddSearch]   = useState('')
 
   // Shared compose state
   const [template, setTemplate]     = useState('permit_expiry_60')
@@ -128,6 +137,24 @@ function ComposeTab() {
       .catch(() => setPermitStatusMap({}))
       .finally(() => setPmLoading(false))
   }, [mode, groupSource, groupPermit, permitStatusMap, pmLoading])
+
+  // Lazy-load finance status map when filtering by payment status in group mode
+  useEffect(() => {
+    if (mode !== 'group' || groupSource !== 'facilities' || !groupPayment || financeStatusMap !== null || fmLoading) return
+    setFmLoading(true)
+    getFinanceStatusMap()
+      .then(setFinanceStatusMap)
+      .catch(() => setFinanceStatusMap({}))
+      .finally(() => setFmLoading(false))
+  }, [mode, groupSource, groupPayment, financeStatusMap, fmLoading])
+
+  // Manual add/remove overrides are per-source — reset when switching
+  // between Facilities and Field Reports so keys don't cross-apply.
+  useEffect(() => {
+    setRemovedKeys(new Set())
+    setManualAdditions([])
+    setGroupAddSearch('')
+  }, [groupSource])
 
   // Single-mode: live search dropdown
   const searchFiltered = useMemo(() => {
@@ -185,12 +212,67 @@ function ComposeTab() {
         const status = permitStatusMap[f.file_number] ?? 'none'
         matchPermit  = status === groupPermit
       }
-      return matchSector && matchDistrict && matchPermit
+      let matchPayment = true
+      if (groupPayment && financeStatusMap !== null) {
+        const status = financeStatusMap[f.file_number] ?? 'none'
+        matchPayment = status === groupPayment
+      }
+      return matchSector && matchDistrict && matchPermit && matchPayment
     }).map((f) => ({ ...f, source: 'facility', key: `facility:${f.file_number}` }))
-  }, [mode, groupSource, preFilledFacilities, preFilledFieldReports, facilities, fieldReports, groupSector, groupDistrict, groupPermit, permitStatusMap, reportDateFrom, reportDateTo, reportingStatus])
+  }, [mode, groupSource, preFilledFacilities, preFilledFieldReports, facilities, fieldReports, groupSector, groupDistrict, groupPermit, permitStatusMap, groupPayment, financeStatusMap, reportDateFrom, reportDateTo, reportingStatus])
 
-  const recipientsWithPhone    = groupFacilities.filter((f) => f.phone?.trim())
-  const recipientsWithoutPhone = groupFacilities.filter((f) => !f.phone?.trim())
+  // Manual add/remove overlay on top of the filter-derived list — pin extra
+  // recipients in, or drop specific ones out, without losing the filter.
+  const finalGroupFacilities = useMemo(() => {
+    const base = groupFacilities.filter((f) => !removedKeys.has(f.key))
+    const extras = manualAdditions.filter(
+      (f) => !removedKeys.has(f.key) && !base.some((b) => b.key === f.key)
+    )
+    return [...base, ...extras]
+  }, [groupFacilities, removedKeys, manualAdditions])
+
+  // Search results for manually adding a facility/field report not already
+  // in the current list (matches the current groupSource type).
+  const groupAddResults = useMemo(() => {
+    const q = groupAddSearch.trim().toLowerCase()
+    if (!q) return []
+    const existingKeys = new Set(finalGroupFacilities.map((f) => f.key))
+    if (groupSource === 'field_reports') {
+      return fieldReports
+        .filter((r) => reportName(r).toLowerCase().includes(q))
+        .map((r) => ({
+          ...r,
+          source: 'field_report',
+          key: `field-report:${r.id ?? r.fileNumber}`,
+          name: reportName(r),
+          file_number: r.assigned_file_number ?? r.fileNumber ?? 'Field report',
+        }))
+        .filter((r) => !existingKeys.has(r.key))
+    }
+    return facilities
+      .filter((f) => f.name?.toLowerCase().includes(q) || f.file_number?.toLowerCase().includes(q))
+      .map((f) => ({ ...f, source: 'facility', key: `facility:${f.file_number}` }))
+      .filter((f) => !existingKeys.has(f.key))
+  }, [groupAddSearch, groupSource, facilities, fieldReports, finalGroupFacilities])
+
+  function handleAddToGroup(f) {
+    setRemovedKeys((prev) => {
+      if (!prev.has(f.key)) return prev
+      const next = new Set(prev)
+      next.delete(f.key)
+      return next
+    })
+    setManualAdditions((prev) => (prev.some((p) => p.key === f.key) ? prev : [...prev, f]))
+    setGroupAddSearch('')
+  }
+
+  function handleRemoveFromGroup(key) {
+    setRemovedKeys((prev) => new Set(prev).add(key))
+    setManualAdditions((prev) => prev.filter((f) => f.key !== key))
+  }
+
+  const recipientsWithPhone    = finalGroupFacilities.filter((f) => f.phone?.trim())
+  const recipientsWithoutPhone = finalGroupFacilities.filter((f) => !f.phone?.trim())
   const selectedNeedsPhone = selectedFac?.source === 'field_report' && !selectedFac.phone?.trim() && !extraPhones.length
 
   const currentTemplate = SMS_TEMPLATES.find((t) => t.value === template)
@@ -377,7 +459,7 @@ function ComposeTab() {
           {((groupSource === 'facilities' && preFilledFacilities) || (groupSource === 'field_reports' && preFilledFieldReports)) && (
             <div className="sms-prefilled-banner">
               <Users size={13} />
-              Pre-selected from {groupSource === 'field_reports' ? 'Field Reports' : 'Facilities'} filter — {groupFacilities.length} {recipientTypeLabel(groupSource, groupFacilities.length)}
+              Pre-selected from {groupSource === 'field_reports' ? 'Field Reports' : 'Facilities'} filter — {finalGroupFacilities.length} {recipientTypeLabel(groupSource, finalGroupFacilities.length)}
             </div>
           )}
 
@@ -406,9 +488,16 @@ function ComposeTab() {
                       <option value="expired">Expired permit</option>
                       <option value="none">No permit on file</option>
                     </select>
+                    <select className="select" value={groupPayment} onChange={(e) => setGroupPayment(e.target.value)}>
+                      <option value="">All payment statuses</option>
+                      <option value="unpaid">Unpaid invoice</option>
+                      <option value="paid">Fully paid</option>
+                    </select>
                   </div>
-                  {pmLoading && (
-                    <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 8 }}>Loading permit data…</div>
+                  {(pmLoading || fmLoading) && (
+                    <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 8 }}>
+                      Loading {pmLoading && fmLoading ? 'permit and payment data' : pmLoading ? 'permit data' : 'payment data'}…
+                    </div>
                   )}
                 </>
               ) : (
@@ -435,11 +524,42 @@ function ComposeTab() {
             </>
           )}
 
+          {/* Manually add a recipient not covered by the filters, or re-add one you removed */}
+          <div className="form-section-title" style={{ marginTop: 12 }}>
+            Add {groupSource === 'field_reports' ? 'a Field Report' : 'a Facility'} to This List
+          </div>
+          <div style={{ position: 'relative', marginBottom: 12 }}>
+            <div className="search-box">
+              <Search size={14} className="search-icon" />
+              <input
+                className="search-input"
+                placeholder={groupSource === 'field_reports' ? 'Search field reports by name…' : 'Search facilities by name/file number…'}
+                value={groupAddSearch}
+                onChange={(e) => setGroupAddSearch(e.target.value)}
+              />
+            </div>
+            {groupAddSearch.trim() && (
+              <div className="sms-fac-dropdown">
+                {groupAddResults.length > 0 ? groupAddResults.slice(0, 8).map((f) => (
+                  <div key={f.key} className="sms-fac-dropdown__item" onMouseDown={() => handleAddToGroup(f)}>
+                    <span className="file-num" style={{ fontSize: 12 }}>{f.file_number}</span>
+                    <span style={{ fontSize: 13 }}>{f.name}</span>
+                    {f.phone?.trim()
+                      ? <span style={{ fontSize: 12, color: '#6b7280', marginLeft: 'auto' }}>{f.phone}</span>
+                      : <span style={{ fontSize: 12, color: '#ef4444', marginLeft: 'auto' }}>No phone</span>}
+                  </div>
+                )) : (
+                  <div className="sms-fac-dropdown__item" style={{ color: '#9ca3af', cursor: 'default' }}>No matches</div>
+                )}
+              </div>
+            )}
+          </div>
+
           {/* Recipient list */}
-          {groupFacilities.length > 0 ? (
+          {finalGroupFacilities.length > 0 ? (
             <>
               <div className="sms-recipient-list">
-                {groupFacilities.map((f) => (
+                {finalGroupFacilities.map((f) => (
                   <div key={f.key ?? f.file_number} className="sms-recipient-row">
                     <span className="file-num" style={{ fontSize: 12, flexShrink: 0 }}>{f.file_number}</span>
                     <span className="sms-recipient-name">{f.name}</span>
@@ -449,6 +569,14 @@ function ComposeTab() {
                     {f.phone?.trim()
                       ? <span className="sms-recipient-phone">{f.phone}</span>
                       : <span className="sms-no-phone">No phone</span>}
+                    <button
+                      type="button"
+                      className="sms-recipient-remove"
+                      title="Remove from list"
+                      onClick={() => handleRemoveFromGroup(f.key)}
+                    >
+                      <X size={12} />
+                    </button>
                   </div>
                 ))}
               </div>
@@ -465,8 +593,8 @@ function ComposeTab() {
           ) : (
             <div className="empty-state" style={{ padding: '20px 0' }}>
               {groupSource === 'field_reports'
-                ? (fieldReportsLoading ? 'Loading field reports…' : 'No field reports match the selected filters.')
-                : (facilitiesLoading ? 'Loading facilities…' : 'No facilities match the selected filters.')}
+                ? (fieldReportsLoading ? 'Loading field reports…' : 'No field reports match the selected filters. Use the search above to add one manually.')
+                : (facilitiesLoading ? 'Loading facilities…' : 'No facilities match the selected filters. Use the search above to add one manually.')}
             </div>
           )}
         </>
@@ -506,6 +634,11 @@ function ComposeTab() {
             )}
           </div>
           <div style={{ fontSize: 13, color: '#111827', lineHeight: 1.6 }}>{preview}</div>
+          {template === 'unpaid_invoice' && (
+            <div style={{ fontSize: 11, color: '#166534', marginTop: 8 }}>
+              If a facility has more than one unpaid invoice, each is listed by type with its own amount and a total — this preview shows the single-invoice shape.
+            </div>
+          )}
         </div>
       )}
 

@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom'
 import { Plus, Search, Edit2, Trash2, AlertCircle, ChevronDown, ChevronUp } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { listComplaints, deleteComplaint } from '../firebase/complaints'
-import { ADMIN_ROLES, FIELD_ROLES, DISTRICTS, ADMIN_VIEW_ROLES } from '../data/constants'
+import { ADMIN_ROLES, FIELD_ROLES, DISTRICTS, hasFullDataAccess } from '../data/constants'
 import { fmtDate } from '../utils/records'
 import Spinner from '../components/Spinner'
 
@@ -23,13 +23,13 @@ function statusLabel(value) {
 function districtName(code) { return DISTRICTS.find((d) => d.code === code)?.name ?? code ?? '—' }
 
 export default function ComplaintsPage() {
-  const { user, role } = useAuth()
+  const { user, role, dataAccess } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
 
   const canWrite  = ADMIN_ROLES.has(role) || FIELD_ROLES.has(role)
   const isAdmin   = ADMIN_ROLES.has(role)
-  const canEditAllEntries = ADMIN_VIEW_ROLES.has(role)
+  const canEditAllEntries = hasFullDataAccess(role, dataAccess)
 
   const [records, setRecords]     = useState([])
   const [loading, setLoading]     = useState(true)

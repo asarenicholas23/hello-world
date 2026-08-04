@@ -6,9 +6,15 @@ import { fmtDate } from '../../utils/records'
 import { facilityPath } from '../../utils/fileNumbers'
 import Spinner from '../Spinner'
 import RecordDocumentModal from '../RecordDocumentModal'
-import { ADMIN_VIEW_ROLES, FIELD_ROLES } from '../../data/constants'
+import { FIELD_ROLES, hasFullDataAccess } from '../../data/constants'
+import { SITE_VERIFICATION_CHECKLISTS } from '../../data/siteVerificationChecklists'
 
-export default function SiteVerificationsTab({ fileNumber, role }) {
+function recordTitle(r) {
+  const checklist = SITE_VERIFICATION_CHECKLISTS[r.facility_sub_type ?? r.sector_prefix]
+  return checklist?.label === 'Pesticides Checklist' ? 'Pesticides Checklist' : 'Site Verification'
+}
+
+export default function SiteVerificationsTab({ fileNumber, role, dataAccess }) {
   const navigate = useNavigate()
   const [records, setRecords] = useState([])
   const [loading, setLoading] = useState(true)
@@ -40,7 +46,7 @@ export default function SiteVerificationsTab({ fileNumber, role }) {
     finally { setDeletingId(null) }
   }
 
-  const canEdit = ADMIN_VIEW_ROLES.has(role) || FIELD_ROLES.has(role)
+  const canEdit = hasFullDataAccess(role, dataAccess) || FIELD_ROLES.has(role)
   const selectedIdSet = new Set(selectedIds)
   const visibleRecordIds = records.map((r) => r.id)
   const allVisibleSelected = visibleRecordIds.length > 0 && visibleRecordIds.every((id) => selectedIdSet.has(id))
@@ -127,7 +133,7 @@ export default function SiteVerificationsTab({ fileNumber, role }) {
                       <input type="checkbox" checked={selectedIdSet.has(r.id)} onChange={() => toggleRecordSelection(r.id)} />
                     </label>
                   )}
-                  Site Verification — {fmtDate(r.date)}
+                  {recordTitle(r)} — {fmtDate(r.date)}
                 </span>
                 {r.photos?.length > 0 && (
                   <span className="record-badge" style={{ background: '#f0f9ff', color: '#0369a1' }}>

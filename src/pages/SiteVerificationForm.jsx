@@ -7,11 +7,11 @@ import { useGPS } from '../hooks/useGPS'
 import { getSubRecord, createSubRecord, updateSubRecord, listSubRecords } from '../firebase/subrecords'
 import { linkPermitWorkflowRecord } from '../firebase/workflow'
 import { getFacility } from '../firebase/facilities'
-import { tsToInput, inputToTs, fmtDate } from '../utils/records'
+import { listStaff, getStaffMember } from '../firebase/staff'
+import { tsToInput, inputToTs } from '../utils/records'
 import { decodeFileNumberParam, facilityPath } from '../utils/fileNumbers'
-import { SITE_VERIFICATION_CHECKLISTS, SV_CHECKLIST_OPTIONS } from '../data/siteVerificationChecklists'
-import PhotoCapture from '../components/PhotoCapture'
-import GPSField from '../components/GPSField'
+import { SITE_VERIFICATION_CHECKLISTS } from '../data/siteVerificationChecklists'
+import ChecklistFields from '../components/forms/ChecklistFields'
 import Spinner from '../components/Spinner'
 
 function buildDefaults(checklist) {
@@ -51,10 +51,16 @@ export default function SiteVerificationForm() {
   })
   const [photos, setPhotos] = useState([])
   const [permits, setPermits] = useState([])
+  const [allStaff, setAllStaff] = useState([])
+  const [secondOfficerUid, setSecondOfficerUid] = useState('')
   const { coordinates, setCoordinates, loading: gpsLoading, error: gpsError, capture: captureGPS, clear: clearGPS } = useGPS()
   const [initialLoading, setInitialLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
+
+  useEffect(() => {
+    listStaff().then(setAllStaff).catch(() => setAllStaff([]))
+  }, [])
 
   useEffect(() => {
     async function load() {
@@ -90,6 +96,7 @@ export default function SiteVerificationForm() {
             ...merged,
           })
           setPhotos(rec.photos ?? [])
+          setSecondOfficerUid(rec.second_officer_id ?? '')
           if (rec.coordinates) setCoordinates(rec.coordinates)
         }
       } catch {
@@ -128,10 +135,16 @@ export default function SiteVerificationForm() {
     setSubmitting(true)
     setError('')
 
+    const secondOfficer = secondOfficerUid ? await getStaffMember(secondOfficerUid).catch(() => null) : null
+
     const payload = {
-      date:             inputToTs(formData.date),
-      officer_id:       user.uid,
-      officer_name:     staff?.name ?? '',
+      date:                          inputToTs(formData.date),
+      officer_id:                    user.uid,
+      officer_name:                  staff?.name ?? '',
+      officer_signature_url:         staff?.signature_url ?? '',
+      second_officer_id:             secondOfficerUid || '',
+      second_officer_name:           secondOfficer?.name ?? '',
+      second_officer_signature_url:  secondOfficer?.signature_url ?? '',
       linked_permit_id: formData.linked_permit_id,
       coordinates:      coordinates ?? null,
       photos,
@@ -201,145 +214,52 @@ export default function SiteVerificationForm() {
           </div>
         )}
 
-        {/* ── Verification Details ── */}
-        <div className="form-card">
-          <div className="form-section">
-            <div className="form-section-title">Verification Details</div>
-
-            <div className="form-row">
-              <div className="form-group">
-                <label>Date <span style={{ color: '#ef4444' }}>*</span></label>
-                <input className="input" type="date" value={formData.date}
-                  onChange={(e) => set('date', e.target.value)} />
-              </div>
-              <div className="form-group">
-                <label>Officer</label>
-                <input className="input" value={staff?.name ?? '—'} readOnly
-                  style={{ background: '#f9fafb', color: '#6b7280', cursor: 'not-allowed' }} />
-              </div>
-            </div>
-
-            <div className="form-group">
-              <label>Linked Permit</label>
-              <select className="select" value={formData.linked_permit_id}
-                onChange={(e) => set('linked_permit_id', e.target.value)}>
-                <option value="">None / Not linked</option>
-                {permits.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.permit_number} — expires {fmtDate(p.expiry_date)}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <GPSField
-              coordinates={coordinates}
-              loading={gpsLoading}
-              error={gpsError}
-              onCapture={captureGPS}
-              onClear={clearGPS}
-              onChange={setCoordinates}
-            />
-          </div>
-        </div>
-
         {/* ── CE Sub-type selector ── */}
         {sectorPrefix === 'CE' && (
-          <div className="form-card">
-            <div className="form-section">
-              <div className="form-section-title">Facility Sub-type</div>
-              <div className="form-group">
-                <label>Select facility type <span style={{ color: '#ef4444' }}>*</span></label>
-                <select className="select" value={subType} onChange={(e) => handleSubTypeChange(e.target.value)} disabled={isEditing}>
-                  <option value="CE">Car Washing Bay</option>
-                  <option value="CE_FUEL_STATION">Fuel / Filling Station</option>
-                </select>
-                {isEditing && (
-                  <p style={{ fontSize: 12, color: '#6b7280', marginTop: 4 }}>Sub-type cannot be changed when editing.</p>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ── Extra Fields (sector-specific) ── */}
-        {(checklist.extraFields?.length > 0) && (
-          <div className="form-card">
-            <div className="form-section">
-              <div className="form-section-title">Facility Information</div>
-              <div className="form-row form-row--wrap">
-                {checklist.extraFields.map((field) => (
-                  <div key={field.key} className="form-group">
-                    <label>{field.label}</label>
-                    <input className="input" type="text" value={formData[field.key] ?? ''}
-                      onChange={(e) => set(field.key, e.target.value)} />
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ── Checklist Sections ── */}
-        {checklist.sections.map((section) => (
-          <div key={section.title} className="form-card">
-            <div className="form-section">
-              <div className="form-section-title">{section.title}</div>
-              <div className="monitoring-checklist">
-                {section.items.map((item) => {
-                  if (!isVisible(item)) return null
-                  return (
-                    <div key={item.key} className="monitoring-checklist__row">
-                      <span className="monitoring-checklist__label">{item.label}</span>
-                      {item.type === 'text' ? (
-                        <input className="input monitoring-checklist__input"
-                          type="text"
-                          value={formData[item.key] ?? ''}
-                          onChange={(e) => set(item.key, e.target.value)}
-                          placeholder="Enter…" />
-                      ) : item.type === 'select' ? (
-                        <select className="select monitoring-checklist__select"
-                          value={formData[item.key] ?? ''}
-                          onChange={(e) => set(item.key, e.target.value)}>
-                          {(item.options ?? SV_CHECKLIST_OPTIONS).map((o) => (
-                            <option key={o} value={o}>{o || '— Select —'}</option>
-                          ))}
-                        </select>
-                      ) : (
-                        <select className="select monitoring-checklist__select"
-                          value={formData[item.key] ?? ''}
-                          onChange={(e) => set(item.key, e.target.value)}>
-                          {SV_CHECKLIST_OPTIONS.map((o) => (
-                            <option key={o} value={o}>{o || '— Select —'}</option>
-                          ))}
-                        </select>
-                      )}
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-          </div>
-        ))}
-
-        {/* ── Notes & Photos ── */}
-        <div className="form-card">
-          <div className="form-section">
-            <div className="form-section-title">Notes &amp; Photos</div>
+          <div className="card form-card">
+            <div className="form-section-title">Facility Sub-type</div>
             <div className="form-group">
-              <label>General Comments &amp; Recommendations</label>
-              <textarea className="input textarea" value={formData.notes}
-                onChange={(e) => set('notes', e.target.value)}
-                rows={3} placeholder="Findings, observations and recommendations…" />
+              <label>Select facility type <span style={{ color: '#ef4444' }}>*</span></label>
+              <select className="select" value={subType} onChange={(e) => handleSubTypeChange(e.target.value)} disabled={isEditing}>
+                <option value="CE">Car Washing Bay</option>
+                <option value="CE_FUEL_STATION">Fuel Service and Filling Station</option>
+                <option value="CE_LPG">LPG Re-filling Plant</option>
+              </select>
+              {isEditing && (
+                <p style={{ fontSize: 12, color: '#6b7280', marginTop: 4 }}>Sub-type cannot be changed when editing.</p>
+              )}
             </div>
-            <PhotoCapture
-              photos={photos}
-              onPhotosChange={setPhotos}
-              fileNumber={fileNumber}
-              category="site_verifications"
-            />
           </div>
-        </div>
+        )}
+
+        <ChecklistFields
+          checklist={checklist}
+          detailsTitle="Verification Details"
+          dateLabel="Date"
+          date={formData.date}
+          onDateChange={(v) => set('date', v)}
+          officerName={staff?.name}
+          secondOfficerUid={secondOfficerUid}
+          onSecondOfficerChange={setSecondOfficerUid}
+          staffOptions={allStaff.filter((s) => s.id !== user.uid)}
+          permits={permits}
+          linkedPermitId={formData.linked_permit_id}
+          onLinkedPermitChange={(v) => set('linked_permit_id', v)}
+          coordinates={coordinates}
+          gpsLoading={gpsLoading}
+          gpsError={gpsError}
+          onCaptureGPS={captureGPS}
+          onClearGPS={clearGPS}
+          onManualCoordinates={setCoordinates}
+          formData={formData}
+          set={set}
+          notes={formData.notes}
+          onNotesChange={(v) => set('notes', v)}
+          photos={photos}
+          onPhotosChange={setPhotos}
+          photoFileNumber={fileNumber}
+          photoCategory="site_verifications"
+        />
 
         <div className="form-actions">
           <button type="button" className="btn btn--ghost"

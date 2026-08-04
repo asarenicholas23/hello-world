@@ -6,7 +6,7 @@ import { listSubRecords, deleteSubRecord, updateSubRecord } from '../../firebase
 import { fmtDate, permitStatus } from '../../utils/records'
 import { normalizeAttachmentUrl } from '../../utils/attachments'
 import { facilityPath } from '../../utils/fileNumbers'
-import { ADMIN_ROLES, FIELD_ROLES, ADMIN_VIEW_ROLES } from '../../data/constants'
+import { ADMIN_ROLES, FIELD_ROLES, hasFullDataAccess } from '../../data/constants'
 import Spinner from '../Spinner'
 
 const STATUS_LABELS = { active: 'Active', expiring: 'Expiring Soon', expired: 'Expired' }
@@ -17,7 +17,7 @@ const STATUS_COLORS = {
 }
 
 export default function PermitsTab({ fileNumber, facilityOfficer }) {
-  const { role, user } = useAuth()
+  const { role, user, dataAccess } = useAuth()
   const navigate = useNavigate()
 
   const [records, setRecords]       = useState([])
@@ -26,8 +26,8 @@ export default function PermitsTab({ fileNumber, facilityOfficer }) {
   const [deletingId, setDeletingId] = useState(null)
   const [togglingId, setTogglingId] = useState(null)
 
-  const canAdd  = ADMIN_ROLES.has(role) || (FIELD_ROLES.has(role) && user?.uid === facilityOfficer)
-  const canEdit = ADMIN_VIEW_ROLES.has(role)
+  const canAdd  = ADMIN_ROLES.has(role) || dataAccess || (FIELD_ROLES.has(role) && user?.uid === facilityOfficer)
+  const canEdit = hasFullDataAccess(role, dataAccess)
   const canDelete = ADMIN_ROLES.has(role)
 
   useEffect(() => { load() }, [fileNumber])

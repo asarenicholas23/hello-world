@@ -15,8 +15,10 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 async function assertAdmin(auth) {
   if (!auth?.uid) throw new HttpsError('unauthenticated', 'Sign in required.')
   const snap = await admin.firestore().doc(`staff/${auth.uid}`).get()
-  if (!snap.exists || !ADMIN_ROLES.has(snap.data().role)) {
-    throw new HttpsError('permission-denied', 'Admin or Director role required.')
+  if (!snap.exists) throw new HttpsError('permission-denied', 'Admin, Director, or Data Access role required.')
+  const data = snap.data()
+  if (!ADMIN_ROLES.has(data.role) && !data.data_access) {
+    throw new HttpsError('permission-denied', 'Admin, Director, or Data Access role required.')
   }
 }
 

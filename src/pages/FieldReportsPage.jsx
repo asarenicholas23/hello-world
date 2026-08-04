@@ -10,7 +10,7 @@ import { listStaff } from '../firebase/staff'
 import { useLocation } from 'react-router-dom'
 import { fmtDate, inputToTs } from '../utils/records'
 import { facilityPath } from '../utils/fileNumbers'
-import { SECTORS, DISTRICTS, ENFORCEMENT_ACTIONS, ADMIN_ROLES, FIELD_ROLES, ADMIN_VIEW_ROLES } from '../data/constants'
+import { SECTORS, DISTRICTS, ENFORCEMENT_ACTIONS, ADMIN_ROLES, FIELD_ROLES, hasFullDataAccess } from '../data/constants'
 import AssignOfficerDialog from '../components/AssignOfficerDialog'
 import Spinner from '../components/Spinner'
 
@@ -41,10 +41,10 @@ function districtName(code)  { return DISTRICTS.find((d) => d.code === code)?.na
 function actionLabel(value)  { return ENFORCEMENT_ACTIONS.find((a) => a.value === value)?.label ?? value }
 
 export default function FieldReportsPage() {
-  const { user, staff, role } = useAuth()
+  const { user, staff, role, dataAccess } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
-  const canEditAllEntries = ADMIN_VIEW_ROLES.has(staff?.role)
+  const canEditAllEntries = hasFullDataAccess(staff?.role, dataAccess)
   const canEditFieldReports = canEditAllEntries || staff?.role === 'finance'
   const canEditReport = (r) => canEditFieldReports || r.officer_id === user?.uid
   const canManageReportFields = ADMIN_ROLES.has(staff?.role) || staff?.role === 'finance'

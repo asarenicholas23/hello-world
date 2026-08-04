@@ -1,14 +1,14 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { Search, AlertCircle, Download, Plus, LayoutGrid, Table2, Trash2 } from 'lucide-react'
+import { Search, AlertCircle, Download, Plus, LayoutGrid, Table2, Trash2, Pencil } from 'lucide-react'
 import { getCrossRecords, buildFacilityMap } from '../firebase/dashboard'
-import { deleteSubRecord } from '../firebase/subrecords'
+import { deleteSubRecord, updateSubRecord } from '../firebase/subrecords'
 import { fmtDate, permitStatus } from '../utils/records'
 import { facilityPath } from '../utils/fileNumbers'
 import {
   SECTOR_COLORS, ENFORCEMENT_ACTIONS, COMPLIANCE_STATUS, FIELD_ROLES, ADMIN_ROLES,
-  PAYMENT_TYPES, SECTORS, DISTRICTS,
+  PAYMENT_TYPES, SECTORS, DISTRICTS, hasFullDataAccess,
 } from '../data/constants'
 import Spinner from '../components/Spinner'
 
@@ -221,7 +221,7 @@ export default function CrossRecordsPage() {
   const { module } = useParams()
   const navigate = useNavigate()
   const location = useLocation()
-  const { staff } = useAuth()
+  const { staff, user, dataAccess } = useAuth()
 
   const collection = URL_TO_COLLECTION[module] ?? module
   const config = CATEGORY_CONFIG[collection]
@@ -243,6 +243,7 @@ export default function CrossRecordsPage() {
   const [permitDateField, setPermitDateField] = useState('expiry_date')
   const [selectedKeys, setSelectedKeys] = useState([])
   const [deletingSelected, setDeletingSelected] = useState(false)
+  const [financeEditMode, setFinanceEditMode] = useState(false)
 
   // Re-sync filters on every navigation (handles same-route re-navigation)
   useEffect(() => {
@@ -359,6 +360,7 @@ export default function CrossRecordsPage() {
     return { total, paid, unpaid, topSector, topDistrict }
   }, [filtered, collection])
   const canBulkManage = ADMIN_ROLES.has(staff?.role)
+  const canEditFinance = hasFullDataAccess(staff?.role, dataAccess) || staff?.role === 'finance'
   const selectedKeySet = useMemo(() => new Set(selectedKeys), [selectedKeys])
   const visibleRecordKeys = filtered.map((r) => `${r.fileNumber}::${r.id}`)
   const allVisibleSelected = visibleRecordKeys.length > 0 && visibleRecordKeys.every((key) => selectedKeySet.has(key))
@@ -411,6 +413,23 @@ export default function CrossRecordsPage() {
     }
 
     setDeletingSelected(false)
+  }
+
+  async function handleInlineFinanceUpdate(record, field, value) {
+    const recordKey = `${record.fileNumber}::${record.id}`
+    const prevValue = record[field]
+    if (prevValue === value) return
+    setRecords((prev) => prev.map((r) =>
+      `${r.fileNumber}::${r.id}` === recordKey ? { ...r, [field]: value } : r
+    ))
+    try {
+      await updateSubRecord(record.fileNumber, 'finance', record.id, { [field]: value }, user?.uid)
+    } catch {
+      setRecords((prev) => prev.map((r) =>
+        `${r.fileNumber}::${r.id}` === recordKey ? { ...r, [field]: prevValue } : r
+      ))
+      setActionError('Failed to save the change. Please try again.')
+    }
   }
 
   if (!config) return <div className="page"><div className="empty-state">Unknown module.</div></div>
@@ -588,6 +607,14 @@ export default function CrossRecordsPage() {
                 <Table2 size={15} />
               </button>
             </div>
+            {canEditFinance && viewMode === 'table' && (
+              <button
+                className={`btn btn--sm${financeEditMode ? ' btn--primary' : ' btn--ghost'}`}
+                onClick={() => setFinanceEditMode((v) => !v)}
+              >
+                <Pencil size={13} /> {financeEditMode ? 'Done Editing' : 'Edit'}
+              </button>
+            )}
           </>
         )}
       </div>
@@ -753,7 +780,7 @@ export default function CrossRecordsPage() {
                     <tr
                       key={`${r.fileNumber}-${r.id}`}
                       className={`facility-table__row${selectedKeySet.has(recordKey) ? ' facility-table__row--selected' : ''}`}
-                      onClick={() => navigate(facilityPath(r.fileNumber), { state: { tab: config.tab } })}
+                      onClick={financeEditMode ? undefined : () => navigate(facilityPath(r.fileNumber), { state: { tab: config.tab } })}
                     >
                       {canBulkManage && (
                         <td onClick={(e) => e.stopPropagation()}>
@@ -773,20 +800,63 @@ export default function CrossRecordsPage() {
                       </td>
                       <td style={{ color: '#6b7280' }}>{districtLabel(r.facilityDistrict)}</td>
                       <td>{fmtDate(r.date)}</td>
-                      <td>{r.payment_type || '—'}</td>
+                      <td onClick={(e) => financeEditMode && e.stopPropagation()}>
+                        {financeEditMode ? (
+                          <select
+                            className="select finance-inline-input"
+                            value={r.payment_type || ''}
+                            onChange={(e) => handleInlineFinanceUpdate(r, 'payment_type', e.target.value)}
+                          >
+                            <option value="">—</option>
+                            {PAYMENT_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+                          </select>
+                        ) : (r.payment_type || '—')}
+                      </td>
                       <td style={{ color: '#6b7280' }}>{r.permit_number || '—'}</td>
-                      <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
-                        {Number(r.amount ?? 0).toLocaleString('en-GH', { minimumFractionDigits: 2 })}
+                      <td
+                        style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}
+                        onClick={(e) => financeEditMode && e.stopPropagation()}
+                      >
+                        {financeEditMode ? (
+                          <input
+                            className="input finance-inline-input"
+                            style={{ textAlign: 'right' }}
+                            type="number"
+                            step="0.01"
+                            defaultValue={r.amount ?? 0}
+                            onBlur={(e) => handleInlineFinanceUpdate(r, 'amount', Number(e.target.value) || 0)}
+                          />
+                        ) : Number(r.amount ?? 0).toLocaleString('en-GH', { minimumFractionDigits: 2 })}
                       </td>
-                      <td>
-                        <span
-                          className="record-badge"
-                          style={isPaid ? { background: '#dcfce7', color: '#166534' } : { background: '#fef9c3', color: '#854d0e' }}
-                        >
-                          {isPaid ? 'Paid' : 'Unpaid'}
-                        </span>
+                      <td onClick={(e) => financeEditMode && e.stopPropagation()}>
+                        {financeEditMode ? (
+                          <select
+                            className="select finance-inline-input"
+                            value={(r.payment_status ?? 'paid')}
+                            onChange={(e) => handleInlineFinanceUpdate(r, 'payment_status', e.target.value)}
+                          >
+                            <option value="paid">Paid</option>
+                            <option value="unpaid">Unpaid</option>
+                          </select>
+                        ) : (
+                          <span
+                            className="record-badge"
+                            style={isPaid ? { background: '#dcfce7', color: '#166534' } : { background: '#fef9c3', color: '#854d0e' }}
+                          >
+                            {isPaid ? 'Paid' : 'Unpaid'}
+                          </span>
+                        )}
                       </td>
-                      <td style={{ color: '#6b7280' }}>{r.reference_number || '—'}</td>
+                      <td style={{ color: '#6b7280' }} onClick={(e) => financeEditMode && e.stopPropagation()}>
+                        {financeEditMode ? (
+                          <input
+                            className="input finance-inline-input"
+                            type="text"
+                            defaultValue={r.reference_number || ''}
+                            onBlur={(e) => handleInlineFinanceUpdate(r, 'reference_number', e.target.value)}
+                          />
+                        ) : (r.reference_number || '—')}
+                      </td>
                     </tr>
                   )
                 })}

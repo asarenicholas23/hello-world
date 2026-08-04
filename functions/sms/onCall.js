@@ -10,8 +10,10 @@ const ADMIN_ROLES     = new Set(['admin', 'director'])
 async function assertAdmin(auth) {
   if (!auth?.uid) throw new HttpsError('unauthenticated', 'Sign in required.')
   const snap = await admin.firestore().doc(`staff/${auth.uid}`).get()
-  if (!snap.exists || !ADMIN_ROLES.has(snap.data().role)) {
-    throw new HttpsError('permission-denied', 'Admin or Director role required.')
+  if (!snap.exists) throw new HttpsError('permission-denied', 'Admin, Director, or Data Access role required.')
+  const data = snap.data()
+  if (!ADMIN_ROLES.has(data.role) && !data.data_access) {
+    throw new HttpsError('permission-denied', 'Admin, Director, or Data Access role required.')
   }
 }
 
@@ -78,13 +80,9 @@ exports.sendFacilitySms = onCall({
 
   } else if (template === 'unpaid_invoice') {
     const financeSnap = await db.collection(`facilities/${facilityId}/finance`)
-      .where('payment_status', '==', 'unpaid').limit(1).get()
-    const record = financeSnap.docs[0]?.data()
-    message = unpaidInvoice(
-      facilityName, facilityId,
-      record?.payment_type ?? 'outstanding invoice',
-      record?.amount ?? 0,
-    )
+      .where('payment_status', '==', 'unpaid').get()
+    const records = financeSnap.docs.map((d) => d.data())
+    message = unpaidInvoice(facilityName, facilityId, records)
 
   } else if (template === 'enforcement_reminder') {
     const enfSnap = await db.collection(`facilities/${facilityId}/enforcement`)

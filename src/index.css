@@ -1693,6 +1693,13 @@ body {
   font-size: 11px; font-weight: 600; text-transform: uppercase;
   letter-spacing: 0.04em; color: #dc2626; flex-shrink: 0;
 }
+.sms-recipient-remove {
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; width: 22px; height: 22px;
+  border: none; border-radius: 6px; background: none;
+  color: #9ca3af; cursor: pointer;
+}
+.sms-recipient-remove:hover { background: #fee2e2; color: #dc2626; }
 .sms-recipient-summary {
   display: flex; align-items: center; gap: 6px;
   font-size: 13px; color: #374151;
@@ -1824,6 +1831,7 @@ body {
   border-bottom: 1px solid #e5e7eb; white-space: nowrap;
 }
 .facility-table td { padding: 10px 14px; border-bottom: 1px solid #f3f4f6; vertical-align: middle; }
+.finance-inline-input { padding: 5px 8px; font-size: 12.5px; width: auto; min-width: 90px; }
 .facility-table tbody tr:last-child td { border-bottom: none; }
 .facility-table__row { cursor: pointer; }
 .facility-table__row:hover td { background: #f0fdf4; }
@@ -1856,12 +1864,27 @@ body {
   font-size: 10px; font-weight: 600; padding: 1px 6px; border-radius: 999px;
 }
 
-/* ── Nav divider ──────────────────────────────────────── */
-.nav-divider {
+/* ── Nav groups (collapsible sidebar sections) ──────────── */
+.nav-group + .nav-group { margin-top: 6px; }
+.nav-group__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  gap: 8px;
+  padding: 8px 12px 4px;
+  background: none;
   border: none;
-  border-top: 1px solid #1e293b;
-  margin: 8px 12px;
+  cursor: pointer;
+  color: #64748b;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
 }
+.nav-group__header:hover { color: #94a3b8; }
+.nav-group__chevron { transition: transform 0.15s ease; flex-shrink: 0; }
+.nav-group__chevron--collapsed { transform: rotate(-90deg); }
 
 /* ── Import page ──────────────────────────────────────── */
 .import-dropzone {

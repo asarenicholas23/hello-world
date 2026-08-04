@@ -5,33 +5,75 @@ import {
 import { db } from './config'
 import { uploadFile, deleteFile, makePhotoPath } from './storage'
 import { createSubRecord, listSubRecords } from './subrecords'
+import { getFacility, createFacilityWithId } from './facilities'
+import { screeningRecordToForm } from '../data/screeningFieldMeta'
 
 const COL = () => collection(db, 'tasks')
 
 export const TASK_TYPES = [
-  { value: 'screening',         label: 'Screening',          annotated: true },
-  { value: 'site_verification', label: 'Site Verification',  annotated: false },
-  { value: 'monitoring',        label: 'Monitoring',         annotated: false },
-  { value: 'enforcement',       label: 'Enforcement',        annotated: false },
-  { value: 'schedule',          label: 'Schedule',           annotated: false },
-  { value: 'other',             label: 'Other',               annotated: false },
+  { value: 'screening',         label: 'Screening',          annotated: true,  formFlow: true },
+  { value: 'site_verification', label: 'Site Verification',  annotated: false, formFlow: true },
+  { value: 'monitoring',        label: 'Monitoring',         annotated: false, formFlow: false },
+  { value: 'enforcement',       label: 'Enforcement',        annotated: false, formFlow: false },
+  { value: 'schedule',          label: 'Schedule',           annotated: false, formFlow: false },
+  { value: 'other',             label: 'Other',               annotated: false, formFlow: false },
 ]
+
+/** Task types filled in-app as a real form (vs. a plain file upload). */
+export function isFormTask(taskType) {
+  return TASK_TYPES.find((t) => t.value === taskType)?.formFlow ?? false
+}
 
 export function taskTypeLabel(type) {
   return TASK_TYPES.find((t) => t.value === type)?.label ?? type
 }
 
+/**
+ * Agrochemical/Pesticide (PP) facilities use the same Pesticides Checklist
+ * for both their "Screening" and "Site Verification" tasks — there's no
+ * separate EA1-style screening for this sector. Prefer the sector captured
+ * on the task at assignment time (available before submission); fall back
+ * to whatever was captured on the submitted form_data.
+ */
+export function isPesticideChecklistTask(task) {
+  if (!task) return false
+  if (task.task_type !== 'screening' && task.task_type !== 'site_verification') return false
+  const sector = task.sector_prefix ?? task.form_data?.sector_prefix ?? task.form_data?.facility_sub_type
+  return sector === 'PP'
+}
+
+/** Display label for a task — swaps in "Pesticides Checklist" for PP-sector screening/site verification tasks. */
+export function taskDisplayLabel(task) {
+  if (isPesticideChecklistTask(task)) return 'Pesticides Checklist'
+  return taskTypeLabel(task.task_type)
+}
+
 export async function createTask({
   taskType, facilityMode, fileNumber = null, facilityName, facilityDetails = null,
+  fieldReportId = null, screeningPrefill = null, sectorPrefix = null,
   assignedToUid, assignedToName, assignedTo2Uid = null, assignedTo2Name = '',
   assignedByUid, assignedByName, dueDate = null, notes = '',
 }) {
+  // Carry over screening details already captured on a field report, so the
+  // assigned officer doesn't have to re-collect information gathered during
+  // an earlier walk-in/enforcement visit — they review & confirm instead of
+  // starting from a blank form.
+  const prefillForm = taskType === 'screening' && screeningPrefill
+    ? {
+        ...screeningRecordToForm(screeningPrefill),
+        photos:      screeningPrefill.photos ?? [],
+        coordinates: screeningPrefill.coordinates ?? null,
+      }
+    : null
+
   const ref = await addDoc(COL(), {
     task_type:          taskType,
     facility_mode:       facilityMode,
     file_number:         fileNumber,
     facility_name:       facilityName,
     facility_details:    facilityDetails,
+    field_report_id:     fieldReportId,
+    sector_prefix:       sectorPrefix,
     assigned_to:         assignedToUid,
     assigned_to_name:    assignedToName,
     assigned_to_2:       assignedTo2Uid,
@@ -41,7 +83,8 @@ export async function createTask({
     due_date:            dueDate,
     notes,
     status:              'assigned',
-    form_data:           null,
+    form_data:           prefillForm,
+    prefilled_from_field_report: Boolean(prefillForm),
     annotations:         [],
     revision_note:       '',
     linked_file_number:  null,
@@ -52,6 +95,36 @@ export async function createTask({
     updated_at:          serverTimestamp(),
   })
   return ref.id
+}
+
+/**
+ * Lets the assigner edit a task's assignment details after creation (who
+ * it's assigned to, task type, facility, due date, notes) — does not touch
+ * status, form_data, submission, or annotations, so it can't clobber work
+ * the assignee has already submitted.
+ */
+export async function updateTaskAssignment(id, {
+  taskType, facilityMode, fileNumber = null, facilityName, facilityDetails = null,
+  fieldReportId = null, sectorPrefix = null, assignedToUid, assignedToName, assignedTo2Uid = null, assignedTo2Name = '',
+  dueDate = null, notes = '',
+}, uid) {
+  await updateDoc(doc(db, 'tasks', id), {
+    task_type:          taskType,
+    facility_mode:       facilityMode,
+    file_number:         fileNumber,
+    facility_name:       facilityName,
+    facility_details:    facilityDetails,
+    field_report_id:     fieldReportId,
+    sector_prefix:       sectorPrefix,
+    assigned_to:         assignedToUid,
+    assigned_to_name:    assignedToName,
+    assigned_to_2:       assignedTo2Uid,
+    assigned_to_2_name:  assignedTo2Name,
+    due_date:            dueDate,
+    notes,
+    updated_at:          serverTimestamp(),
+    updated_by:          uid,
+  })
 }
 
 /** Is this uid one of the (up to two) officers a task is assigned to? */
@@ -83,7 +156,8 @@ export async function getTask(id) {
   return snap.exists() ? { id: snap.id, ...snap.data() } : null
 }
 
-export async function submitScreeningTask(id, { formData, revisionNote = '', uid }) {
+/** Submits a filled-in form task (screening or site verification) for review. */
+export async function submitFormTask(id, { formData, revisionNote = '', uid }) {
   const ref = doc(db, 'tasks', id)
   const snap = await getDoc(ref)
   const existingAnnotations = snap.data()?.annotations ?? []
@@ -159,7 +233,71 @@ export async function approveTask(id, { uid, reviewNotes = '' }) {
     patch.linked_record_id   = recordId
   }
 
+  if (task.task_type === 'site_verification' && task.facility_mode === 'registered' && task.file_number && task.form_data) {
+    const recordId = await createSubRecord(task.file_number, 'site_verifications', task.form_data, uid)
+    patch.linked_file_number = task.file_number
+    patch.linked_record_id   = recordId
+  }
+
   await updateDoc(ref, patch)
+}
+
+/**
+ * Registers a task's not-yet-in-the-system facility (typed freeform when the
+ * task was assigned, with no linked field report) as a real facility record
+ * — mirrors the "Assign File Number" flow in FieldReportsPage.jsx. Details
+ * already captured in facility_details carry straight over instead of being
+ * retyped.
+ */
+export async function registerTaskFacility(id, { fileNumber, sectorPrefix, sector, typeOfUndertaking = '' }, uid) {
+  const trimmed = fileNumber?.trim().toUpperCase()
+  if (!trimmed) throw new Error('File number is required.')
+
+  const task = await getTask(id)
+  if (!task) throw new Error('Task not found.')
+
+  const existing = await getFacility(trimmed)
+  if (!existing) {
+    const details = task.facility_details ?? {}
+    await createFacilityWithId(trimmed, {
+      name:                task.facility_name ?? details.name ?? '',
+      sector_prefix:       sectorPrefix,
+      sector,
+      type_of_undertaking: typeOfUndertaking,
+      location:            details.location ?? '',
+      district:            details.district ?? '',
+      contact_person:      details.contact_person ?? '',
+      phone:               details.phone ?? '',
+    }, uid)
+  }
+
+  const patch = {
+    facility_mode: 'registered',
+    file_number:   trimmed,
+    sector_prefix: sectorPrefix,
+    updated_at:    serverTimestamp(),
+    updated_by:    uid,
+  }
+
+  // If this screening/site verification was already approved before the
+  // facility existed, the approval-time copy into the facility's sub-records
+  // never ran (it only fires for already-registered facilities) — catch it
+  // up now so the captured data isn't stranded on the task alone.
+  if (task.task_type === 'screening' && task.status === 'approved' && task.form_data && !task.linked_record_id) {
+    const subs = await listSubRecords(trimmed, 'screenings')
+    const screeningId = `SCR-${trimmed}-${String(subs.length + 1).padStart(3, '0')}`
+    const recordId = await createSubRecord(trimmed, 'screenings', { ...task.form_data, screening_id: screeningId }, uid)
+    patch.linked_file_number = trimmed
+    patch.linked_record_id   = recordId
+  }
+  if (task.task_type === 'site_verification' && task.status === 'approved' && task.form_data && !task.linked_record_id) {
+    const recordId = await createSubRecord(trimmed, 'site_verifications', task.form_data, uid)
+    patch.linked_file_number = trimmed
+    patch.linked_record_id   = recordId
+  }
+
+  await updateDoc(doc(db, 'tasks', id), patch)
+  return trimmed
 }
 
 export async function deleteTaskSubmissionFile(task) {

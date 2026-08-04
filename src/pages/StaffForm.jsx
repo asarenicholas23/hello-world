@@ -9,7 +9,7 @@ const EMPTY = {
   name: '', email: '', password: '', role: 'officer', phone: '',
   designation: '', qualification: '',
   date_of_appointment: '', date_of_birth: '', address: '',
-  notification_email: '', staff_id: '',
+  notification_email: '', staff_id: '', data_access: false,
 }
 
 export default function StaffForm() {
@@ -48,6 +48,7 @@ export default function StaffForm() {
           address:             data.address ?? '',
           notification_email:  data.notification_email ?? '',
           staff_id:            data.staff_id ?? '',
+          data_access:         data.data_access ?? false,
         })
         setExistingPhotoUrl(data.picture_url ?? '')
         setExistingSignatureUrl(data.signature_url ?? '')
@@ -265,6 +266,22 @@ export default function StaffForm() {
             <label className="form-label">Date of Appointment</label>
             <input className="form-input" type="date" value={form.date_of_appointment} onChange={(e) => set('date_of_appointment', e.target.value)} />
           </div>
+        </div>
+
+        <div className="form-group">
+          <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+            <input
+              type="checkbox"
+              checked={form.data_access}
+              onChange={(e) => set('data_access', e.target.checked)}
+            />
+            Data Access (IT Officer)
+          </label>
+          <span className="form-hint">
+            Grants full record-editing rights, reports/analytics, and SMS/Email tools across all facilities —
+            on top of whatever their Role above already allows — without changing their Role. Does not grant
+            staff account management or deletions; those still require Admin/Director.
+          </span>
         </div>
 
         <div className="form-group">

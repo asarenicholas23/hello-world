@@ -55,7 +55,7 @@ export async function uploadStaffSignature(uid, file) {
 
 export async function createStaff(
   { name, email, password, role, phone, designation, qualification,
-    date_of_appointment, date_of_birth, address, staff_id },
+    date_of_appointment, date_of_birth, address, staff_id, data_access },
   createdBy,
 ) {
   const secondaryAuth = getSecondaryAuth()
@@ -71,6 +71,7 @@ export async function createStaff(
     email,
     role,
     role_level:          ROLE_LEVEL[role] ?? null,
+    data_access:         Boolean(data_access),
     phone:               phone ?? '',
     designation:         designation ?? '',
     qualification:       qualification ?? '',
@@ -85,11 +86,12 @@ export async function createStaff(
   return user.uid
 }
 
-export async function updateStaff(uid, { name, role, phone, designation, qualification, date_of_appointment, date_of_birth, address, notification_email, picture_url, signature_url, staff_id }) {
+export async function updateStaff(uid, { name, role, phone, designation, qualification, date_of_appointment, date_of_birth, address, notification_email, picture_url, signature_url, staff_id, data_access }) {
   const data = {
     name,
     role,
     role_level:          ROLE_LEVEL[role] ?? null,
+    data_access:         Boolean(data_access),
     phone:               phone ?? '',
     designation:         designation ?? '',
     qualification:       qualification ?? '',

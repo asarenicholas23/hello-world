@@ -73,8 +73,9 @@ export function AuthProvider({ children }) {
   const value = {
     user,
     staff,
-    role:      staff?.role       ?? null,
-    roleLevel: staff?.role_level ?? null,
+    role:       staff?.role        ?? null,
+    roleLevel:  staff?.role_level  ?? null,
+    dataAccess: staff?.data_access ?? false,
     loading,
     staffError,
     login,

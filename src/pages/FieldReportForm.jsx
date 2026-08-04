@@ -7,7 +7,7 @@ import { useGPS } from '../hooks/useGPS'
 import { createFieldReport, getFieldReport, updateFieldReport } from '../firebase/fieldReports'
 import { createSubRecord, updateSubRecord, deleteSubRecord } from '../firebase/subrecords'
 import { inputToTs, tsToInput } from '../utils/records'
-import { SECTORS, DISTRICTS, ENFORCEMENT_ACTIONS, ADMIN_ROLES, ADMIN_VIEW_ROLES } from '../data/constants'
+import { SECTORS, DISTRICTS, ENFORCEMENT_ACTIONS, ADMIN_ROLES, hasFullDataAccess } from '../data/constants'
 import PhotoCapture from '../components/PhotoCapture'
 import GPSField from '../components/GPSField'
 
@@ -112,11 +112,11 @@ export default function FieldReportForm() {
   const { id } = useParams()
   const isEdit = Boolean(id)
   const navigate = useNavigate()
-  const { user, staff } = useAuth()
+  const { user, staff, dataAccess } = useAuth()
   const { isOnline } = useSync()
   const isAdmin = ADMIN_ROLES.has(staff?.role)
   const isFinance = staff?.role === 'finance'
-  const canEditAllEntries = ADMIN_VIEW_ROLES.has(staff?.role)
+  const canEditAllEntries = hasFullDataAccess(staff?.role, dataAccess)
   const canManageReportFields = isAdmin || isFinance
 
   const [reportType, setReportType] = useState((isAdmin || isFinance) ? 'walk_in' : 'enforcement')

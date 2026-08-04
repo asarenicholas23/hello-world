@@ -17,6 +17,7 @@ import {
   ADMIN_VIEW_ROLES,
   OFFICE_OVERVIEW_ROLES,
   ROLE_LABEL,
+  hasFullDataAccess,
 } from '../data/constants'
 import { facilityPath } from '../utils/fileNumbers'
 
@@ -38,6 +39,10 @@ const ADMIN_CARDS = [
   { icon: Users,        color: '#b45309', bg: '#fffbeb', title: 'Staff Management',  path: '/staff',          desc: 'Manage staff accounts and roles.' },
 ]
 
+// Same as ADMIN_CARDS but without staff management, for users granted
+// data_access whose role alone wouldn't see ADMIN_CARDS.
+const DATA_ACCESS_CARDS = ADMIN_CARDS.filter((c) => c.path !== '/staff')
+
 const CARDS_BY_ROLE = {
   director: ADMIN_CARDS,
   admin: ADMIN_CARDS,
@@ -53,9 +58,9 @@ const CARDS_BY_ROLE = {
 }
 
 export default function Home() {
-  const { user, staff, role } = useAuth()
+  const { user, staff, role, dataAccess } = useAuth()
   const navigate = useNavigate()
-  const cards = CARDS_BY_ROLE[role] ?? []
+  const cards = dataAccess && !ADMIN_VIEW_ROLES.has(role) ? DATA_ACCESS_CARDS : (CARDS_BY_ROLE[role] ?? [])
 
   const [stats, setStats]               = useState(null)
   const [permitStats, setPermitStats]   = useState(null)
@@ -81,18 +86,18 @@ export default function Home() {
     if (OFFICE_OVERVIEW_ROLES.has(role)) {
       getPermitStats().then(setPermitStats).catch(() => {})
     }
-    if (ADMIN_VIEW_ROLES.has(role) || role === 'finance') {
+    if (hasFullDataAccess(role, dataAccess) || role === 'finance') {
       getFinanceStats(activeFrom, activeTo).then(setFinanceStats).catch(() => {})
     }
     if (user?.uid && role !== 'finance') {
       getMyActivityStats(user.uid, activeFrom, activeTo).then(setMyStats).catch(() => {})
     }
-  }, [role, user?.uid, activeFrom, activeTo])
+  }, [role, dataAccess, user?.uid, activeFrom, activeTo])
 
   const sectorMax = stats
     ? Math.max(...Object.values(stats.bySector), 1)
     : 1
-  const showFinanceOverview = ADMIN_VIEW_ROLES.has(role) || role === 'finance'
+  const showFinanceOverview = hasFullDataAccess(role, dataAccess) || role === 'finance'
   const showMyActivity = role !== 'finance'
   const showAdminOfficeOverview = OFFICE_OVERVIEW_ROLES.has(role)
 
@@ -165,7 +170,7 @@ export default function Home() {
               value={myStats.siteVerifications} label="Site Verifications"
               onClick={() => navigate('/site-verifications', { state: { officerUid: user.uid } })}
             />
-            {ADMIN_VIEW_ROLES.has(role) && (
+            {hasFullDataAccess(role, dataAccess) && (
               <KpiCard
                 icon={<FileText size={20} color="#7c3aed" />} bg="#f5f3ff"
                 value={myStats.permits} label="Permits Issued"
@@ -390,8 +395,8 @@ export default function Home() {
         </>
       )}
 
-      {/* ── Permit Analytics entry (admin only) ─────────── */}
-      {ADMIN_VIEW_ROLES.has(role) && (
+      {/* ── Permit Analytics entry (admin / data access only) ── */}
+      {hasFullDataAccess(role, dataAccess) && (
         <div
           className="analytics-entry-card"
           onClick={() => navigate('/permit-analytics')}

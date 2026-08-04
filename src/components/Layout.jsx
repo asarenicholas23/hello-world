@@ -11,41 +11,73 @@ import {
   Users, ClipboardList, Activity, CheckSquare,
   LogOut, Menu, X, Leaf, Upload, Flag, BarChart2,
   Briefcase, LayoutList, MessageSquare, GraduationCap, BellRing, Mail,
-  WifiOff, RefreshCw, CheckCircle2, Clock,
+  WifiOff, RefreshCw, CheckCircle2, Clock, ChevronDown,
 } from 'lucide-react'
 
+// Nav is organised into labelled, collapsible groups so the sidebar stays
+// readable as items accumulate — see `nav-group` rendering below.
 const ADMIN_NAV = [
-  { label: 'Dashboard',        icon: LayoutDashboard, path: '/' },
-  { label: 'Facilities',       icon: Building2,       path: '/facilities' },
-  { label: 'Permits',          icon: FileText,        path: '/permits' },
-  { label: 'Permit Analytics', icon: BarChart2,       path: '/permit-analytics' },
-  { label: 'Finance',          icon: Banknote,        path: '/finance' },
-  { label: 'Staff',            icon: Users,           path: '/staff' },
-  { label: 'All Assignments',  icon: LayoutList,      path: '/all-assignments' },
-  { label: 'My Attendance',    icon: Clock,           path: '/my-attendance' },
-  { label: 'Attendance',       icon: ClipboardList,   path: '/attendance' },
-  { label: 'Import Data',      icon: Upload,          path: '/import',        dividerBefore: true },
-  { label: 'Field Reports',    icon: Flag,            path: '/field-reports' },
-  { label: 'Complaints',       icon: MessageSquare,   path: '/complaints',    dividerBefore: true },
-  { label: 'Env. Education',   icon: GraduationCap,   path: '/env-education' },
-  { label: 'SMS',              icon: BellRing,        path: '/sms',           dividerBefore: true },
-  { label: 'Email',            icon: Mail,            path: '/email' },
-  { label: 'Chat with Osei',   icon: MessageSquare,   path: '/chat' },
+  { section: 'Overview', items: [
+    { label: 'Dashboard',        icon: LayoutDashboard, path: '/' },
+  ]},
+  { section: 'Facilities & Records', items: [
+    { label: 'Facilities',       icon: Building2,       path: '/facilities' },
+    { label: 'Permits',          icon: FileText,        path: '/permits' },
+    { label: 'Permit Analytics', icon: BarChart2,       path: '/permit-analytics' },
+    { label: 'Finance',          icon: Banknote,        path: '/finance' },
+  ]},
+  { section: 'Staff & Attendance', items: [
+    { label: 'Staff',            icon: Users,           path: '/staff' },
+    { label: 'All Assignments',  icon: LayoutList,      path: '/all-assignments' },
+    { label: 'My Attendance',    icon: Clock,           path: '/my-attendance' },
+    { label: 'Attendance',       icon: ClipboardList,   path: '/attendance' },
+  ]},
+  { section: 'Field Data', items: [
+    { label: 'Import Data',      icon: Upload,          path: '/import' },
+    { label: 'Field Reports',    icon: Flag,            path: '/field-reports' },
+    { label: 'Complaints',       icon: MessageSquare,   path: '/complaints' },
+    { label: 'Env. Education',   icon: GraduationCap,   path: '/env-education' },
+  ]},
+  { section: 'Communications', items: [
+    { label: 'SMS',              icon: BellRing,        path: '/sms' },
+    { label: 'Email',            icon: Mail,            path: '/email' },
+    { label: 'Chat with Osei',   icon: MessageSquare,   path: '/chat' },
+  ]},
 ]
 
 const FIELD_NAV = [
-  { label: 'Dashboard',         icon: LayoutDashboard, path: '/' },
-  { label: 'Facilities',        icon: Building2,       path: '/facilities' },
-  { label: 'Screening',         icon: ClipboardList,   path: '/screening' },
-  { label: 'Monitoring',        icon: Activity,        path: '/monitoring' },
-  { label: 'Field Reports',     icon: Flag,            path: '/field-reports' },
-  { label: 'Site Verifications',icon: CheckSquare,     path: '/site-verifications' },
-  { label: 'My Assignments',    icon: Briefcase,       path: '/my-assignments', dividerBefore: true },
-  { label: 'My Attendance',     icon: Clock,           path: '/my-attendance' },
-  { label: 'Complaints',        icon: MessageSquare,   path: '/complaints',     dividerBefore: true },
-  { label: 'Env. Education',    icon: GraduationCap,   path: '/env-education' },
-  { label: 'Chat with Osei',   icon: MessageSquare,   path: '/chat',          dividerBefore: true },
+  { section: 'Overview', items: [
+    { label: 'Dashboard',         icon: LayoutDashboard, path: '/' },
+  ]},
+  { section: 'Facilities & Field Work', items: [
+    { label: 'Facilities',        icon: Building2,       path: '/facilities' },
+    { label: 'Screening',         icon: ClipboardList,   path: '/screening' },
+    { label: 'Monitoring',        icon: Activity,        path: '/monitoring' },
+    { label: 'Site Verifications',icon: CheckSquare,     path: '/site-verifications' },
+    { label: 'Field Reports',     icon: Flag,            path: '/field-reports' },
+  ]},
+  { section: 'My Work', items: [
+    { label: 'My Assignments',    icon: Briefcase,       path: '/my-assignments' },
+    { label: 'My Attendance',     icon: Clock,           path: '/my-attendance' },
+  ]},
+  { section: 'Community', items: [
+    { label: 'Complaints',        icon: MessageSquare,   path: '/complaints' },
+    { label: 'Env. Education',    icon: GraduationCap,   path: '/env-education' },
+  ]},
+  { section: 'Support', items: [
+    { label: 'Chat with Osei',    icon: MessageSquare,   path: '/chat' },
+  ]},
 ]
+
+// Shown to users granted `data_access` whose role alone wouldn't see ADMIN_NAV.
+// Same tools as ADMIN_NAV minus staff account management, which stays
+// Admin/Director-only.
+const DATA_ACCESS_NAV = ADMIN_NAV
+  .map((group) => ({
+    ...group,
+    items: group.items.filter((item) => item.path !== '/staff'),
+  }))
+  .filter((group) => group.items.length > 0)
 
 const NAV_BY_ROLE = {
   director:          ADMIN_NAV,
@@ -55,13 +87,46 @@ const NAV_BY_ROLE = {
   assistant_officer: FIELD_NAV,
   junior_officer:    FIELD_NAV,
   finance: [
-    { label: 'Dashboard',  icon: LayoutDashboard, path: '/' },
-    { label: 'Facilities', icon: Building2,       path: '/facilities' },
-    { label: 'Finance',    icon: Banknote,        path: '/finance' },
-    { label: 'Field Reports', icon: Flag,          path: '/field-reports' },
-    { label: 'My Attendance', icon: Clock,         path: '/my-attendance' },
-    { label: 'Chat with Osei', icon: MessageSquare, path: '/chat',          dividerBefore: true },
+    { section: 'Overview', items: [
+      { label: 'Dashboard',  icon: LayoutDashboard, path: '/' },
+    ]},
+    { section: 'Facilities & Finance', items: [
+      { label: 'Facilities', icon: Building2,       path: '/facilities' },
+      { label: 'Finance',    icon: Banknote,        path: '/finance' },
+    ]},
+    { section: 'My Work', items: [
+      { label: 'Field Reports', icon: Flag,          path: '/field-reports' },
+      { label: 'My Attendance', icon: Clock,         path: '/my-attendance' },
+    ]},
+    { section: 'Support', items: [
+      { label: 'Chat with Osei', icon: MessageSquare, path: '/chat' },
+    ]},
   ],
+}
+
+// Sections collapsed by default so the sidebar isn't overwhelming on first
+// load — anything not the primary daily-use group. Persisted per-user once
+// they expand/collapse a section themselves (see NAV_STORAGE_KEY below).
+const DEFAULT_COLLAPSED_SECTIONS = [
+  'Staff & Attendance', 'Field Data', 'Communications', 'My Work', 'Community', 'Support',
+]
+
+const NAV_STORAGE_KEY = 'epa_nav_collapsed_sections'
+
+function loadCollapsedSections() {
+  try {
+    const raw = localStorage.getItem(NAV_STORAGE_KEY)
+    if (raw) return new Set(JSON.parse(raw))
+  } catch { /* ignore malformed/unavailable storage */ }
+  return new Set(DEFAULT_COLLAPSED_SECTIONS)
+}
+
+function saveCollapsedSections(set) {
+  try { localStorage.setItem(NAV_STORAGE_KEY, JSON.stringify([...set])) } catch { /* ignore */ }
+}
+
+function flattenNav(navGroups) {
+  return navGroups.flatMap((group) => group.items)
 }
 
 const PAGE_TITLE = {
@@ -117,10 +182,10 @@ function pickMobileTabs(navItems, role) {
     ? ADMIN_MOBILE_TAB_PATHS
     : DEFAULT_MOBILE_TAB_PATHS
   const allKnownItems = [
-    ...navItems,
-    ...ADMIN_NAV,
-    ...FIELD_NAV,
-    ...(NAV_BY_ROLE.finance ?? []),
+    ...flattenNav(navItems),
+    ...flattenNav(ADMIN_NAV),
+    ...flattenNav(FIELD_NAV),
+    ...flattenNav(NAV_BY_ROLE.finance ?? []),
   ]
   const byPath = new Map(allKnownItems.map((item) => [item.path, item]))
   return paths.map((path) => byPath.get(path)).filter(Boolean)
@@ -131,8 +196,19 @@ export default function Layout() {
   const navigate = useNavigate()
   const pageTitle = usePageTitle()
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [collapsedSections, setCollapsedSections] = useState(loadCollapsedSections)
 
   const { syncStatus, toasts, dismissToast, pushToast } = useSync()
+
+  function toggleSection(section) {
+    setCollapsedSections((prev) => {
+      const next = new Set(prev)
+      if (next.has(section)) next.delete(section)
+      else next.add(section)
+      saveCollapsedSections(next)
+      return next
+    })
+  }
 
   useEffect(() => {
     return onForegroundMessage((payload) => {
@@ -141,7 +217,11 @@ export default function Layout() {
       pushToast(`${title}${body ? ` — ${body}` : ''}`, 'success', 6000)
     })
   }, [pushToast])
-  const navItems = ADMIN_VIEW_ROLES.has(staff?.role) ? ADMIN_NAV : (NAV_BY_ROLE[staff?.role] ?? [])
+  const navItems = ADMIN_VIEW_ROLES.has(staff?.role)
+    ? ADMIN_NAV
+    : staff?.data_access
+      ? DATA_ACCESS_NAV
+      : (NAV_BY_ROLE[staff?.role] ?? [])
   const mobileTabItems = pickMobileTabs(navItems, staff?.role)
   const initials = staff?.name
     ?.split(' ')
@@ -175,22 +255,36 @@ export default function Layout() {
         </div>
 
         <nav className="sidebar__nav">
-          {navItems.map((item) => {
-            const Icon = item.icon
+          {navItems.map((group) => {
+            const collapsed = collapsedSections.has(group.section)
             return (
-              <div key={item.path}>
-                {item.dividerBefore && <hr className="nav-divider" />}
-                <NavLink
-                  to={item.path}
-                  end={item.path === '/'}
-                  className={({ isActive }) =>
-                    `nav-item${isActive ? ' nav-item--active' : ''}`
-                  }
-                  onClick={() => setSidebarOpen(false)}
+              <div className="nav-group" key={group.section}>
+                <button
+                  type="button"
+                  className="nav-group__header"
+                  onClick={() => toggleSection(group.section)}
+                  aria-expanded={!collapsed}
                 >
-                  <Icon size={17} />
-                  {item.label}
-                </NavLink>
+                  <span>{group.section}</span>
+                  <ChevronDown size={13} className={`nav-group__chevron${collapsed ? ' nav-group__chevron--collapsed' : ''}`} />
+                </button>
+                {!collapsed && group.items.map((item) => {
+                  const Icon = item.icon
+                  return (
+                    <NavLink
+                      key={item.path}
+                      to={item.path}
+                      end={item.path === '/'}
+                      className={({ isActive }) =>
+                        `nav-item${isActive ? ' nav-item--active' : ''}`
+                      }
+                      onClick={() => setSidebarOpen(false)}
+                    >
+                      <Icon size={17} />
+                      {item.label}
+                    </NavLink>
+                  )
+                })}
               </div>
             )
           })}

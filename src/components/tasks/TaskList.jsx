@@ -1,4 +1,4 @@
-import { taskTypeLabel, isTaskAssignee } from '../../firebase/tasks'
+import { isTaskAssignee, isFormTask, taskDisplayLabel } from '../../firebase/tasks'
 import { fmtDate } from '../../utils/records'
 import TaskStatusBadge from './TaskStatusBadge'
 
@@ -11,15 +11,16 @@ function assignedToLabel(task) {
  * tasks) and All Assignments (the org-wide management view) so the action
  * shown per task (fill / review / view) stays consistent everywhere.
  */
-export default function TaskList({ tasks, userUid, navigate, emptyMessage = 'No tasks here yet.' }) {
+export default function TaskList({ tasks, userUid, navigate, emptyMessage = 'No tasks here yet.', onEdit }) {
   function primaryAction(task) {
     const isAssignee = isTaskAssignee(task, userUid)
     const isAssigner = task.assigned_by === userUid
 
     if (isAssignee && (task.status === 'assigned' || task.status === 'changes_requested')) {
+      const label = taskDisplayLabel(task)
       return {
-        label: task.task_type === 'screening'
-          ? (task.status === 'changes_requested' ? 'Revise & Resubmit' : 'Fill Screening Form')
+        label: isFormTask(task.task_type)
+          ? (task.status === 'changes_requested' ? 'Revise & Resubmit' : `Fill ${label}${label.includes('Checklist') ? '' : ' Form'}`)
           : (task.status === 'changes_requested' ? 'Re-upload File' : 'Upload File'),
         onClick: () => navigate(`/tasks/${task.id}/fill`),
         primary: true,
@@ -37,11 +38,12 @@ export default function TaskList({ tasks, userUid, navigate, emptyMessage = 'No 
     <div className="record-list">
       {tasks.map((task) => {
         const action = primaryAction(task)
+        const canEdit = onEdit && task.assigned_by === userUid && task.status !== 'approved'
         return (
           <div key={task.id} className="record-item">
             <div className="record-item__header">
               <span className="record-item__title">
-                {taskTypeLabel(task.task_type)} — {task.facility_name}
+                {taskDisplayLabel(task)} — {task.facility_name}
               </span>
               <TaskStatusBadge status={task.status} />
             </div>
@@ -56,6 +58,11 @@ export default function TaskList({ tasks, userUid, navigate, emptyMessage = 'No 
               <button className={`btn btn--${action.primary ? 'primary' : 'ghost'} btn--xs`} onClick={action.onClick}>
                 {action.label}
               </button>
+              {canEdit && (
+                <button className="btn btn--ghost btn--xs" onClick={() => onEdit(task)}>
+                  Edit
+                </button>
+              )}
             </div>
           </div>
         )

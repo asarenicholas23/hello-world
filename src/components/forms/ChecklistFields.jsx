@@ -117,6 +117,9 @@ export default function ChecklistFields({
                   <select className="select" value={formData[field.key] ?? ''} onChange={(e) => set(field.key, e.target.value)}>
                     {field.options.map((o) => <option key={o} value={o}>{o || '— Select —'}</option>)}
                   </select>
+                ) : field.type === 'readonly' ? (
+                  <input className="input" value={formData[field.key] ?? field.default ?? ''} readOnly
+                    style={{ background: '#f9fafb', color: '#6b7280', cursor: 'not-allowed' }} />
                 ) : (
                   <input className="input" type="text" value={formData[field.key] ?? ''}
                     onChange={(e) => set(field.key, e.target.value)} />
@@ -145,6 +148,10 @@ export default function ChecklistFields({
                         value={formData[item.key] ?? ''}
                         onChange={(e) => set(item.key, e.target.value)}
                         placeholder="Enter…" />
+                    ) : item.type === 'readonly' ? (
+                      <input className="input monitoring-checklist__input"
+                        value={formData[item.key] ?? item.default ?? ''} readOnly
+                        style={{ background: '#f9fafb', color: '#6b7280', cursor: 'not-allowed' }} />
                     ) : (
                       <select className="select monitoring-checklist__select"
                         value={formData[item.key] ?? ''}

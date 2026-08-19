@@ -19,11 +19,11 @@ function buildDefaults(checklist) {
   if (!checklist) return defaults
   for (const section of checklist.sections) {
     for (const item of section.items) {
-      defaults[item.key] = ''
+      defaults[item.key] = item.default ?? ''
     }
   }
   for (const field of checklist.extraFields ?? []) {
-    defaults[field.key] = ''
+    defaults[field.key] = field.default ?? ''
   }
   return defaults
 }

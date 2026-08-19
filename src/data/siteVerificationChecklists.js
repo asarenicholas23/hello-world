@@ -3,6 +3,8 @@
 // other types: 'text', 'date', 'select', 'readonly'
 // conditional: { key, value } — only show item when another field equals that value
 // default: pre-filled value used when a field is first initialized (e.g. for 'readonly' fields)
+// printSkip (extraFields only): field is still editable, but omitted from the printed
+//   report because it duplicates a row already shown in the report's Company Profile block
 
 export const SV_CHECKLIST_OPTIONS = ['', 'Yes', 'No', 'N/A']
 const YN_OPTIONS = ['', 'Yes', 'No']
@@ -314,6 +316,7 @@ export const SITE_VERIFICATION_CHECKLISTS = {
       { key: 'management_company', label: 'Facility Management Company',   type: 'text' },
       { key: 'year_established',   label: 'Year of Establishment',         type: 'date' },
       { key: 'first_permit_date',  label: 'Date of First Permit',          type: 'date' },
+      { key: 'contact_person',     label: 'Contact Person',                type: 'text', printSkip: true },
       { key: 'contact_position',   label: 'Position',                      type: 'text' },
       { key: 'address',            label: 'Address',                       type: 'text' },
       { key: 'tel',                label: 'Tel',                           type: 'text' },

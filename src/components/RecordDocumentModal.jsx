@@ -377,12 +377,13 @@ function SiteVerificationDoc({ record: r, facility: f }) {
         )}
       </tbody></table>
 
-      {/* Extra fields (facility details) */}
-      {checklist.extraFields?.length > 0 && (
+      {/* Extra fields (facility details) — printSkip fields duplicate a row already
+          shown in the Company Profile block above, so they're omitted here */}
+      {checklist.extraFields?.some((f) => !f.printSkip) && (
         <>
           <div className="srd-sub-hd">Facility Details</div>
           <table className="srd-data-table"><tbody>
-            {checklist.extraFields.map((field) => (
+            {checklist.extraFields.filter((f) => !f.printSkip).map((field) => (
               <tr key={field.key}>
                 <td className="srd-dl">{field.label}</td>
                 <td className="srd-dv">{val(r[field.key])}</td>

@@ -4,13 +4,15 @@ import { ArrowLeft, AlertCircle, CheckCircle, XCircle, Download, FileText } from
 import { useAuth } from '../context/AuthContext'
 import {
   getTask, addAnnotationsAndRequestChanges, requestGenericChanges, approveTask, registerTaskFacility,
-  taskDisplayLabel, isPesticideChecklistTask,
+  taskDisplayLabel, isPesticideChecklistTask, isFormTask,
 } from '../firebase/tasks'
 import { getSubRecord } from '../firebase/subrecords'
 import { createNotification } from '../firebase/notifications'
 import { facilityPath } from '../utils/fileNumbers'
 import { SECTORS, hasFullDataAccess } from '../data/constants'
-import AnnotatableScreeningReview from '../components/tasks/AnnotatableScreeningReview'
+import { SCREENING_FIELD_SECTIONS } from '../data/screeningFieldMeta'
+import { SITE_VERIFICATION_CHECKLISTS, checklistFieldSections } from '../data/siteVerificationChecklists'
+import AnnotatableFormReview from '../components/tasks/AnnotatableFormReview'
 import RecordDocumentModal from '../components/RecordDocumentModal'
 import Spinner from '../components/Spinner'
 
@@ -45,17 +47,12 @@ export default function TaskReviewPage() {
       setTask(t)
       setPendingComments([])
 
-      const isChecklist = t.task_type === 'site_verification' || isPesticideChecklistTask(t)
-      const usesAnnotatedFlow = t.task_type === 'screening' && !isPesticideChecklistTask(t)
-      const recordCategory = t.task_type === 'site_verification' ? 'site_verifications' : 'screenings'
-
-      if (t.status === 'approved' && (usesAnnotatedFlow || isChecklist)) {
+      if (t.status === 'approved' && isFormTask(t.task_type)) {
+        const recordCategory = t.task_type === 'site_verification' ? 'site_verifications' : 'screenings'
         const materialized = t.linked_file_number && t.linked_record_id
           ? await getSubRecord(t.linked_file_number, recordCategory, t.linked_record_id).catch(() => null)
           : null
         setDocRecord(materialized ?? t.form_data)
-      } else if (isChecklist && t.form_data) {
-        setDocRecord(t.form_data)
       }
     } catch {
       setError('Failed to load task.')
@@ -74,7 +71,7 @@ export default function TaskReviewPage() {
   }
 
   async function handleRequestChanges() {
-    if (usesAnnotatedFlow) {
+    if (isFormTask(task.task_type)) {
       if (pendingComments.length === 0) { setError('Add at least one comment before requesting changes.'); return }
       setDeciding(true)
       try {
@@ -135,12 +132,19 @@ export default function TaskReviewPage() {
     return <div className="page"><div className="login-error"><AlertCircle size={15} /> {error}</div></div>
   }
 
-  const isChecklistTask = task.task_type === 'site_verification' || isPesticideChecklistTask(task)
-  const usesAnnotatedFlow = task.task_type === 'screening' && !isPesticideChecklistTask(task)
+  const isFormBasedTask = isFormTask(task.task_type)
+  const isScreeningForm = task.task_type === 'screening' && !isPesticideChecklistTask(task)
   const canDecide = task.assigned_by === user.uid && task.status === 'submitted'
   const needsRegistration = task.facility_mode === 'unregistered' && !task.field_report_id && canEditAllEntries
   const facilityLinkNumber = task.linked_file_number ?? (task.facility_mode === 'registered' ? task.file_number : null)
   const facilityLinkTab = task.task_type === 'site_verification' ? 'site_verifications' : 'screenings'
+
+  let reviewSections = SCREENING_FIELD_SECTIONS
+  if (isFormBasedTask && !isScreeningForm) {
+    const checklistKey = task.form_data?.facility_sub_type ?? task.sector_prefix ?? 'CI'
+    const checklist = SITE_VERIFICATION_CHECKLISTS[checklistKey] ?? SITE_VERIFICATION_CHECKLISTS.CI
+    reviewSections = checklistFieldSections(checklist)
+  }
 
   return (
     <div className="page">
@@ -212,12 +216,12 @@ export default function TaskReviewPage() {
 
       {task.status !== 'assigned' && (
         <>
-          {usesAnnotatedFlow ? (
+          {isFormBasedTask ? (
             task.status === 'approved' ? (
               <div className="card form-card">
                 <div className="form-section-title">Approved</div>
                 <p style={{ fontSize: 13, color: '#374151', marginBottom: 12 }}>
-                  This screening has been approved{task.linked_file_number ? ` and saved to the facility record (${task.linked_file_number})` : ''}.
+                  This {taskDisplayLabel(task).toLowerCase()} has been approved{task.linked_file_number ? ` and saved to the facility record (${task.linked_file_number})` : ''}.
                 </p>
                 <button className="btn btn--primary btn--sm" onClick={() => setDocOpen(true)} disabled={!docRecord}>
                   <FileText size={14} /> View / Print PDF
@@ -225,26 +229,15 @@ export default function TaskReviewPage() {
               </div>
             ) : (
               <div className="card" style={{ padding: 16 }}>
-                <AnnotatableScreeningReview
+                <AnnotatableFormReview
                   formData={task.form_data}
+                  sections={reviewSections}
                   annotations={[...(task.annotations ?? []), ...pendingComments.map((c) => ({ ...c, resolved: false }))]}
                   onAddComment={handleAddComment}
                   readOnly={!canDecide}
                 />
               </div>
             )
-          ) : isChecklistTask ? (
-            <div className="card form-card">
-              <div className="form-section-title">{task.status === 'approved' ? 'Approved' : `Submitted ${taskDisplayLabel(task)}`}</div>
-              <p style={{ fontSize: 13, color: '#374151', marginBottom: 12 }}>
-                {task.status === 'approved'
-                  ? `This has been approved${task.linked_file_number ? ` and saved to the facility record (${task.linked_file_number})` : ''}.`
-                  : 'Review the filled form below before approving or requesting changes.'}
-              </p>
-              <button className="btn btn--primary btn--sm" onClick={() => setDocOpen(true)} disabled={!docRecord}>
-                <FileText size={14} /> {task.status === 'approved' ? 'View / Print PDF' : 'View Submission'}
-              </button>
-            </div>
           ) : (
             <div className="card form-card">
               <div className="form-section-title">Submitted File</div>
@@ -263,7 +256,7 @@ export default function TaskReviewPage() {
             </div>
           )}
 
-          {!usesAnnotatedFlow && canDecide && (
+          {!isFormBasedTask && canDecide && (
             <div className="card form-card">
               <div className="form-section-title">Review Notes</div>
               <textarea className="input textarea" rows={2} value={genericNotes}

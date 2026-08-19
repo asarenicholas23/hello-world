@@ -1,7 +1,10 @@
 // Sector-specific site verification checklists
 // item type defaults to 'yesno_na' (Yes / No / N/A)
-// other types: 'text', 'select', 'district'
+// other types: 'text', 'date', 'select', 'readonly'
 // conditional: { key, value } — only show item when another field equals that value
+// default: pre-filled value used when a field is first initialized (e.g. for 'readonly' fields)
+
+import { DISTRICTS, REGION } from './constants'
 
 export const SV_CHECKLIST_OPTIONS = ['', 'Yes', 'No', 'N/A']
 const YN_OPTIONS = ['', 'Yes', 'No']
@@ -306,47 +309,68 @@ export const SITE_VERIFICATION_CHECKLISTS = {
   },
 
   // ── Health / Healthcare Facility (CH) ─────────────────────────
+  // Source: EPA "SITE VERIFICATION FORM — HEALTHCARE FACILITIES"
   CH: {
     label: 'Healthcare Facility',
     extraFields: [
-      { key: 'parental_healthcare',  label: 'Parental Healthcare',               type: 'text' },
-      { key: 'env_officer_name',     label: 'Name of Environmental Officer',     type: 'text' },
-      { key: 'env_officer_contact',  label: 'Environmental Officer Contact No.', type: 'text' },
-      { key: 'relevant_permits',     label: 'List of Relevant Permits',          type: 'text' },
-      { key: 'car_park_capacity',    label: 'Capacity of Car Park',              type: 'text' },
+      { key: 'facility_name',      label: 'Name of Healthcare Facility',   type: 'text' },
+      { key: 'management_company', label: 'Facility Management Company',   type: 'text' },
+      { key: 'year_established',   label: 'Year of Establishment',         type: 'date' },
+      { key: 'first_permit_date',  label: 'Date of First Permit',          type: 'date' },
+      { key: 'contact_person',     label: 'Contact Person',                type: 'text' },
+      { key: 'contact_position',   label: 'Position',                      type: 'text' },
+      { key: 'address',            label: 'Address',                       type: 'text' },
+      { key: 'tel',                label: 'Tel',                           type: 'text' },
+      { key: 'fax',                label: 'Fax',                           type: 'text' },
+      { key: 'email',              label: 'E-mail',                        type: 'text' },
     ],
     sections: [
       {
-        title: 'Permits & Licenses',
+        title: 'Location of Facility',
         items: [
-          { key: 'env_permit',           label: 'Environmental Permit (EPA)' },
-          { key: 'env_certificate',      label: 'Environmental Certificate (EPA)' },
-          { key: 'health_service_license', label: 'Health Service License' },
-          { key: 'building_permit',      label: 'Building Permit' },
-          { key: 'dev_permit',           label: 'Development Permit' },
-          { key: 'fire_permit',          label: 'Fire Permit' },
-          { key: 'fire_certificate',     label: 'Fire Certificate' },
+          { key: 'town',        label: 'Town',      type: 'text' },
+          { key: 'district',    label: 'District',  type: 'select', options: ['', ...DISTRICTS.map((d) => d.name)] },
+          { key: 'region',      label: 'Region',     type: 'readonly', default: REGION },
+          { key: 'land_take',   label: 'Land Take',  type: 'text' },
         ],
       },
       {
-        title: 'Facility Profile',
+        title: 'Site Description',
         items: [
-          { key: 'facility_type',      label: 'Type of Healthcare Facility', type: 'select', options: ['', 'Hospital', 'Clinic', 'Maternity Home', 'Diagnostic Centre', 'Polyclinic', 'Midwifery', 'Health-Post', 'Veterinary', 'Funeral Homes/Mortuary', 'Medical Laboratory', 'Traditional Health Care', 'Others'] },
-          { key: 'hospital_type',      label: 'If Hospital — Type',          type: 'select', options: ['', 'Teaching Hospital', 'Regional', 'Polyclinic', 'District'], conditional: { key: 'facility_type', value: 'Hospital' } },
-          { key: 'hospital_ownership', label: 'If Hospital — Ownership',     type: 'select', options: ['', 'Private', 'Public'],                                       conditional: { key: 'facility_type', value: 'Hospital' } },
-          { key: 'num_beds',           label: 'Number of Beds',              type: 'text' },
-          { key: 'staff_strength',     label: 'Total Staff Strength',        type: 'text' },
-          { key: 'staff_doctors',      label: 'Doctors',                     type: 'text' },
-          { key: 'staff_nurses',       label: 'Nurses',                      type: 'text' },
-          { key: 'staff_paramedics',   label: 'Paramedics',                  type: 'text' },
-          { key: 'staff_auxiliary',    label: 'Auxiliary Staff',             type: 'text' },
-          { key: 'staff_lab_tech',     label: 'Lab Technicians',             type: 'text' },
-          { key: 'daily_patients',     label: 'Average patients admitted daily', type: 'text' },
-          { key: 'specialized_services', label: 'Specialised services provided', type: 'text' },
+          { key: 'boundary_east',  label: 'To the East',  type: 'text' },
+          { key: 'boundary_west',  label: 'To the West',  type: 'text' },
+          { key: 'boundary_north', label: 'To the North', type: 'text' },
+          { key: 'boundary_south', label: 'To the South', type: 'text' },
         ],
       },
       {
-        title: 'Services Provided & Facilities',
+        title: 'Permits, Licenses & Certificates',
+        items: [
+          { key: 'env_permit',              label: 'Environmental Permit' },
+          { key: 'env_certificate',         label: 'Environmental Certificate' },
+          { key: 'fire_permit_certificate', label: 'Fire Permit/Certificate' },
+          { key: 'health_service_license',  label: 'Health Service License' },
+          { key: 'building_dev_permit',     label: 'Building Permit/Development Permit' },
+        ],
+      },
+      {
+        title: 'Nature of Undertaking',
+        items: [
+          { key: 'nature_hospital',              label: 'Hospital' },
+          { key: 'nature_clinic',                label: 'Clinic' },
+          { key: 'nature_maternity_home',        label: 'Maternity Home' },
+          { key: 'nature_health_post',           label: 'Health-Post' },
+          { key: 'nature_diagnostic_centre',     label: 'Diagnostic Centre' },
+          { key: 'nature_veterinary',            label: 'Veterinary' },
+          { key: 'nature_funeral_mortuary',      label: 'Funeral Homes/Motuary' },
+          { key: 'nature_medical_laboratory',    label: 'Medical Laboratory' },
+          { key: 'nature_traditional_health_care', label: 'Traditional Health Care' },
+          { key: 'nature_other',                 label: 'Others' },
+          { key: 'nature_other_specify',         label: 'If Others — specify', type: 'text', conditional: { key: 'nature_other', value: 'Yes' } },
+        ],
+      },
+      {
+        title: 'Services Provided and Facilities',
         items: [
           { key: 'svc_pharmacy',      label: 'Pharmacy' },
           { key: 'svc_radiotherapy',  label: 'Radiotherapy' },
@@ -359,44 +383,31 @@ export const SITE_VERIFICATION_CHECKLISTS = {
           { key: 'svc_xray',          label: 'X-ray' },
           { key: 'svc_wards',         label: 'Wards' },
           { key: 'svc_mortuary',      label: 'Mortuary' },
-          { key: 'svc_opd',           label: 'Out Patient Department (OPD)' },
-          { key: 'svc_other',         label: 'Others (specify)', type: 'text' },
         ],
       },
       {
-        title: 'Environmental Awareness',
+        title: 'Capacity',
         items: [
-          { key: 'knows_env_laws',     label: 'Aware of country\'s environmental laws and regulations' },
-          { key: 'knows_waste_policy', label: 'Aware of country\'s environmental policy on waste management' },
-          { key: 'has_waste_guidelines', label: 'Has copy of Healthcare Waste Management Guidelines' },
-          { key: 'liquid_waste_type',  label: 'Liquid waste generated (specify)', type: 'text' },
-          { key: 'solid_waste_type',   label: 'Solid waste generated (specify)',  type: 'text' },
-          { key: 'hazardous_biomedical_waste', label: 'Hazardous/Biomedical waste generated (specify)', type: 'text' },
-          { key: 'incinerator_management', label: 'Management of incinerator (if any)', type: 'text' },
+          { key: 'num_beds',          label: 'Number of Beds',       type: 'text' },
+          { key: 'car_park_capacity', label: 'Capacity of Car Park', type: 'text' },
         ],
       },
       {
-        title: 'Waste Categories (per day)',
+        title: 'Waste Management',
         items: [
-          { key: 'waste_general',        label: 'General/Normal Waste',                    type: 'select', options: ['', '1-5 tonnes', '5-10 tonnes', '10-20 tonnes'] },
-          { key: 'waste_infectious',     label: 'Infectious Waste',                        type: 'select', options: ['', '1-5 tonnes', '5-10 tonnes', '10-20 tonnes'] },
-          { key: 'waste_pharmaceutical', label: 'Pharmaceutical Waste',                    type: 'select', options: ['', '1-5 tonnes', '5-10 tonnes', '10-20 tonnes'] },
-          { key: 'waste_pathological',   label: 'Pathological Waste (human/animal tissue)',type: 'select', options: ['', '1-5 tonnes', '5-10 tonnes', '10-20 tonnes'] },
-          { key: 'waste_hazardous',      label: 'Hazardous Waste',                         type: 'select', options: ['', '1-5 tonnes', '5-10 tonnes', '10-20 tonnes'] },
-          { key: 'waste_radiological',   label: 'Radiological Waste',                      type: 'select', options: ['', '1-5 tonnes', '5-10 tonnes', '10-20 tonnes'] },
-          { key: 'waste_heavy_metals',   label: 'Heavy Metals',                            type: 'select', options: ['', '1-5 tonnes', '5-10 tonnes', '10-20 tonnes'] },
-          { key: 'waste_incinerator_ash',label: 'Incinerator Ash',                         type: 'select', options: ['', '1-5 tonnes', '5-10 tonnes', '10-20 tonnes'] },
+          { key: 'liquid_waste',               label: 'Liquid Waste',                        type: 'text' },
+          { key: 'solid_waste',                label: 'Solid Waste',                         type: 'text' },
+          { key: 'hazardous_biomedical_waste', label: 'Hazardous Waste / Biomedical Waste',  type: 'text' },
+          { key: 'incinerator_management',     label: 'Management of Incinerator (if any)',  type: 'text' },
         ],
       },
       {
-        title: 'Waste Treatment & Disposal',
+        title: 'Attachments',
         items: [
-          { key: 'treats_waste_onsite',    label: 'Waste treated within the facility' },
-          { key: 'treatment_incinerator',  label: 'On-site incinerator used',         conditional: { key: 'treats_waste_onsite', value: 'Yes' } },
-          { key: 'treatment_open_burning', label: 'Open air burning used',            conditional: { key: 'treats_waste_onsite', value: 'Yes' } },
-          { key: 'treatment_chemical',     label: 'Chemical disinfestations used',    conditional: { key: 'treats_waste_onsite', value: 'Yes' } },
-          { key: 'treatment_burial',       label: 'Burial on site used',              conditional: { key: 'treats_waste_onsite', value: 'Yes' } },
-          { key: 'offsite_disposal',       label: 'If not treated on site — disposal method', type: 'text', conditional: { key: 'treats_waste_onsite', value: 'No' } },
+          { key: 'attach_env_permit',             label: 'Environmental Permit attached' },
+          { key: 'attach_health_service_license', label: 'Health Service License attached' },
+          { key: 'attach_site_plan',              label: 'Site Plan/Block Plan attached' },
+          { key: 'attach_photos',                 label: 'Pictures of the facility attached' },
         ],
       },
     ],
@@ -923,3 +934,25 @@ const SV_PLACEHOLDER = (label) => ({
 
 SITE_VERIFICATION_CHECKLISTS.CA = SV_PLACEHOLDER('Agriculture')
 SITE_VERIFICATION_CHECKLISTS.CM = SV_PLACEHOLDER('Mining')
+
+/**
+ * Flattens a sector checklist (extraFields + sections) into the same
+ * { title, fields: [{ key, label }] } shape as SCREENING_FIELD_SECTIONS —
+ * lets the task review UI render a commentable field list for Site
+ * Verification / Pesticides Checklist submissions the same way it does for
+ * Screening, without duplicating field definitions.
+ */
+export function checklistFieldSections(checklist) {
+  const sections = []
+  if (checklist.extraFields?.length) {
+    sections.push({
+      title: 'Facility Information',
+      fields: checklist.extraFields.map((f) => ({ key: f.key, label: f.label })),
+    })
+  }
+  for (const section of checklist.sections) {
+    sections.push({ title: section.title, fields: section.items.map((i) => ({ key: i.key, label: i.label })) })
+  }
+  sections.push({ title: 'Notes', fields: [{ key: 'notes', label: 'General Comments & Recommendations' }] })
+  return sections
+}

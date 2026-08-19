@@ -1,3 +1,4 @@
+import { MessageSquare } from 'lucide-react'
 import PhotoCapture from '../PhotoCapture'
 import GPSField from '../GPSField'
 import { SV_CHECKLIST_OPTIONS } from '../../data/siteVerificationChecklists'
@@ -12,6 +13,10 @@ import { SV_CHECKLIST_OPTIONS } from '../../data/siteVerificationChecklists'
  * tasks), and RecordDocumentModal read paths reuse the same checklist data —
  * this component is the one editable form body so field definitions live in
  * exactly one place.
+ *
+ * annotationsByField (optional): { [field_key]: { comment, field_label } } —
+ * unresolved reviewer comments, rendered as an inline callout under the field
+ * (matches ScreeningFields.jsx's FieldNote pattern).
  */
 export default function ChecklistFields({
   checklist,
@@ -27,10 +32,22 @@ export default function ChecklistFields({
   extraFieldsTitle = 'Facility Information',
   notes, onNotesChange,
   photos, onPhotosChange, photoFileNumber, photoCategory,
+  annotationsByField = null,
 }) {
   function isVisible(item) {
     if (!item.conditional) return true
     return formData[item.conditional.key] === item.conditional.value
+  }
+
+  function FieldNote({ fieldKey }) {
+    const note = annotationsByField?.[fieldKey]
+    if (!note) return null
+    return (
+      <div className="task-field-note">
+        <MessageSquare size={12} style={{ flexShrink: 0, marginTop: 1 }} />
+        <span>{note.comment}</span>
+      </div>
+    )
   }
 
   return (
@@ -100,10 +117,14 @@ export default function ChecklistFields({
                   <select className="select" value={formData[field.key] ?? ''} onChange={(e) => set(field.key, e.target.value)}>
                     {field.options.map((o) => <option key={o} value={o}>{o || '— Select —'}</option>)}
                   </select>
+                ) : field.type === 'readonly' ? (
+                  <input className="input" value={formData[field.key] ?? field.default ?? ''} readOnly
+                    style={{ background: '#f9fafb', color: '#6b7280', cursor: 'not-allowed' }} />
                 ) : (
-                  <input className="input" type="text" value={formData[field.key] ?? ''}
+                  <input className="input" type={field.type === 'date' ? 'date' : 'text'} value={formData[field.key] ?? ''}
                     onChange={(e) => set(field.key, e.target.value)} />
                 )}
+                <FieldNote fieldKey={field.key} />
               </div>
             ))}
           </div>
@@ -118,23 +139,30 @@ export default function ChecklistFields({
             {section.items.map((item) => {
               if (!isVisible(item)) return null
               return (
-                <div key={item.key} className="monitoring-checklist__row">
-                  <span className="monitoring-checklist__label">{item.label}</span>
-                  {item.type === 'text' ? (
-                    <input className="input monitoring-checklist__input"
-                      type="text"
-                      value={formData[item.key] ?? ''}
-                      onChange={(e) => set(item.key, e.target.value)}
-                      placeholder="Enter…" />
-                  ) : (
-                    <select className="select monitoring-checklist__select"
-                      value={formData[item.key] ?? ''}
-                      onChange={(e) => set(item.key, e.target.value)}>
-                      {(item.options ?? SV_CHECKLIST_OPTIONS).map((o) => (
-                        <option key={o} value={o}>{o || '— Select —'}</option>
-                      ))}
-                    </select>
-                  )}
+                <div key={item.key}>
+                  <div className="monitoring-checklist__row">
+                    <span className="monitoring-checklist__label">{item.label}</span>
+                    {item.type === 'text' ? (
+                      <input className="input monitoring-checklist__input"
+                        type="text"
+                        value={formData[item.key] ?? ''}
+                        onChange={(e) => set(item.key, e.target.value)}
+                        placeholder="Enter…" />
+                    ) : item.type === 'readonly' ? (
+                      <input className="input monitoring-checklist__input"
+                        value={formData[item.key] ?? item.default ?? ''} readOnly
+                        style={{ background: '#f9fafb', color: '#6b7280', cursor: 'not-allowed' }} />
+                    ) : (
+                      <select className="select monitoring-checklist__select"
+                        value={formData[item.key] ?? ''}
+                        onChange={(e) => set(item.key, e.target.value)}>
+                        {(item.options ?? SV_CHECKLIST_OPTIONS).map((o) => (
+                          <option key={o} value={o}>{o || '— Select —'}</option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
+                  <FieldNote fieldKey={item.key} />
                 </div>
               )
             })}
@@ -150,6 +178,7 @@ export default function ChecklistFields({
           <textarea className="input textarea" value={notes}
             onChange={(e) => onNotesChange(e.target.value)}
             rows={3} placeholder="Findings, observations and recommendations…" />
+          <FieldNote fieldKey="notes" />
         </div>
         <PhotoCapture
           photos={photos}

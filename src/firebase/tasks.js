@@ -171,6 +171,20 @@ export async function submitFormTask(id, { formData, revisionNote = '', uid }) {
   })
 }
 
+/**
+ * Persists in-progress form state for a task the assignee hasn't submitted
+ * yet, so they can pick up where they left off later. Deliberately leaves
+ * `status` and `annotations` untouched — a draft never becomes visible to
+ * the assigner or counts as a (re)submission.
+ */
+export async function saveTaskFormDraft(id, { formData, uid }) {
+  await updateDoc(doc(db, 'tasks', id), {
+    form_data:  formData,
+    updated_at: serverTimestamp(),
+    updated_by: uid,
+  })
+}
+
 export async function uploadGenericTaskSubmission(id, file, { uid }) {
   const path = makePhotoPath('tasks', id, `${Date.now()}_${Math.random().toString(36).slice(2)}_${file.name}`)
   const fileUrl = await uploadFile(file, path)

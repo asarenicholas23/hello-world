@@ -1,17 +1,19 @@
 import { useState } from 'react'
 import { MessageSquare, X, Send } from 'lucide-react'
-import { SCREENING_FIELD_SECTIONS } from '../../data/screeningFieldMeta'
 
 function val(v) {
   return v && String(v).trim() ? String(v).trim() : '—'
 }
 
 /**
- * Read-only Screening submission view for the assigner's review step.
+ * Read-only submission view for the assigner's review step, used by every
+ * form-based task type (Screening, Site Verification, Pesticides Checklist).
+ * `sections` is a { title, fields: [{ key, label }] }[] describing which
+ * fields to render — see SCREENING_FIELD_SECTIONS and checklistFieldSections().
  * Clicking a field opens a small popover to leave a per-field comment.
  * Pass `readOnly` to hide the comment affordance (e.g. after approval).
  */
-export default function AnnotatableScreeningReview({ formData, annotations = [], onAddComment, readOnly = false }) {
+export default function AnnotatableFormReview({ formData, sections, annotations = [], onAddComment, readOnly = false }) {
   const [openField, setOpenField] = useState(null) // { key, label }
   const [draft, setDraft] = useState('')
 
@@ -35,7 +37,7 @@ export default function AnnotatableScreeningReview({ formData, annotations = [],
 
   return (
     <div className="annotatable-doc">
-      {SCREENING_FIELD_SECTIONS.map((section) => (
+      {sections.map((section) => (
         <div key={section.title}>
           <div className="doc-sec-title" style={{ marginTop: 14 }}>{section.title}</div>
           <table className="doc-table">

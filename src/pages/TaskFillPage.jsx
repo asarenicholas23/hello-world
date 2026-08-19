@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, AlertCircle, Save, Loader, Upload } from 'lucide-react'
+import { ArrowLeft, AlertCircle, Save, Bookmark, Loader, Upload } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useGPS } from '../hooks/useGPS'
-import { getTask, submitFormTask, uploadGenericTaskSubmission, taskDisplayLabel } from '../firebase/tasks'
+import { getTask, submitFormTask, saveTaskFormDraft, uploadGenericTaskSubmission, taskDisplayLabel } from '../firebase/tasks'
 import { createNotification } from '../firebase/notifications'
 import { listStaff, getStaffMember } from '../firebase/staff'
 import { getFacility } from '../firebase/facilities'
@@ -19,9 +19,9 @@ function buildChecklistDefaults(checklist) {
   const defaults = {}
   if (!checklist) return defaults
   for (const section of checklist.sections) {
-    for (const item of section.items) defaults[item.key] = ''
+    for (const item of section.items) defaults[item.key] = item.default ?? ''
   }
-  for (const field of checklist.extraFields ?? []) defaults[field.key] = ''
+  for (const field of checklist.extraFields ?? []) defaults[field.key] = field.default ?? ''
   return defaults
 }
 
@@ -35,6 +35,8 @@ export default function TaskFillPage() {
   const [loading, setLoading]       = useState(true)
   const [error, setError]           = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [savingDraft, setSavingDraft] = useState(false)
+  const [draftSaved, setDraftSaved]   = useState(false)
 
   // Screening form state
   const [form, setForm]     = useState(EMPTY_SCREENING_FORM)
@@ -118,12 +120,13 @@ export default function TaskFillPage() {
     ? (task.assigned_to === user.uid ? task.assigned_to_2_name : task.assigned_to_name)
     : null
 
-  function set(field, value) { setForm((f) => ({ ...f, [field]: value })) }
+  function set(field, value) { setForm((f) => ({ ...f, [field]: value })); setDraftSaved(false) }
   function setManualCoordinates(next) {
     setCoordinates(next)
     setForm((f) => ({ ...f, latitude: next ? String(next.lat) : '', longitude: next ? String(next.lng) : '' }))
+    setDraftSaved(false)
   }
-  function setChecklistField(key, value) { setChecklistData((p) => ({ ...p, [key]: value })) }
+  function setChecklistField(key, value) { setChecklistData((p) => ({ ...p, [key]: value })); setDraftSaved(false) }
 
   const unresolvedByField = {}
   for (const a of task?.annotations ?? []) {
@@ -148,24 +151,28 @@ export default function TaskFillPage() {
     }))
   }
 
+  async function buildScreeningFormData() {
+    const secondOfficerId = derivedOtherUid || secondOfficerUid || ''
+    const secondOfficer = secondOfficerId ? await getStaffMember(secondOfficerId).catch(() => null) : null
+    return {
+      ...buildScreeningPayload(form, coordinates),
+      photos,
+      officer_id:                    user.uid,
+      officer_name:                  staff?.name ?? '',
+      officer_signature_url:         staff?.signature_url ?? '',
+      second_officer_id:             secondOfficerId,
+      second_officer_name:           secondOfficer?.name ?? derivedOtherName ?? '',
+      second_officer_signature_url:  secondOfficer?.signature_url ?? '',
+    }
+  }
+
   async function handleSubmitScreening(e) {
     e.preventDefault()
     if (!form.inspection_date) { setError('Inspection date is required.'); return }
     setSubmitting(true)
     setError('')
     try {
-      const secondOfficerId = derivedOtherUid || secondOfficerUid || ''
-      const secondOfficer = secondOfficerId ? await getStaffMember(secondOfficerId).catch(() => null) : null
-      const formData = {
-        ...buildScreeningPayload(form, coordinates),
-        photos,
-        officer_id:                    user.uid,
-        officer_name:                  staff?.name ?? '',
-        officer_signature_url:         staff?.signature_url ?? '',
-        second_officer_id:             secondOfficerId,
-        second_officer_name:           secondOfficer?.name ?? derivedOtherName ?? '',
-        second_officer_signature_url:  secondOfficer?.signature_url ?? '',
-      }
+      const formData = await buildScreeningFormData()
       const isResubmission = task.status === 'changes_requested'
       await submitFormTask(taskId, { formData, revisionNote, uid: user.uid })
       await createNotification(
@@ -186,39 +193,43 @@ export default function TaskFillPage() {
     return checklistData[item.conditional.key] === item.conditional.value
   }
 
+  async function buildChecklistFormData() {
+    const secondOfficerId = derivedOtherUid || secondOfficerUid || ''
+    const secondOfficer = secondOfficerId ? await getStaffMember(secondOfficerId).catch(() => null) : null
+
+    const formData = {
+      date:                          checklistData.date ? inputToTs(checklistData.date) : null,
+      officer_id:                    user.uid,
+      officer_name:                  staff?.name ?? '',
+      officer_signature_url:         staff?.signature_url ?? '',
+      second_officer_id:             secondOfficerId,
+      second_officer_name:           secondOfficer?.name ?? derivedOtherName ?? '',
+      second_officer_signature_url:  secondOfficer?.signature_url ?? '',
+      coordinates: coordinates ?? null,
+      photos,
+      notes: checklistData.notes.trim(),
+      sector_prefix: isPesticideScreening ? 'PP' : (sectorPrefix ?? 'CI'),
+      facility_sub_type: checklistKey,
+      ...(isSiteVerification ? { linked_permit_id: checklistData.linked_permit_id } : {}),
+    }
+    for (const section of checklist.sections) {
+      for (const item of section.items) {
+        if (isChecklistItemVisible(item)) formData[item.key] = checklistData[item.key] ?? ''
+      }
+    }
+    for (const field of checklist.extraFields ?? []) {
+      formData[field.key] = checklistData[field.key] ?? ''
+    }
+    return formData
+  }
+
   async function handleSubmitChecklist(e) {
     e.preventDefault()
     if (!checklistData.date) { setError('Date is required.'); return }
     setSubmitting(true)
     setError('')
     try {
-      const secondOfficerId = derivedOtherUid || secondOfficerUid || ''
-      const secondOfficer = secondOfficerId ? await getStaffMember(secondOfficerId).catch(() => null) : null
-
-      const formData = {
-        date:                          inputToTs(checklistData.date),
-        officer_id:                    user.uid,
-        officer_name:                  staff?.name ?? '',
-        officer_signature_url:         staff?.signature_url ?? '',
-        second_officer_id:             secondOfficerId,
-        second_officer_name:           secondOfficer?.name ?? derivedOtherName ?? '',
-        second_officer_signature_url:  secondOfficer?.signature_url ?? '',
-        coordinates: coordinates ?? null,
-        photos,
-        notes: checklistData.notes.trim(),
-        sector_prefix: isPesticideScreening ? 'PP' : (sectorPrefix ?? 'CI'),
-        facility_sub_type: checklistKey,
-        ...(isSiteVerification ? { linked_permit_id: checklistData.linked_permit_id } : {}),
-      }
-      for (const section of checklist.sections) {
-        for (const item of section.items) {
-          if (isChecklistItemVisible(item)) formData[item.key] = checklistData[item.key] ?? ''
-        }
-      }
-      for (const field of checklist.extraFields ?? []) {
-        formData[field.key] = checklistData[field.key] ?? ''
-      }
-
+      const formData = await buildChecklistFormData()
       const isResubmission = task.status === 'changes_requested'
       await submitFormTask(taskId, { formData, revisionNote, uid: user.uid })
       await createNotification(
@@ -231,6 +242,21 @@ export default function TaskFillPage() {
     } catch (err) {
       setError(`Failed to submit: ${err.message}`)
       setSubmitting(false)
+    }
+  }
+
+  async function handleSaveDraft() {
+    setSavingDraft(true)
+    setDraftSaved(false)
+    setError('')
+    try {
+      const formData = isScreening ? await buildScreeningFormData() : await buildChecklistFormData()
+      await saveTaskFormDraft(taskId, { formData, uid: user.uid })
+      setDraftSaved(true)
+    } catch (err) {
+      setError(`Failed to save draft: ${err.message}`)
+    } finally {
+      setSavingDraft(false)
     }
   }
 
@@ -339,7 +365,14 @@ export default function TaskFillPage() {
           )}
 
           <div className="form-actions">
-            <button type="submit" className="btn btn--primary" disabled={submitting}>
+            {draftSaved && <span style={{ fontSize: 12, color: '#16a34a', alignSelf: 'center' }}>Draft saved</span>}
+            <button type="button" className="btn btn--ghost" onClick={handleSaveDraft} disabled={savingDraft || submitting}>
+              {savingDraft
+                ? <><Loader size={15} style={{ animation: 'spin 1s linear infinite' }} /> Saving…</>
+                : <><Bookmark size={15} /> Save Draft</>
+              }
+            </button>
+            <button type="submit" className="btn btn--primary" disabled={submitting || savingDraft}>
               {submitting
                 ? <><Loader size={15} style={{ animation: 'spin 1s linear infinite' }} /> Submitting…</>
                 : <><Save size={15} /> {task.status === 'changes_requested' ? 'Resubmit' : 'Submit for Review'}</>
@@ -392,6 +425,7 @@ export default function TaskFillPage() {
             onPhotosChange={setPhotos}
             photoFileNumber={task.facility_mode === 'registered' ? task.file_number : 'tasks'}
             photoCategory={task.facility_mode === 'registered' ? (isSiteVerification ? 'site_verifications' : 'screenings') : `${taskId}/${isSiteVerification ? 'site_verifications' : 'screenings'}`}
+            annotationsByField={unresolvedByField}
           />
 
           {task.status === 'changes_requested' && (
@@ -404,7 +438,14 @@ export default function TaskFillPage() {
           )}
 
           <div className="form-actions">
-            <button type="submit" className="btn btn--primary" disabled={submitting}>
+            {draftSaved && <span style={{ fontSize: 12, color: '#16a34a', alignSelf: 'center' }}>Draft saved</span>}
+            <button type="button" className="btn btn--ghost" onClick={handleSaveDraft} disabled={savingDraft || submitting}>
+              {savingDraft
+                ? <><Loader size={15} style={{ animation: 'spin 1s linear infinite' }} /> Saving…</>
+                : <><Bookmark size={15} /> Save Draft</>
+              }
+            </button>
+            <button type="submit" className="btn btn--primary" disabled={submitting || savingDraft}>
               {submitting
                 ? <><Loader size={15} style={{ animation: 'spin 1s linear infinite' }} /> Submitting…</>
                 : <><Save size={15} /> {task.status === 'changes_requested' ? 'Resubmit' : 'Submit for Review'}</>

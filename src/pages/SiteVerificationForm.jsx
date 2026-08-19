@@ -19,11 +19,11 @@ function buildDefaults(checklist) {
   if (!checklist) return defaults
   for (const section of checklist.sections) {
     for (const item of section.items) {
-      defaults[item.key] = ''
+      defaults[item.key] = item.default ?? ''
     }
   }
   for (const field of checklist.extraFields ?? []) {
-    defaults[field.key] = ''
+    defaults[field.key] = field.default ?? ''
   }
   return defaults
 }
@@ -79,10 +79,10 @@ export default function SiteVerificationForm() {
         }
         if (isEditing) {
           if (!rec) { setError('Record not found.'); return }
-          const loadedSubType = sectorPrefix === 'CE'
+          const loadedSubType = loadedSectorPrefix === 'CE'
             ? (rec.facility_sub_type ?? 'CE')
-            : (rec.facility_sub_type ?? sectorPrefix)
-          if (sectorPrefix === 'CE') setSubType(loadedSubType)
+            : (rec.facility_sub_type ?? loadedSectorPrefix)
+          if (loadedSectorPrefix === 'CE') setSubType(loadedSubType)
           const loadedChecklist = SITE_VERIFICATION_CHECKLISTS[loadedSubType] ?? SITE_VERIFICATION_CHECKLISTS.CI
           const defaults = buildDefaults(loadedChecklist)
           const merged = { ...defaults }

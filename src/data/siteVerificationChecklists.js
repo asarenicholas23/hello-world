@@ -4,8 +4,6 @@
 // conditional: { key, value } — only show item when another field equals that value
 // default: pre-filled value used when a field is first initialized (e.g. for 'readonly' fields)
 
-import { DISTRICTS, REGION } from './constants'
-
 export const SV_CHECKLIST_OPTIONS = ['', 'Yes', 'No', 'N/A']
 const YN_OPTIONS = ['', 'Yes', 'No']
 
@@ -313,27 +311,17 @@ export const SITE_VERIFICATION_CHECKLISTS = {
   CH: {
     label: 'Healthcare Facility',
     extraFields: [
-      { key: 'facility_name',      label: 'Name of Healthcare Facility',   type: 'text' },
       { key: 'management_company', label: 'Facility Management Company',   type: 'text' },
       { key: 'year_established',   label: 'Year of Establishment',         type: 'date' },
       { key: 'first_permit_date',  label: 'Date of First Permit',          type: 'date' },
-      { key: 'contact_person',     label: 'Contact Person',                type: 'text' },
       { key: 'contact_position',   label: 'Position',                      type: 'text' },
       { key: 'address',            label: 'Address',                       type: 'text' },
       { key: 'tel',                label: 'Tel',                           type: 'text' },
       { key: 'fax',                label: 'Fax',                           type: 'text' },
       { key: 'email',              label: 'E-mail',                        type: 'text' },
+      { key: 'land_take',          label: 'Land Take',                     type: 'text' },
     ],
     sections: [
-      {
-        title: 'Location of Facility',
-        items: [
-          { key: 'town',        label: 'Town',      type: 'text' },
-          { key: 'district',    label: 'District',  type: 'select', options: ['', ...DISTRICTS.map((d) => d.name)] },
-          { key: 'region',      label: 'Region',     type: 'readonly', default: REGION },
-          { key: 'land_take',   label: 'Land Take',  type: 'text' },
-        ],
-      },
       {
         title: 'Site Description',
         items: [

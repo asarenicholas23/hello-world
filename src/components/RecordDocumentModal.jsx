@@ -340,10 +340,6 @@ function SiteVerificationDoc({ record: r, facility: f }) {
 
   if (!checklist) return <div className="doc-notes-block">No checklist available for this sector.</div>
 
-  const gps = r.coordinates?.lat != null
-    ? `${r.coordinates.lat.toFixed(6)}, ${r.coordinates.lng.toFixed(6)}`
-    : '—'
-
   return (
     <div className="srd">
       {/* 1.0 Company Profile */}
@@ -354,10 +350,8 @@ function SiteVerificationDoc({ record: r, facility: f }) {
           <td className="srd-iv" colSpan={3}>{val(f?.name)}</td>
         </tr>
         <tr>
-          <td className="srd-il">File Number</td>
-          <td className="srd-iv">{val(f?.file_number)}</td>
           <td className="srd-il">Facility Type</td>
-          <td className="srd-iv">{checklist.label}</td>
+          <td className="srd-iv" colSpan={3}>{checklist.label}</td>
         </tr>
         <tr>
           <td className="srd-il">Location</td>
@@ -375,12 +369,6 @@ function SiteVerificationDoc({ record: r, facility: f }) {
           <td className="srd-il">Phone</td>
           <td className="srd-iv">{val(f?.phone)}</td>
         </tr>
-        {gps !== '—' && (
-          <tr>
-            <td className="srd-il">GPS Coordinates</td>
-            <td className="srd-iv" colSpan={3}>{gps}</td>
-          </tr>
-        )}
         {r.linked_permit_id && (
           <tr>
             <td className="srd-il">Linked Permit</td>

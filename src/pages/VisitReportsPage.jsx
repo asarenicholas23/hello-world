@@ -29,26 +29,54 @@ function jan1ThisYear() {
 function esc(v) { return `"${String(v ?? '').replace(/"/g, '""')}"` }
 
 const PERMIT_OUTCOME_LABEL = {
-  after_visit:     'Permitted after visit',
-  before_visit:    'Already permitted (pre-visit)',
-  no_permit:       'No permit yet',
-  unknown_timing:  'Permitted (date unknown)',
+  after_visit:          'Permitted after visit',
+  renewed_after_visit:  'Permit renewed after visit',
+  before_visit:         'Permit renewal pending',
+  no_permit:            'No permit yet',
+  unknown_timing:       'Permitted (date unknown)',
 }
 
 const PERMIT_OUTCOME_COLORS = {
-  after_visit:    { background: '#dbeafe', color: '#1d4ed8' },
-  before_visit:   { background: '#ede9fe', color: '#5b21b6' },
-  no_permit:      { background: '#f3f4f6', color: '#374151' },
-  unknown_timing: { background: '#fef9c3', color: '#854d0e' },
+  after_visit:         { background: '#dbeafe', color: '#1d4ed8' },
+  renewed_after_visit: { background: '#ccfbf1', color: '#0f766e' },
+  before_visit:        { background: '#fef3c7', color: '#92400e' },
+  no_permit:           { background: '#f3f4f6', color: '#374151' },
+  unknown_timing:      { background: '#fef9c3', color: '#854d0e' },
+}
+
+const VISIT_TYPE_LABEL = {
+  walk_in:           'Walk-in',
+  enforcement:       'Enforcement',
+  screening:         'Screening',
+  site_verification: 'Site Verification',
+  monitoring:        'Monitoring',
+}
+
+const VISIT_TYPE_COLORS = {
+  walk_in:           { background: '#f0fdf4', color: '#166534' },
+  enforcement:       { background: '#fff7ed', color: '#c2410c' },
+  screening:         { background: '#eff6ff', color: '#1d4ed8' },
+  site_verification: { background: '#faf5ff', color: '#7e22ce' },
+  monitoring:        { background: '#ecfeff', color: '#0e7490' },
+}
+
+// facility sub-record category -> singular visit-type key
+const CATEGORY_TO_VISIT_TYPE = {
+  screenings:         'screening',
+  site_verifications: 'site_verification',
+  monitoring:         'monitoring',
+  enforcement:        'enforcement',
 }
 
 function toCSV(rows) {
-  const headers = ['Facility', 'File No.', 'Type of Undertaking', 'Sector', 'District',
+  const headers = ['Facility', 'File No.', 'Visit Types', 'Type of Undertaking', 'Sector', 'District',
     'First Visit', 'Registered', 'Reported', 'Permit Outcome']
   const lines = [
     headers.map(esc).join(','),
     ...rows.map((r) => [
-      r.name, r.fileNumber || 'Unregistered', r.typeOfUndertaking, r.sectorPrefix, r.district,
+      r.name, r.fileNumber || 'Unregistered',
+      r.visitTypes.map((t) => VISIT_TYPE_LABEL[t] ?? t).join('; '),
+      r.typeOfUndertaking, r.sectorPrefix, r.district,
       fmtMs(r.firstVisitMs), r.registered ? 'Yes' : 'No', r.reported ? 'Yes' : 'No',
       PERMIT_OUTCOME_LABEL[r.permitOutcome] ?? r.permitOutcome,
     ].map(esc).join(',')),
@@ -75,26 +103,30 @@ function downloadCSV(content, filename) {
  * date (many legacy/migrated reports only have created_at) means nothing gets dropped —
  * it's an approximate date for those, but keeps the record visible and countable.
  *
- * permitOutcome compares each facility's earliest permit date (effective_date, falling
- * back to issue_date) against the visit date, so a still-expired-today permit still
- * counts as "permitted" — only its *timing* relative to the visit is being classified:
- *   - 'after_visit'    the permit came on/after the visit — the visit likely drove it
- *   - 'before_visit'   the facility already had a permit before this visit
- *   - 'unknown_timing' has a permit but neither record has a usable date
- *   - 'no_permit'      no permit on file at all
+ * permitOutcome compares each facility's earliest and latest permit dates (effective_date,
+ * falling back to issue_date) against the visit date, so a still-expired-today permit
+ * still counts as "permitted" — only its *timing* relative to the visit is classified:
+ *   - 'after_visit'          no permit predates the visit — the visit likely drove the first one
+ *   - 'renewed_after_visit'  a permit already existed before the visit, AND a newer one
+ *                            (the renewal) was issued on/after the visit
+ *   - 'before_visit'         a permit already existed before the visit, with no renewal since —
+ *                            i.e. the visit's presumed purpose (get them to renew) hasn't landed yet
+ *   - 'unknown_timing'       has a permit but neither record has a usable date
+ *   - 'no_permit'            no permit on file at all
  */
 function buildVisitRows({ fieldReports, subrecordsByCategory, permits }) {
   const visits = new Map()
 
-  function upsert(key, patch, dateMs) {
+  function upsert(key, patch, dateMs, visitType) {
     const existing = visits.get(key)
     if (!existing) {
-      visits.set(key, { key, firstVisitMs: dateMs, reported: false, registered: false, ...patch })
+      visits.set(key, { key, firstVisitMs: dateMs, reported: false, registered: false, visitTypes: new Set([visitType]), ...patch })
       return
     }
     if (dateMs != null && (existing.firstVisitMs == null || dateMs < existing.firstVisitMs)) {
       existing.firstVisitMs = dateMs
     }
+    existing.visitTypes.add(visitType)
     Object.entries(patch).forEach(([k, v]) => {
       if (!existing[k] && v) existing[k] = v
     })
@@ -111,7 +143,7 @@ function buildVisitRows({ fieldReports, subrecordsByCategory, permits }) {
         district: rec.facilityDistrict,
         registered: true,
         reported: true,
-      }, dateMs)
+      }, dateMs, CATEGORY_TO_VISIT_TYPE[category])
     }
   }
 
@@ -126,26 +158,34 @@ function buildVisitRows({ fieldReports, subrecordsByCategory, permits }) {
       district: r.district || '',
       registered: Boolean(r.assigned_file_number),
       reported: r.reporting_status === 'reported',
-    }, dateMs)
+    }, dateMs, r.report_type)
   }
 
-  // Earliest dated permit per facility, plus which facilities have a permit at all
-  // (some legacy permits carry neither an issue_date nor an effective_date).
+  // Earliest and latest dated permit per facility, plus which facilities have a permit
+  // at all (some legacy permits carry neither an issue_date nor an effective_date).
   const hasAnyPermit = new Set()
   const earliestPermitMsByFileNumber = new Map()
+  const latestPermitMsByFileNumber = new Map()
   for (const p of permits) {
     hasAnyPermit.add(p.fileNumber)
     const permitMs = tsToMs(p.effective_date) ?? tsToMs(p.issue_date)
     if (permitMs == null) continue
-    const existing = earliestPermitMsByFileNumber.get(p.fileNumber)
-    if (existing == null || permitMs < existing) earliestPermitMsByFileNumber.set(p.fileNumber, permitMs)
+    const earliest = earliestPermitMsByFileNumber.get(p.fileNumber)
+    if (earliest == null || permitMs < earliest) earliestPermitMsByFileNumber.set(p.fileNumber, permitMs)
+    const latest = latestPermitMsByFileNumber.get(p.fileNumber)
+    if (latest == null || permitMs > latest) latestPermitMsByFileNumber.set(p.fileNumber, permitMs)
   }
 
   return Array.from(visits.values()).map((v) => {
-    if (!v.fileNumber || !hasAnyPermit.has(v.fileNumber)) return { ...v, permitOutcome: 'no_permit' }
-    const permitMs = earliestPermitMsByFileNumber.get(v.fileNumber)
-    if (permitMs == null || v.firstVisitMs == null) return { ...v, permitOutcome: 'unknown_timing' }
-    return { ...v, permitOutcome: permitMs >= v.firstVisitMs ? 'after_visit' : 'before_visit' }
+    const base = { ...v, visitTypes: Array.from(v.visitTypes).filter(Boolean) }
+    if (!base.fileNumber || !hasAnyPermit.has(base.fileNumber)) return { ...base, permitOutcome: 'no_permit' }
+    const earliestMs = earliestPermitMsByFileNumber.get(base.fileNumber)
+    if (earliestMs == null || base.firstVisitMs == null) return { ...base, permitOutcome: 'unknown_timing' }
+    if (earliestMs >= base.firstVisitMs) return { ...base, permitOutcome: 'after_visit' }
+    // Already permitted before the visit — check for a later (renewal) permit since.
+    const latestMs = latestPermitMsByFileNumber.get(base.fileNumber)
+    if (latestMs != null && latestMs >= base.firstVisitMs) return { ...base, permitOutcome: 'renewed_after_visit' }
+    return { ...base, permitOutcome: 'before_visit' }
   })
 }
 
@@ -162,6 +202,7 @@ export default function VisitReportsPage() {
   const [registeredFilter, setRegisteredFilter] = useState('')
   const [permitFilter,     setPermitFilter]     = useState('')
   const [reportedFilter,   setReportedFilter]   = useState('')
+  const [visitTypeFilter,  setVisitTypeFilter]  = useState('')
   const [dateFrom, setDateFrom] = useState(jan1ThisYear())
   const [dateTo,   setDateTo]   = useState('')
 
@@ -206,6 +247,7 @@ export default function VisitReportsPage() {
       if (permitFilter && v.permitOutcome !== permitFilter) return false
       if (reportedFilter === 'reported'     && !v.reported) return false
       if (reportedFilter === 'not-reported' &&  v.reported) return false
+      if (visitTypeFilter && !v.visitTypes.includes(visitTypeFilter)) return false
 
       if (search.trim()) {
         const q = search.toLowerCase()
@@ -217,18 +259,19 @@ export default function VisitReportsPage() {
       }
       return true
     })
-  }, [visits, search, sector, district, registeredFilter, permitFilter, reportedFilter, dateFrom, dateTo])
+  }, [visits, search, sector, district, registeredFilter, permitFilter, reportedFilter, visitTypeFilter, dateFrom, dateTo])
 
   const summary = useMemo(() => ({
-    visited:           filtered.length,
-    reported:          filtered.filter((v) => v.reported).length,
-    permittedAfter:    filtered.filter((v) => v.permitOutcome === 'after_visit').length,
-    permittedBefore:   filtered.filter((v) => v.permitOutcome === 'before_visit').length,
-    permitPending:     filtered.filter((v) => v.registered && v.permitOutcome === 'no_permit').length,
-    unregistered:      filtered.filter((v) => !v.registered).length,
+    visited:         filtered.length,
+    reported:        filtered.filter((v) => v.reported).length,
+    permittedAfter:  filtered.filter((v) => v.permitOutcome === 'after_visit').length,
+    renewedAfter:    filtered.filter((v) => v.permitOutcome === 'renewed_after_visit').length,
+    renewalPending:  filtered.filter((v) => v.permitOutcome === 'before_visit').length,
+    permitPending:   filtered.filter((v) => v.registered && v.permitOutcome === 'no_permit').length,
+    unregistered:    filtered.filter((v) => !v.registered).length,
   }), [filtered])
 
-  const hasFilter = search || sector || district || registeredFilter || permitFilter || reportedFilter || dateTo || dateFrom !== jan1ThisYear()
+  const hasFilter = search || sector || district || registeredFilter || permitFilter || reportedFilter || visitTypeFilter || dateTo || dateFrom !== jan1ThisYear()
 
   return (
     <div className="page">
@@ -263,7 +306,7 @@ export default function VisitReportsPage() {
               style={{ marginLeft: 'auto', fontSize: 12 }}
               onClick={() => {
                 setSearch(''); setSector(''); setDistrict('')
-                setRegisteredFilter(''); setPermitFilter(''); setReportedFilter('')
+                setRegisteredFilter(''); setPermitFilter(''); setReportedFilter(''); setVisitTypeFilter('')
                 setDateFrom(jan1ThisYear()); setDateTo('')
               }}
             >
@@ -290,6 +333,18 @@ export default function VisitReportsPage() {
           </div>
 
           <div className="form-group">
+            <label>Visit Type</label>
+            <select className="select" value={visitTypeFilter} onChange={(e) => setVisitTypeFilter(e.target.value)}>
+              <option value="">All types</option>
+              <option value="walk_in">Walk-in</option>
+              <option value="enforcement">Enforcement</option>
+              <option value="screening">Screening</option>
+              <option value="site_verification">Site Verification</option>
+              <option value="monitoring">Monitoring</option>
+            </select>
+          </div>
+
+          <div className="form-group">
             <label>Registration</label>
             <select className="select" value={registeredFilter} onChange={(e) => setRegisteredFilter(e.target.value)}>
               <option value="">All</option>
@@ -303,7 +358,8 @@ export default function VisitReportsPage() {
             <select className="select" value={permitFilter} onChange={(e) => setPermitFilter(e.target.value)}>
               <option value="">All</option>
               <option value="after_visit">Permitted after visit</option>
-              <option value="before_visit">Already permitted (pre-visit)</option>
+              <option value="renewed_after_visit">Permit renewed after visit</option>
+              <option value="before_visit">Permit renewal pending</option>
               <option value="no_permit">No permit yet</option>
               <option value="unknown_timing">Permitted (date unknown)</option>
             </select>
@@ -355,8 +411,11 @@ export default function VisitReportsPage() {
           <div className="analytics-chip" style={{ background: '#dbeafe', color: '#1d4ed8' }}>
             <span className="analytics-chip__num">{summary.permittedAfter}</span> Permitted after visit
           </div>
-          <div className="analytics-chip" style={{ background: '#ede9fe', color: '#5b21b6' }}>
-            <span className="analytics-chip__num">{summary.permittedBefore}</span> Already permitted (pre-visit)
+          <div className="analytics-chip" style={{ background: '#ccfbf1', color: '#0f766e' }}>
+            <span className="analytics-chip__num">{summary.renewedAfter}</span> Renewed after visit
+          </div>
+          <div className="analytics-chip" style={{ background: '#fef3c7', color: '#92400e' }}>
+            <span className="analytics-chip__num">{summary.renewalPending}</span> Renewal pending
           </div>
           <div className="analytics-chip" style={{ background: '#fef9c3', color: '#854d0e' }}>
             <span className="analytics-chip__num">{summary.permitPending}</span> Registered, permit pending
@@ -382,6 +441,7 @@ export default function VisitReportsPage() {
               <tr>
                 <th>Facility</th>
                 <th>File No.</th>
+                <th>Visit Type</th>
                 <th>Type of Undertaking</th>
                 <th>Sector</th>
                 <th>District</th>
@@ -410,6 +470,15 @@ export default function VisitReportsPage() {
                           ? <span className="file-num" style={{ fontSize: 12 }}>{v.fileNumber}</span>
                           : <span className="record-badge" style={{ background: '#f3f4f6', color: '#374151', fontSize: 10 }}>Unregistered</span>
                         }
+                      </td>
+                      <td>
+                        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                          {v.visitTypes.map((t) => (
+                            <span key={t} className="record-badge" style={{ ...VISIT_TYPE_COLORS[t], fontSize: 10 }}>
+                              {VISIT_TYPE_LABEL[t] ?? t}
+                            </span>
+                          ))}
+                        </div>
                       </td>
                       <td style={{ fontSize: 12 }}>{v.typeOfUndertaking || '—'}</td>
                       <td>

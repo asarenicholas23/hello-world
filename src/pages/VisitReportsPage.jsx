@@ -28,14 +28,29 @@ function jan1ThisYear() {
 
 function esc(v) { return `"${String(v ?? '').replace(/"/g, '""')}"` }
 
+const PERMIT_OUTCOME_LABEL = {
+  after_visit:     'Permitted after visit',
+  before_visit:    'Already permitted (pre-visit)',
+  no_permit:       'No permit yet',
+  unknown_timing:  'Permitted (date unknown)',
+}
+
+const PERMIT_OUTCOME_COLORS = {
+  after_visit:    { background: '#dbeafe', color: '#1d4ed8' },
+  before_visit:   { background: '#ede9fe', color: '#5b21b6' },
+  no_permit:      { background: '#f3f4f6', color: '#374151' },
+  unknown_timing: { background: '#fef9c3', color: '#854d0e' },
+}
+
 function toCSV(rows) {
   const headers = ['Facility', 'File No.', 'Type of Undertaking', 'Sector', 'District',
-    'First Visit', 'Registered', 'Reported', 'Permitted']
+    'First Visit', 'Registered', 'Reported', 'Permit Outcome']
   const lines = [
     headers.map(esc).join(','),
     ...rows.map((r) => [
       r.name, r.fileNumber || 'Unregistered', r.typeOfUndertaking, r.sectorPrefix, r.district,
-      fmtMs(r.firstVisitMs), r.registered ? 'Yes' : 'No', r.reported ? 'Yes' : 'No', r.permitted ? 'Yes' : 'No',
+      fmtMs(r.firstVisitMs), r.registered ? 'Yes' : 'No', r.reported ? 'Yes' : 'No',
+      PERMIT_OUTCOME_LABEL[r.permitOutcome] ?? r.permitOutcome,
     ].map(esc).join(',')),
   ]
   return lines.join('\n')
@@ -55,8 +70,20 @@ function downloadCSV(content, filename) {
  *  - facility sub-records (screenings/site_verifications/monitoring/enforcement) filed
  *    directly against an already-registered facility, with no mirrored field_report doc
  * keyed by file_number when known, otherwise by the field_report's own id.
+ *
+ * Every record has a `created_at`, so falling back to it when there's no more specific
+ * date (many legacy/migrated reports only have created_at) means nothing gets dropped —
+ * it's an approximate date for those, but keeps the record visible and countable.
+ *
+ * permitOutcome compares each facility's earliest permit date (effective_date, falling
+ * back to issue_date) against the visit date, so a still-expired-today permit still
+ * counts as "permitted" — only its *timing* relative to the visit is being classified:
+ *   - 'after_visit'    the permit came on/after the visit — the visit likely drove it
+ *   - 'before_visit'   the facility already had a permit before this visit
+ *   - 'unknown_timing' has a permit but neither record has a usable date
+ *   - 'no_permit'      no permit on file at all
  */
-function buildVisitRows({ fieldReports, subrecordsByCategory, permittedFileNumbers }) {
+function buildVisitRows({ fieldReports, subrecordsByCategory, permits }) {
   const visits = new Map()
 
   function upsert(key, patch, dateMs) {
@@ -75,8 +102,7 @@ function buildVisitRows({ fieldReports, subrecordsByCategory, permittedFileNumbe
 
   for (const category of SUBRECORD_CATEGORIES) {
     for (const rec of subrecordsByCategory[category]) {
-      const dateMs = tsToMs(rec.date)
-      if (dateMs == null) continue
+      const dateMs = tsToMs(rec.date) ?? tsToMs(rec.created_at)
       upsert(rec.fileNumber, {
         fileNumber: rec.fileNumber,
         name: rec.facilityName,
@@ -90,8 +116,7 @@ function buildVisitRows({ fieldReports, subrecordsByCategory, permittedFileNumbe
   }
 
   for (const r of fieldReports) {
-    const dateMs = tsToMs(r.date) ?? tsToMs(r.date_reported) ?? tsToMs(r.date_letter_served)
-    if (dateMs == null) continue
+    const dateMs = tsToMs(r.date) ?? tsToMs(r.date_reported) ?? tsToMs(r.date_letter_served) ?? tsToMs(r.created_at)
     const key = r.assigned_file_number || `unreg:${r.id}`
     upsert(key, {
       fileNumber: r.assigned_file_number || '',
@@ -104,10 +129,24 @@ function buildVisitRows({ fieldReports, subrecordsByCategory, permittedFileNumbe
     }, dateMs)
   }
 
-  return Array.from(visits.values()).map((v) => ({
-    ...v,
-    permitted: v.fileNumber ? permittedFileNumbers.has(v.fileNumber) : false,
-  }))
+  // Earliest dated permit per facility, plus which facilities have a permit at all
+  // (some legacy permits carry neither an issue_date nor an effective_date).
+  const hasAnyPermit = new Set()
+  const earliestPermitMsByFileNumber = new Map()
+  for (const p of permits) {
+    hasAnyPermit.add(p.fileNumber)
+    const permitMs = tsToMs(p.effective_date) ?? tsToMs(p.issue_date)
+    if (permitMs == null) continue
+    const existing = earliestPermitMsByFileNumber.get(p.fileNumber)
+    if (existing == null || permitMs < existing) earliestPermitMsByFileNumber.set(p.fileNumber, permitMs)
+  }
+
+  return Array.from(visits.values()).map((v) => {
+    if (!v.fileNumber || !hasAnyPermit.has(v.fileNumber)) return { ...v, permitOutcome: 'no_permit' }
+    const permitMs = earliestPermitMsByFileNumber.get(v.fileNumber)
+    if (permitMs == null || v.firstVisitMs == null) return { ...v, permitOutcome: 'unknown_timing' }
+    return { ...v, permitOutcome: permitMs >= v.firstVisitMs ? 'after_visit' : 'before_visit' }
+  })
 }
 
 export default function VisitReportsPage() {
@@ -138,11 +177,10 @@ export default function VisitReportsPage() {
           getCrossRecords('enforcement', facilityMap),
           getCrossRecords('permits', facilityMap),
         ])
-        const permittedFileNumbers = new Set(permits.map((p) => p.fileNumber))
         const rows = buildVisitRows({
           fieldReports,
           subrecordsByCategory: { screenings, site_verifications: siteVerifications, monitoring, enforcement },
-          permittedFileNumbers,
+          permits,
         })
         setVisits(rows)
       } catch (err) {
@@ -165,8 +203,7 @@ export default function VisitReportsPage() {
       if (district && v.district !== district) return false
       if (registeredFilter === 'registered'   && !v.registered) return false
       if (registeredFilter === 'unregistered' &&  v.registered) return false
-      if (permitFilter === 'permitted'  && !v.permitted) return false
-      if (permitFilter === 'no-permit'  &&  v.permitted) return false
+      if (permitFilter && v.permitOutcome !== permitFilter) return false
       if (reportedFilter === 'reported'     && !v.reported) return false
       if (reportedFilter === 'not-reported' &&  v.reported) return false
 
@@ -182,16 +219,14 @@ export default function VisitReportsPage() {
     })
   }, [visits, search, sector, district, registeredFilter, permitFilter, reportedFilter, dateFrom, dateTo])
 
-  const summary = useMemo(() => {
-    const registered = filtered.filter((v) => v.registered)
-    return {
-      visited:   filtered.length,
-      reported:  filtered.filter((v) => v.reported).length,
-      permitted: filtered.filter((v) => v.permitted).length,
-      permitPending: registered.filter((v) => !v.permitted).length,
-      unregistered: filtered.filter((v) => !v.registered).length,
-    }
-  }, [filtered])
+  const summary = useMemo(() => ({
+    visited:           filtered.length,
+    reported:          filtered.filter((v) => v.reported).length,
+    permittedAfter:    filtered.filter((v) => v.permitOutcome === 'after_visit').length,
+    permittedBefore:   filtered.filter((v) => v.permitOutcome === 'before_visit').length,
+    permitPending:     filtered.filter((v) => v.registered && v.permitOutcome === 'no_permit').length,
+    unregistered:      filtered.filter((v) => !v.registered).length,
+  }), [filtered])
 
   const hasFilter = search || sector || district || registeredFilter || permitFilter || reportedFilter || dateTo || dateFrom !== jan1ThisYear()
 
@@ -267,8 +302,10 @@ export default function VisitReportsPage() {
             <label>Permit</label>
             <select className="select" value={permitFilter} onChange={(e) => setPermitFilter(e.target.value)}>
               <option value="">All</option>
-              <option value="permitted">Permitted</option>
-              <option value="no-permit">No permit yet</option>
+              <option value="after_visit">Permitted after visit</option>
+              <option value="before_visit">Already permitted (pre-visit)</option>
+              <option value="no_permit">No permit yet</option>
+              <option value="unknown_timing">Permitted (date unknown)</option>
             </select>
           </div>
 
@@ -316,7 +353,10 @@ export default function VisitReportsPage() {
             <span className="analytics-chip__num">{summary.reported}</span> Reported
           </div>
           <div className="analytics-chip" style={{ background: '#dbeafe', color: '#1d4ed8' }}>
-            <span className="analytics-chip__num">{summary.permitted}</span> Permitted
+            <span className="analytics-chip__num">{summary.permittedAfter}</span> Permitted after visit
+          </div>
+          <div className="analytics-chip" style={{ background: '#ede9fe', color: '#5b21b6' }}>
+            <span className="analytics-chip__num">{summary.permittedBefore}</span> Already permitted (pre-visit)
           </div>
           <div className="analytics-chip" style={{ background: '#fef9c3', color: '#854d0e' }}>
             <span className="analytics-chip__num">{summary.permitPending}</span> Registered, permit pending
@@ -347,7 +387,7 @@ export default function VisitReportsPage() {
                 <th>District</th>
                 <th>First Visit</th>
                 <th>Reported</th>
-                <th>Permitted</th>
+                <th>Permit Outcome</th>
               </tr>
             </thead>
             <tbody>
@@ -387,8 +427,8 @@ export default function VisitReportsPage() {
                         </span>
                       </td>
                       <td>
-                        <span className="record-badge" style={v.permitted ? { background: '#dbeafe', color: '#1d4ed8' } : { background: '#f3f4f6', color: '#374151' }}>
-                          {v.permitted ? 'Permitted' : 'No permit'}
+                        <span className="record-badge" style={PERMIT_OUTCOME_COLORS[v.permitOutcome]}>
+                          {PERMIT_OUTCOME_LABEL[v.permitOutcome]}
                         </span>
                       </td>
                     </tr>

@@ -103,9 +103,12 @@ function downloadCSV(content, filename) {
  * date (many legacy/migrated reports only have created_at) means nothing gets dropped —
  * it's an approximate date for those, but keeps the record visible and countable.
  *
- * permitOutcome compares each facility's earliest and latest permit dates (effective_date,
- * falling back to issue_date) against the visit date, so a still-expired-today permit
- * still counts as "permitted" — only its *timing* relative to the visit is classified:
+ * permitOutcome compares each facility's earliest and latest permit dates (issue_date,
+ * falling back to effective_date) against the visit date, so a still-expired-today permit
+ * still counts as "permitted" — only its *timing* relative to the visit is classified.
+ * issue_date is preferred over effective_date because effective_date is often backdated
+ * (e.g. to bridge from the old permit's expiry with no gap), which doesn't reflect when
+ * the renewal actually happened:
  *   - 'after_visit'          no permit predates the visit — the visit likely drove the first one
  *   - 'renewed_after_visit'  a permit already existed before the visit, AND a newer one
  *                            (the renewal) was issued on/after the visit
@@ -168,7 +171,7 @@ function buildVisitRows({ fieldReports, subrecordsByCategory, permits }) {
   const latestPermitMsByFileNumber = new Map()
   for (const p of permits) {
     hasAnyPermit.add(p.fileNumber)
-    const permitMs = tsToMs(p.effective_date) ?? tsToMs(p.issue_date)
+    const permitMs = tsToMs(p.issue_date) ?? tsToMs(p.effective_date)
     if (permitMs == null) continue
     const earliest = earliestPermitMsByFileNumber.get(p.fileNumber)
     if (earliest == null || permitMs < earliest) earliestPermitMsByFileNumber.set(p.fileNumber, permitMs)

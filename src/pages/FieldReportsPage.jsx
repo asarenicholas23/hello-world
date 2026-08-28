@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { AlertCircle, Search, ChevronDown, ChevronUp, Plus, Loader, UserCheck, Edit2, Trash2, MessageSquare } from 'lucide-react'
+import { AlertCircle, Search, ChevronDown, ChevronUp, Plus, Loader, UserCheck, Edit2, Trash2, MessageSquare, FileText } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { listFieldReports, updateFieldReport, deleteFieldReport } from '../firebase/fieldReports'
 import { getFacility, createFacilityWithId } from '../firebase/facilities'
@@ -12,6 +12,7 @@ import { fmtDate, inputToTs } from '../utils/records'
 import { facilityPath } from '../utils/fileNumbers'
 import { SECTORS, DISTRICTS, ENFORCEMENT_ACTIONS, ADMIN_ROLES, FIELD_ROLES, hasFullDataAccess } from '../data/constants'
 import AssignOfficerDialog from '../components/AssignOfficerDialog'
+import RecordDocumentModal from '../components/RecordDocumentModal'
 import Spinner from '../components/Spinner'
 
 const REPORTING_OPTIONS = [
@@ -58,6 +59,7 @@ export default function FieldReportsPage() {
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo,   setDateTo]   = useState('')
   const [expanded, setExpanded] = useState(null)
+  const [viewDoc, setViewDoc]   = useState(null)
   const [saving, setSaving]     = useState({})
   const [selectedIds, setSelectedIds] = useState([])
   const [deletingSelected, setDeletingSelected] = useState(false)
@@ -233,6 +235,22 @@ export default function FieldReportsPage() {
             coordinates:             s.coordinates ?? null,
           }, user.uid)
         }
+
+        // Copy the enforcement action to the new facility's enforcement subcollection
+        if (report.report_type === 'enforcement' && report.action_taken) {
+          await createSubRecord(trimmed, 'enforcement', {
+            date:           report.date ?? null,
+            officer_id:     report.officer_id ?? user.uid,
+            officer_name:   report.officer_name ?? '',
+            location:       report.enforcement_location || report.location || '',
+            contact_person: report.contact_person ?? '',
+            action_taken:   report.action_taken,
+            follow_up_date: report.follow_up_date ?? null,
+            coordinates:    report.coordinates ?? null,
+            photos:         report.photos ?? [],
+            notes:          report.notes ?? '',
+          }, user.uid)
+        }
       }
 
       await updateFieldReport(reportId, { assigned_file_number: trimmed }, user.uid)
@@ -300,6 +318,14 @@ export default function FieldReportsPage() {
 
   return (
     <div className="page">
+      {viewDoc && (
+        <RecordDocumentModal
+          type={viewDoc.type}
+          record={viewDoc.record}
+          fileNumber={null}
+          onClose={() => setViewDoc(null)}
+        />
+      )}
       <div className="page-header">
         <div>
           <div className="page-title">Field Reports</div>
@@ -506,7 +532,19 @@ export default function FieldReportsPage() {
                   {/* Enforcement details */}
                   {r.report_type === 'enforcement' && (
                     <div className="field-report-section">
-                      <div className="field-report-section__title">Enforcement Details</div>
+                      <div className="field-report-section__title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span>Enforcement Details</span>
+                        <div style={{ display: 'flex', gap: 6 }}>
+                          <button className="btn btn--ghost btn--xs" onClick={() => setViewDoc({ type: 'enforcement', record: r })}>
+                            <FileText size={12} /> View
+                          </button>
+                          {canEditReport(r) && (
+                            <button className="btn btn--ghost btn--xs" onClick={() => navigate(`/field-reports/${r.id}/edit`)}>
+                              <Edit2 size={12} /> Edit
+                            </button>
+                          )}
+                        </div>
+                      </div>
                       <div className="field-report-grid">
                         {r.action_taken        && <FieldRow label="Action"    value={actionLabel(r.action_taken)} />}
                         {r.follow_up_date      && <FieldRow label="Follow-up" value={fmtDate(r.follow_up_date)} />}
@@ -538,11 +576,37 @@ export default function FieldReportsPage() {
 
                   {/* Screening section */}
                   <div className="field-report-section">
-                    <div className="field-report-section__title">Screening Record</div>
+                    <div className="field-report-section__title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span>Screening Record</span>
+                      {r.screening && (
+                        <div style={{ display: 'flex', gap: 6 }}>
+                          <button
+                            className="btn btn--ghost btn--xs"
+                            onClick={() => setViewDoc({
+                              type: 'screening',
+                              record: { ...r.screening, sector_prefix: r.screening.sector_prefix ?? r.sector_prefix },
+                            })}
+                          >
+                            <FileText size={12} /> View
+                          </button>
+                          {canEditReport(r) && (
+                            <button className="btn btn--ghost btn--xs" onClick={() => navigate(`/field-reports/${r.id}/edit`)}>
+                              <Edit2 size={12} /> Edit
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
                     {r.screening ? (
                       <div className="field-report-grid">
                         <FieldRow label="Date"    value={fmtDate(r.screening.date)} />
                         <FieldRow label="Officer" value={r.screening.officer_name} />
+                        {(r.screening.company_name || r.screening.proponent_name) && (
+                          <FieldRow label="Proponent/Company" value={r.screening.company_name || r.screening.proponent_name} />
+                        )}
+                        {r.screening.type_of_undertaking && (
+                          <FieldRow label="Type" value={r.screening.type_of_undertaking} />
+                        )}
                         {r.screening.coordinates && (
                           <FieldRow label="GPS" value={`${r.screening.coordinates.lat.toFixed(6)}, ${r.screening.coordinates.lng.toFixed(6)}`} />
                         )}

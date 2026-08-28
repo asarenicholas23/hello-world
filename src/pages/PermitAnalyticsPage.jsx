@@ -50,6 +50,34 @@ function downloadCSV(content, filename) {
   URL.revokeObjectURL(url)
 }
 
+const STATUS_RANK = { active: 3, expiring: 2, expired: 1 }
+
+function permitRecencyMs(r) {
+  return r.issue_date?.toMillis?.() ?? r.effective_date?.toMillis?.() ?? 0
+}
+
+/**
+ * A facility can carry several permit documents (renewals, re-issues, migrated
+ * duplicates). This page reports current compliance status, so it should show
+ * exactly one row per facility — its most current permit — not every historical
+ * one. "Most current" means best status first (active > expiring > expired), so
+ * a facility with one active and one long-expired permit reads as active, not
+ * expired; ties within the same status break on the most recently issued permit.
+ */
+function currentPermitPerFacility(records) {
+  const best = new Map()
+  for (const r of records) {
+    const existing = best.get(r.fileNumber)
+    if (!existing) { best.set(r.fileNumber, r); continue }
+    const rankNew = STATUS_RANK[permitStatus(r.expiry_date)] ?? STATUS_RANK.active
+    const rankOld = STATUS_RANK[permitStatus(existing.expiry_date)] ?? STATUS_RANK.active
+    if (rankNew > rankOld || (rankNew === rankOld && permitRecencyMs(r) > permitRecencyMs(existing))) {
+      best.set(r.fileNumber, r)
+    }
+  }
+  return Array.from(best.values())
+}
+
 export default function PermitAnalyticsPage() {
   const navigate = useNavigate()
 
@@ -70,7 +98,7 @@ export default function PermitAnalyticsPage() {
       try {
         const facilityMap = await buildFacilityMap()
         const recs = await getCrossRecords('permits', facilityMap)
-        setPermits(recs)
+        setPermits(currentPermitPerFacility(recs))
       } catch (err) {
         setError(`Failed to load permits: ${err.message}`)
       } finally {
@@ -154,7 +182,7 @@ export default function PermitAnalyticsPage() {
         <div>
           <div className="page-title">Permit Analytics</div>
           <div className="page-subtitle">
-            {loading ? 'Loading…' : `${filtered.length} of ${permits.length} permits`}
+            {loading ? 'Loading…' : `${filtered.length} of ${permits.length} facilities (current permit)`}
           </div>
         </div>
         {!loading && filtered.length > 0 && (

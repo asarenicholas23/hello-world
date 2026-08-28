@@ -9,7 +9,7 @@ import { onForegroundMessage } from '../firebase/fcm'
 import {
   LayoutDashboard, Building2, FileText, Banknote,
   Users, ClipboardList, Activity, CheckSquare,
-  LogOut, Menu, X, Leaf, Upload, Flag, BarChart2,
+  LogOut, Menu, X, Leaf, Upload, Flag, BarChart2, TrendingUp,
   Briefcase, LayoutList, MessageSquare, GraduationCap, BellRing, Mail,
   WifiOff, RefreshCw, CheckCircle2, Clock, ChevronDown,
 } from 'lucide-react'
@@ -35,6 +35,7 @@ const ADMIN_NAV = [
   { section: 'Field Data', items: [
     { label: 'Import Data',      icon: Upload,          path: '/import' },
     { label: 'Field Reports',    icon: Flag,            path: '/field-reports' },
+    { label: 'Visit Reports',    icon: TrendingUp,      path: '/visit-reports' },
     { label: 'Complaints',       icon: MessageSquare,   path: '/complaints' },
     { label: 'Env. Education',   icon: GraduationCap,   path: '/env-education' },
   ]},
@@ -134,6 +135,7 @@ const PAGE_TITLE = {
   '/facilities':         'Facilities',
   '/permits':            'Permits',
   '/permit-analytics':   'Permit Analytics',
+  '/visit-reports':      'Visit Reports',
   '/finance':            'Finance',
   '/screening':          'Screening',
   '/monitoring':         'Monitoring',

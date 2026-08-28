@@ -21,6 +21,7 @@ import ImportPage from './pages/ImportPage'
 import FieldReportsPage from './pages/FieldReportsPage'
 import FieldReportForm from './pages/FieldReportForm'
 import PermitAnalyticsPage from './pages/PermitAnalyticsPage'
+import VisitReportsPage from './pages/VisitReportsPage'
 import MyAssignmentsPage from './pages/MyAssignmentsPage'
 import AllAssignmentsPage from './pages/AllAssignmentsPage'
 import TaskFillPage from './pages/TaskFillPage'
@@ -102,6 +103,9 @@ export default function App() {
 
               {/* Permit Analytics */}
               <Route path="permit-analytics" element={<PermitAnalyticsPage />} />
+
+              {/* Visit Reports */}
+              <Route path="visit-reports" element={<VisitReportsPage />} />
 
               {/* Assignments */}
               <Route path="my-assignments" element={<MyAssignmentsPage />} />

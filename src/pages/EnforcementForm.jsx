@@ -95,11 +95,12 @@ export default function EnforcementForm() {
       if (isEditing) {
         await updateSubRecord(fileNumber, 'enforcement', recordId, payload, user.uid)
       } else {
-        await createSubRecord(fileNumber, 'enforcement', payload, user.uid)
+        const enforcementId = await createSubRecord(fileNumber, 'enforcement', payload, user.uid)
         // Mirror to field_reports so enforcement actions are visible in the Field Reports page
         const facility = await getFacility(fileNumber).catch(() => null)
         createFieldReport({
           report_type:          'enforcement',
+          enforcement_source_id: enforcementId,
           facility_name:        facility?.name ?? fileNumber,
           sector_prefix:        facility?.sector_prefix ?? '',
           district:             facility?.district ?? '',

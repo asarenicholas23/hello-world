@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { AlertCircle, Search, ChevronDown, ChevronUp, Plus, Loader, UserCheck, Edit2, Trash2, MessageSquare, FileText } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
-import { listFieldReports, updateFieldReport, deleteFieldReport } from '../firebase/fieldReports'
+import { listFieldReportsWithFacilityEnforcement, updateFieldReport, deleteFieldReport } from '../firebase/fieldReports'
 import { getFacility, createFacilityWithId } from '../firebase/facilities'
 import { createSubRecord } from '../firebase/subrecords'
 import { assignRecord, unassignRecord, addSupportingOfficerToRecord } from '../firebase/assignments'
@@ -47,7 +47,13 @@ export default function FieldReportsPage() {
   const location = useLocation()
   const canEditAllEntries = hasFullDataAccess(staff?.role, dataAccess)
   const canEditFieldReports = canEditAllEntries || staff?.role === 'finance'
-  const canEditReport = (r) => canEditFieldReports || r.officer_id === user?.uid
+  const canEditReport = (r) => (
+    r.synthetic
+      ? canEditAllEntries || FIELD_ROLES.has(role)
+      : canEditFieldReports || r.officer_id === user?.uid
+  )
+  const enforcementEditPath = (r) =>
+    facilityPath(r.assigned_file_number, `/enforcement/${r.enforcement_source_id}/edit`)
   const canManageReportFields = ADMIN_ROLES.has(staff?.role) || staff?.role === 'finance'
   const canAssign = ADMIN_ROLES.has(role) || FIELD_ROLES.has(role)
 
@@ -71,7 +77,7 @@ export default function FieldReportsPage() {
   const [assignSuccess, setAssignSuccess]           = useState('')
 
   useEffect(() => {
-    listFieldReports()
+    listFieldReportsWithFacilityEnforcement()
       .then(setReports)
       .catch((err) => setError(`Failed to load field reports: ${err.message}`))
       .finally(() => setLoading(false))
@@ -102,7 +108,7 @@ export default function FieldReportsPage() {
   }
 
   const selectedIdSet = new Set(selectedIds)
-  const visibleReportIds = filtered.map((r) => r.id)
+  const visibleReportIds = filtered.filter((r) => !r.synthetic).map((r) => r.id)
   const allVisibleSelected = visibleReportIds.length > 0 && visibleReportIds.every((id) => selectedIdSet.has(id))
 
   function toggleReportSelection(id) {
@@ -436,7 +442,7 @@ export default function FieldReportsPage() {
                 onClick={() => setExpanded(isOpen ? null : r.id)}
               >
                 <div className="field-report-card__main">
-                  {canEditAllEntries && (
+                  {canEditAllEntries && !r.synthetic && (
                     <label className="bulk-card-checkbox" onClick={(e) => e.stopPropagation()}>
                       <input type="checkbox" checked={selectedIdSet.has(r.id)} onChange={() => toggleReportSelection(r.id)} />
                     </label>
@@ -445,6 +451,11 @@ export default function FieldReportsPage() {
                   {r.report_type && (
                     <span className="record-badge" style={typeStyle}>
                       {TYPE_LABELS[r.report_type] ?? r.report_type}
+                    </span>
+                  )}
+                  {r.synthetic && (
+                    <span className="record-badge" style={{ background: '#eef2ff', color: '#3730a3' }}>
+                      From facility record
                     </span>
                   )}
                   {r.sector_prefix && (
@@ -484,34 +495,56 @@ export default function FieldReportsPage() {
                 {r.supporting_officers?.length > 0 && (
                   <span style={{ fontSize: 11, color: '#6b7280' }}>+{r.supporting_officers.length} supporting</span>
                 )}
-                {canEditReport(r) && (
+                {r.synthetic ? (
                   <>
                     <button
                       className="btn btn--ghost btn--xs"
                       style={{ marginLeft: 'auto' }}
-                      onClick={() => navigate(`/field-reports/${r.id}/edit`)}
+                      onClick={() => navigate(facilityPath(r.assigned_file_number), { state: { tab: 'enforcement' } })}
                     >
-                      <Edit2 size={12} /> Edit
+                      Open Facility →
                     </button>
-                    {canEditAllEntries && (
+                    {canEditReport(r) && (
                       <button
-                        className="btn btn--ghost btn--xs btn--danger"
-                        onClick={() => handleDeleteReport(r.id)}
-                        disabled={deletingId === r.id}
+                        className="btn btn--ghost btn--xs"
+                        onClick={() => navigate(enforcementEditPath(r))}
                       >
-                        <Trash2 size={12} /> {deletingId === r.id ? 'Deleting…' : 'Delete'}
+                        <Edit2 size={12} /> Edit
                       </button>
                     )}
                   </>
-                )}
-                {canAssign && (
-                  <button
-                    className="btn btn--ghost btn--xs"
-                    style={{ marginLeft: canEditAllEntries ? 0 : 'auto' }}
-                    onClick={() => openAssignDialog(r)}
-                  >
-                    {isAssigned ? 'Reassign' : 'Assign'}
-                  </button>
+                ) : (
+                  <>
+                    {canEditReport(r) && (
+                      <>
+                        <button
+                          className="btn btn--ghost btn--xs"
+                          style={{ marginLeft: 'auto' }}
+                          onClick={() => navigate(`/field-reports/${r.id}/edit`)}
+                        >
+                          <Edit2 size={12} /> Edit
+                        </button>
+                        {canEditAllEntries && (
+                          <button
+                            className="btn btn--ghost btn--xs btn--danger"
+                            onClick={() => handleDeleteReport(r.id)}
+                            disabled={deletingId === r.id}
+                          >
+                            <Trash2 size={12} /> {deletingId === r.id ? 'Deleting…' : 'Delete'}
+                          </button>
+                        )}
+                      </>
+                    )}
+                    {canAssign && (
+                      <button
+                        className="btn btn--ghost btn--xs"
+                        style={{ marginLeft: canEditAllEntries ? 0 : 'auto' }}
+                        onClick={() => openAssignDialog(r)}
+                      >
+                        {isAssigned ? 'Reassign' : 'Assign'}
+                      </button>
+                    )}
+                  </>
                 )}
               </div>
 
@@ -539,7 +572,10 @@ export default function FieldReportsPage() {
                             <FileText size={12} /> View
                           </button>
                           {canEditReport(r) && (
-                            <button className="btn btn--ghost btn--xs" onClick={() => navigate(`/field-reports/${r.id}/edit`)}>
+                            <button
+                              className="btn btn--ghost btn--xs"
+                              onClick={() => navigate(r.synthetic ? enforcementEditPath(r) : `/field-reports/${r.id}/edit`)}
+                            >
                               <Edit2 size={12} /> Edit
                             </button>
                           )}
@@ -574,7 +610,9 @@ export default function FieldReportsPage() {
                     </div>
                   )}
 
-                  {/* Screening section */}
+                  {/* Screening + report actions — not applicable to facility-sourced enforcement rows */}
+                  {!r.synthetic && (
+                  <>
                   <div className="field-report-section">
                     <div className="field-report-section__title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <span>Screening Record</span>
@@ -695,6 +733,8 @@ export default function FieldReportsPage() {
                         )}
                       </div>
                     </div>
+                  )}
+                  </>
                   )}
                 </div>
               )}

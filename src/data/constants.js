@@ -10,6 +10,7 @@ export const ROLES = [
   { value: 'assistant_officer', label: 'Assistant Programme Officer', level: 5 },
   { value: 'junior_officer',    label: 'Programme Assistant',         level: 6 },
   { value: 'finance',           label: 'Finance Officer',             level: null },
+  { value: 'it',                label: 'Assistant Programme Officer / I.T', level: null },
 ]
 
 export const ROLE_LEVEL = Object.fromEntries(ROLES.map((r) => [r.value, r.level]))

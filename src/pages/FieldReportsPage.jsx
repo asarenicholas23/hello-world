@@ -323,7 +323,7 @@ export default function FieldReportsPage() {
   if (loading) return <Spinner size={40} />
 
   return (
-    <div className="page">
+    <div className="page studio-skin">
       {viewDoc && (
         <RecordDocumentModal
           type={viewDoc.type}

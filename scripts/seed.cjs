@@ -30,6 +30,7 @@ const ROLE_LEVEL = {
   assistant_officer: 5,
   junior_officer:    6,
   finance:           null,
+  it:                null,
 }
 
 // ── Test staff accounts ────────────────────────────────
@@ -74,10 +75,11 @@ const STAFF = [
     email:       'assistant@epa-ashanti.gh',
     password:    'Assistant@1234',
     name:        'Yaw Darko',
-    role:        'assistant_officer',
+    role:        'it',
     system_id:  'STF006',
-    designation: 'Assistant Environmental Officer',
+    designation: 'Assistant Programme Officer / I.T',
     phone:       '+233244000006',
+    data_access: true,
   },
   {
     email:       'junior@epa-ashanti.gh',
@@ -144,6 +146,7 @@ async function seed() {
         role_level:  ROLE_LEVEL[s.role] ?? null,
         designation: s.designation,
         phone:       s.phone,
+        data_access: s.data_access ?? false,
       },
       { merge: true }
     )

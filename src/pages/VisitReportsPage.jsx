@@ -117,7 +117,9 @@ function downloadCSV(content, filename) {
  *   - 'unknown_timing'       has a permit but neither record has a usable date
  *   - 'no_permit'            no permit on file at all
  */
-function buildVisitRows({ fieldReports, subrecordsByCategory, permits }) {
+// Shared with the analytics dashboard so both views use identical permit outcomes.
+// eslint-disable-next-line react-refresh/only-export-components
+export function buildVisitRows({ fieldReports, subrecordsByCategory, permits }) {
   const visits = new Map()
 
   function upsert(key, patch, dateMs, visitType) {
@@ -136,7 +138,7 @@ function buildVisitRows({ fieldReports, subrecordsByCategory, permits }) {
   }
 
   for (const category of SUBRECORD_CATEGORIES) {
-    for (const rec of subrecordsByCategory[category]) {
+    for (const rec of subrecordsByCategory[category] ?? []) {
       const dateMs = tsToMs(rec.date) ?? tsToMs(rec.created_at)
       upsert(rec.fileNumber, {
         fileNumber: rec.fileNumber,
@@ -277,7 +279,7 @@ export default function VisitReportsPage() {
   const hasFilter = search || sector || district || registeredFilter || permitFilter || reportedFilter || visitTypeFilter || dateTo || dateFrom !== jan1ThisYear()
 
   return (
-    <div className="page">
+    <div className="page studio-skin">
       <button className="btn btn--ghost btn--sm btn--back" onClick={() => navigate('/')}>
         <ArrowLeft size={14} /> Dashboard
       </button>

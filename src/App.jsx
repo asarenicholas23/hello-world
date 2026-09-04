@@ -22,6 +22,7 @@ import FieldReportsPage from './pages/FieldReportsPage'
 import FieldReportForm from './pages/FieldReportForm'
 import PermitAnalyticsPage from './pages/PermitAnalyticsPage'
 import VisitReportsPage from './pages/VisitReportsPage'
+import AnalyticsDashboardPage from './pages/AnalyticsDashboardPage'
 import MyAssignmentsPage from './pages/MyAssignmentsPage'
 import AllAssignmentsPage from './pages/AllAssignmentsPage'
 import TaskFillPage from './pages/TaskFillPage'
@@ -54,6 +55,7 @@ export default function App() {
               }
             >
               <Route index element={<Home />} />
+              <Route path="analytics" element={<AnalyticsDashboardPage />} />
 
               {/* Facilities */}
               <Route path="facilities" element={<Facilities />} />

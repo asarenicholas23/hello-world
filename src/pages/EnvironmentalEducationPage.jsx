@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom'
 import { Plus, Search, Edit2, Trash2, AlertCircle, ChevronDown, ChevronUp, Users, Image } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { listEnvEducation, deleteEnvEducation } from '../firebase/envEducation'
-import { ADMIN_ROLES, FIELD_ROLES, hasFullDataAccess } from '../data/constants'
+import { ADMIN_ROLES, DISTRICTS, FIELD_ROLES, hasFullDataAccess } from '../data/constants'
 import { fmtDate } from '../utils/records'
 import Spinner from '../components/Spinner'
 
@@ -39,12 +39,18 @@ export default function EnvironmentalEducationPage() {
   const [search, setSearch]         = useState('')
   const [typeFilter, setTypeFilter] = useState('')
   const [officerFilter, setOfficerFilter] = useState(location.state?.officerUid ?? '')
+  const [districtFilter, setDistrictFilter] = useState(location.state?.district ?? '')
+  const [dateFrom, setDateFrom] = useState(location.state?.dateFrom ?? '')
+  const [dateTo, setDateTo] = useState(location.state?.dateTo ?? '')
   const [expanded, setExpanded]     = useState(null)
   const [deletingId, setDeletingId] = useState(null)
 
   useEffect(() => {
     setOfficerFilter(location.state?.officerUid ?? '')
     setTypeFilter(location.state?.typeFilter ?? '')
+    setDistrictFilter(location.state?.district ?? '')
+    setDateFrom(location.state?.dateFrom ?? '')
+    setDateTo(location.state?.dateTo ?? '')
   }, [location.key])
 
   useEffect(() => {
@@ -58,6 +64,17 @@ export default function EnvironmentalEducationPage() {
     let result = records
     if (officerFilter) result = result.filter((r) => r.created_by === officerFilter)
     if (typeFilter)    result = result.filter((r) => r.type === typeFilter)
+    if (districtFilter) result = result.filter((r) => r.district === districtFilter)
+    if (dateFrom || dateTo) {
+      const from = dateFrom ? new Date(`${dateFrom}T00:00:00`) : null
+      const to = dateTo ? new Date(`${dateTo}T23:59:59`) : null
+      result = result.filter((r) => {
+        const d = r.date?.toDate?.() ?? (r.date?.seconds ? new Date(r.date.seconds * 1000) : null)
+        if (from && (!d || d < from)) return false
+        if (to && (!d || d > to)) return false
+        return true
+      })
+    }
     if (search.trim()) {
       const q = search.toLowerCase()
       result = result.filter((r) =>
@@ -68,7 +85,7 @@ export default function EnvironmentalEducationPage() {
       )
     }
     return result
-  }, [records, officerFilter, typeFilter, search])
+  }, [records, officerFilter, typeFilter, districtFilter, dateFrom, dateTo, search])
 
   async function handleDelete(id, label) {
     if (!window.confirm(`Delete "${label}"?\nThis cannot be undone.`)) return
@@ -116,9 +133,17 @@ export default function EnvironmentalEducationPage() {
             ))}
           </select>
         </div>
+        <div className="filter-group">
+          <select className="select" value={districtFilter} onChange={(e) => setDistrictFilter(e.target.value)}>
+            <option value="">All districts</option>
+            {DISTRICTS.map((d) => <option key={d.code} value={d.code}>{d.name}</option>)}
+          </select>
+        </div>
+        <input className="filter-select" type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
+        <input className="filter-select" type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
       </div>
 
-      {(officerFilter || typeFilter) && (
+      {(officerFilter || typeFilter || districtFilter || dateFrom || dateTo) && (
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
           {officerFilter && (
             <span className="filter-pill">
@@ -132,7 +157,19 @@ export default function EnvironmentalEducationPage() {
               <button onClick={() => setTypeFilter('')}>✕</button>
             </span>
           )}
-          <button className="btn btn--ghost btn--xs" onClick={() => { setOfficerFilter(''); setTypeFilter(''); setSearch('') }}>
+          {districtFilter && (
+            <span className="filter-pill">
+              District: {DISTRICTS.find((d) => d.code === districtFilter)?.name ?? districtFilter}
+              <button onClick={() => setDistrictFilter('')}>x</button>
+            </span>
+          )}
+          {(dateFrom || dateTo) && (
+            <span className="filter-pill">
+              {dateFrom && dateTo ? `${dateFrom} - ${dateTo}` : dateFrom ? `From ${dateFrom}` : `Until ${dateTo}`}
+              <button onClick={() => { setDateFrom(''); setDateTo('') }}>x</button>
+            </span>
+          )}
+          <button className="btn btn--ghost btn--xs" onClick={() => { setOfficerFilter(''); setTypeFilter(''); setDistrictFilter(''); setDateFrom(''); setDateTo(''); setSearch('') }}>
             Clear all
           </button>
         </div>

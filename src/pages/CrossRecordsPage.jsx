@@ -237,10 +237,12 @@ export default function CrossRecordsPage() {
   const [paymentStatusFilter, setPaymentStatusFilter] = useState(location.state?.paymentStatus ?? '')
   const [sectorFilter, setSectorFilter] = useState(location.state?.sectorPrefix ?? '')
   const [districtFilter, setDistrictFilter] = useState(location.state?.district ?? '')
+  const [actionFilter, setActionFilter] = useState(location.state?.actionFilter ?? '')
+  const [complianceFilter, setComplianceFilter] = useState(location.state?.complianceFilter ?? '')
   const [viewMode, setViewMode] = useState(() => localStorage.getItem('finance-view') ?? 'cards')
-  const [dateFrom, setDateFrom]           = useState('')
-  const [dateTo, setDateTo]               = useState('')
-  const [permitDateField, setPermitDateField] = useState('expiry_date')
+  const [dateFrom, setDateFrom]           = useState(location.state?.dateFrom ?? '')
+  const [dateTo, setDateTo]               = useState(location.state?.dateTo ?? '')
+  const [permitDateField, setPermitDateField] = useState(location.state?.permitDateField ?? 'expiry_date')
   const [selectedKeys, setSelectedKeys] = useState([])
   const [deletingSelected, setDeletingSelected] = useState(false)
   const [financeEditMode, setFinanceEditMode] = useState(false)
@@ -253,8 +255,11 @@ export default function CrossRecordsPage() {
     setPaymentStatusFilter(location.state?.paymentStatus ?? '')
     setSectorFilter(location.state?.sectorPrefix ?? '')
     setDistrictFilter(location.state?.district ?? '')
-    setDateFrom('')
-    setDateTo('')
+    setActionFilter(location.state?.actionFilter ?? '')
+    setComplianceFilter(location.state?.complianceFilter ?? '')
+    setDateFrom(location.state?.dateFrom ?? '')
+    setDateTo(location.state?.dateTo ?? '')
+    setPermitDateField(location.state?.permitDateField ?? 'expiry_date')
   }, [location.key])
 
   useEffect(() => {
@@ -301,11 +306,17 @@ export default function CrossRecordsPage() {
     if (paymentStatusFilter && collection === 'finance') {
       result = result.filter((r) => (r.payment_status ?? 'paid') === paymentStatusFilter)
     }
-    if (sectorFilter && collection === 'finance') {
+    if (sectorFilter) {
       result = result.filter((r) => r.sectorPrefix === sectorFilter)
     }
-    if (districtFilter && collection === 'finance') {
+    if (districtFilter) {
       result = result.filter((r) => r.facilityDistrict === districtFilter)
+    }
+    if (actionFilter && collection === 'enforcement') {
+      result = result.filter((r) => (r.action_taken || 'other') === actionFilter)
+    }
+    if (complianceFilter && collection === 'monitoring') {
+      result = result.filter((r) => (r.compliance_status || 'unknown') === complianceFilter)
     }
     if (dateFrom || dateTo) {
       const getRecordDate = (r) => {
@@ -335,7 +346,7 @@ export default function CrossRecordsPage() {
       )
     }
     return result
-  }, [records, search, statusFilter, officerFilter, paymentTypeFilter, paymentStatusFilter, sectorFilter, districtFilter, dateFrom, dateTo, permitDateField, collection])
+  }, [records, search, statusFilter, officerFilter, paymentTypeFilter, paymentStatusFilter, sectorFilter, districtFilter, actionFilter, complianceFilter, dateFrom, dateTo, permitDateField, collection])
 
   const financeTotals = useMemo(() => {
     if (collection !== 'finance') return null
@@ -435,7 +446,7 @@ export default function CrossRecordsPage() {
   if (!config) return <div className="page"><div className="empty-state">Unknown module.</div></div>
 
   return (
-    <div className="page">
+    <div className="page studio-skin">
       <div className="page-header">
         <div>
           <div className="page-title">{config.label}</div>
@@ -552,25 +563,29 @@ export default function CrossRecordsPage() {
           title="To date"
           style={{ width: 140 }}
         />
-        {collection === 'finance' && (
+        {['finance', 'permits', 'enforcement', 'monitoring'].includes(collection) && (
           <>
-            <select
-              className="filter-select"
-              value={paymentTypeFilter}
-              onChange={(e) => setPaymentTypeFilter(e.target.value)}
-            >
-              <option value="">All Types</option>
-              {PAYMENT_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
-            </select>
-            <select
-              className="filter-select"
-              value={paymentStatusFilter}
-              onChange={(e) => setPaymentStatusFilter(e.target.value)}
-            >
-              <option value="">All Status</option>
-              <option value="paid">Paid</option>
-              <option value="unpaid">Unpaid</option>
-            </select>
+            {collection === 'finance' && (
+              <>
+                <select
+                  className="filter-select"
+                  value={paymentTypeFilter}
+                  onChange={(e) => setPaymentTypeFilter(e.target.value)}
+                >
+                  <option value="">All Types</option>
+                  {PAYMENT_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+                </select>
+                <select
+                  className="filter-select"
+                  value={paymentStatusFilter}
+                  onChange={(e) => setPaymentStatusFilter(e.target.value)}
+                >
+                  <option value="">All Status</option>
+                  <option value="paid">Paid</option>
+                  <option value="unpaid">Unpaid</option>
+                </select>
+              </>
+            )}
             <select
               className="filter-select"
               value={sectorFilter}
@@ -591,6 +606,23 @@ export default function CrossRecordsPage() {
                 <option key={d.code} value={d.code}>{d.name}</option>
               ))}
             </select>
+            {collection === 'enforcement' && (
+              <select className="filter-select" value={actionFilter} onChange={(e) => setActionFilter(e.target.value)}>
+                <option value="">All Actions</option>
+                {ENFORCEMENT_ACTIONS.map((action) => <option key={action.value} value={action.value}>{action.label}</option>)}
+              </select>
+            )}
+            {collection === 'monitoring' && (
+              <select className="filter-select" value={complianceFilter} onChange={(e) => setComplianceFilter(e.target.value)}>
+                <option value="">All Compliance</option>
+                <option value="unknown">Unknown</option>
+                {COMPLIANCE_STATUS.map((status) => <option key={status.value} value={status.value}>{status.label}</option>)}
+              </select>
+            )}
+          </>
+        )}
+        {collection === 'finance' && (
+          <>
             <div className="view-toggle">
               <button
                 className={`view-toggle__btn${viewMode === 'cards' ? ' view-toggle__btn--active' : ''}`}
@@ -619,7 +651,7 @@ export default function CrossRecordsPage() {
         )}
       </div>
 
-      {(officerFilter || (collection === 'permits' && statusFilter) || paymentTypeFilter || paymentStatusFilter || sectorFilter || districtFilter || dateFrom || dateTo) && (
+      {(officerFilter || (collection === 'permits' && statusFilter) || paymentTypeFilter || paymentStatusFilter || sectorFilter || districtFilter || actionFilter || complianceFilter || dateFrom || dateTo) && (
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', marginBottom: 8 }}>
           {officerFilter && (
             <span className="filter-pill">
@@ -655,6 +687,18 @@ export default function CrossRecordsPage() {
             <span className="filter-pill">
               District: {districtLabel(districtFilter)}
               <button onClick={() => setDistrictFilter('')}>✕</button>
+            </span>
+          )}
+          {actionFilter && (
+            <span className="filter-pill">
+              Action: {ENFORCEMENT_ACTIONS.find((a) => a.value === actionFilter)?.label ?? actionFilter}
+              <button onClick={() => setActionFilter('')}>✕</button>
+            </span>
+          )}
+          {complianceFilter && (
+            <span className="filter-pill">
+              Compliance: {COMPLIANCE_STATUS.find((s) => s.value === complianceFilter)?.label ?? complianceFilter}
+              <button onClick={() => setComplianceFilter('')}>✕</button>
             </span>
           )}
           {(dateFrom || dateTo) && (

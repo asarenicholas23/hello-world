@@ -279,7 +279,7 @@ export default function Facilities() {
   }
 
   return (
-    <div className="page">
+    <div className="page studio-skin">
       <div className="page-header">
         <div>
           <div className="page-title">Facilities</div>

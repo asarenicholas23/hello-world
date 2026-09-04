@@ -10,7 +10,7 @@ import {
   LayoutDashboard, Building2, FileText, Banknote,
   Users, ClipboardList, Activity, CheckSquare,
   LogOut, Menu, X, Leaf, Upload, Flag, BarChart2, TrendingUp,
-  Briefcase, LayoutList, MessageSquare, GraduationCap, BellRing, Mail,
+  Briefcase, LayoutList, MessageSquare, GraduationCap, BellRing, Mail, Gauge,
   WifiOff, RefreshCw, CheckCircle2, Clock, ChevronDown,
 } from 'lucide-react'
 
@@ -19,6 +19,7 @@ import {
 const ADMIN_NAV = [
   { section: 'Overview', items: [
     { label: 'Dashboard',        icon: LayoutDashboard, path: '/' },
+    { label: 'Analytics',        icon: Gauge,           path: '/analytics' },
   ]},
   { section: 'Facilities & Records', items: [
     { label: 'Facilities',       icon: Building2,       path: '/facilities' },
@@ -132,6 +133,7 @@ function flattenNav(navGroups) {
 
 const PAGE_TITLE = {
   '/':                   'Dashboard',
+  '/analytics':          'Analytics',
   '/facilities':         'Facilities',
   '/permits':            'Permits',
   '/permit-analytics':   'Permit Analytics',
@@ -174,6 +176,7 @@ const ROLE_COLOR = {
   assistant_officer: '#b45309',
   junior_officer:    '#6b7280',
   finance:           '#065f46',
+  it:                '#0f766e',
 }
 
 const DEFAULT_MOBILE_TAB_PATHS = ['/', '/facilities', '/field-reports', '/my-assignments']
@@ -182,6 +185,8 @@ const ADMIN_MOBILE_TAB_PATHS = ['/', '/facilities', '/finance', '/permits']
 function pickMobileTabs(navItems, role) {
   const paths = role === 'admin' || role === 'director'
     ? ADMIN_MOBILE_TAB_PATHS
+    : role === 'it'
+      ? ['/', '/analytics', '/facilities', '/visit-reports']
     : DEFAULT_MOBILE_TAB_PATHS
   const allKnownItems = [
     ...flattenNav(navItems),

@@ -67,7 +67,7 @@ export default function StaffPage() {
   })
 
   return (
-    <div className="page">
+    <div className="page studio-skin">
       <button className="btn btn--ghost btn--sm btn--back" onClick={() => navigate('/')}>
         <ArrowLeft size={14} /> Back to Dashboard
       </button>

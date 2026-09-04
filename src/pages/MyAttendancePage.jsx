@@ -48,7 +48,7 @@ export default function MyAttendancePage() {
   const missedCount   = rows.filter((r) => getAttendanceStatus(r) === 'no_clock_out').length
 
   return (
-    <div className="page-inner">
+    <div className="page-inner studio-skin">
       <div className="page-header">
         <div className="page-header__left">
           <Clock size={20} className="page-header__icon" />

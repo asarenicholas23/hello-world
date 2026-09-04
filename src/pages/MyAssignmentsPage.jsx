@@ -169,7 +169,7 @@ export default function MyAssignmentsPage() {
   const completedCount = currentRecords.filter((item) => item.assignment_status === 'completed').length
 
   return (
-    <div className="page-inner">
+    <div className="page-inner studio-skin">
       <div className="page-header">
         <div className="page-header__left">
           <Briefcase size={20} className="page-header__icon" />

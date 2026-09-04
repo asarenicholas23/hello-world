@@ -81,7 +81,7 @@ export default function ComplaintsPage() {
   const canEdit = (r) => canEditAllEntries || r.created_by === user?.uid
 
   return (
-    <div className="page">
+    <div className="page studio-skin">
       <div className="page-header">
         <div>
           <div className="page-title">Complaints</div>

@@ -102,7 +102,7 @@ export default function Home() {
   const showAdminOfficeOverview = OFFICE_OVERVIEW_ROLES.has(role)
 
   return (
-    <div>
+    <div className="studio-skin">
       {/* Welcome banner */}
       <div className="home-welcome">
         <div className="home-welcome__greeting">Welcome back</div>

@@ -154,7 +154,7 @@ export default function AllAssignmentsPage() {
   if (error)   return <div className="login-error" style={{ margin: '12px 0' }}><AlertCircle size={14} /> {error}</div>
 
   return (
-    <div className="page-inner">
+    <div className="page-inner studio-skin">
       {taskSuccess && (
         <div className="assign-success-banner" style={{ marginBottom: 12 }}>
           <UserCheck size={14} /> {taskSuccess}

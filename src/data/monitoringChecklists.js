@@ -262,6 +262,88 @@ export const MONITORING_CHECKLISTS = {
     ],
   },
 
+  // ── Health / Healthcare Facilities (CH) ──────────────────────
+  CH: {
+    label: 'Health',
+    extraFields: [
+      { key: 'facility_name',     label: 'Name of Healthcare Facility', type: 'text' },
+      { key: 'parent_healthcare', label: 'Parent Healthcare',           type: 'text' },
+      { key: 'year_established',  label: 'Year of Establishment',       type: 'text' },
+      { key: 'location',          label: 'Location',                    type: 'text' },
+      { key: 'contact_person',    label: 'Contact Person',              type: 'text' },
+      { key: 'contact_position',  label: 'Position',                    type: 'text' },
+      { key: 'address',           label: 'Address',                     type: 'text' },
+      { key: 'tel',               label: 'Tel',                         type: 'text' },
+      { key: 'fax',               label: 'Fax',                         type: 'text' },
+      { key: 'email',             label: 'Email',                       type: 'text' },
+    ],
+    sections: [
+      {
+        title: 'Mitigation Measures',
+        items: [
+          { key: 'waste_segregation',          label: 'Waste is segregated when collected' },
+          { key: 'infectious_waste_incinerate',label: 'Infectious waste disposed of by incineration' },
+          { key: 'infectious_waste_burn',      label: 'Infectious waste disposed of by burning' },
+          { key: 'infectious_waste_burying',   label: 'Infectious waste disposed of by burying' },
+          { key: 'liquid_waste_septic_tank',   label: 'Liquid waste disposed of via septic tank' },
+          { key: 'liquid_waste_open_drainage', label: 'Liquid waste disposed of via open drainage' },
+          { key: 'sanitary_facilities_clean',  label: 'Are sanitary facilities for patients/workers clean and usable at all times?', type: 'select', options: ['', 'Yes', 'No', 'None'] },
+        ],
+      },
+      {
+        title: 'Fire Precaution Regulation 2003 (LI 1724)',
+        items: [
+          { key: 'fire_extinguishers_installed', label: 'Fire extinguishers/firefighting equipment installed on site' },
+          { key: 'assembly_point_labeled',       label: 'Facility has a well labeled assembly point in the event of a fire outbreak' },
+          { key: 'assembly_point_evidence',      label: 'If yes — provide evidence', type: 'text', conditional: { key: 'assembly_point_labeled', value: 'Yes' } },
+          { key: 'staff_trained_firefighting',   label: 'Key staff trained in firefighting techniques' },
+          { key: 'valid_fire_permit',            label: 'Facility is covered by a valid Fire Permit' },
+          { key: 'fire_drill_demonstrated',      label: 'Personnel able to demonstrate fire emergency response drills' },
+        ],
+      },
+      {
+        title: 'Occupational Health and Safety Measures',
+        items: [
+          { key: 'adequate_illumination_ventilation', label: 'Facility has adequate illumination and ventilation systems in place' },
+          { key: 'workers_appropriate_ppe',            label: 'Are workers in appropriate PPEs?' },
+          { key: 'liquid_blood_spillage_management',   label: 'How do they manage liquid/blood spillage on the facility?', type: 'text' },
+          { key: 'use_of_disinfectant',                label: 'Use of disinfectant?' },
+          { key: 'noise_pollution_management',         label: 'How do they manage noise pollution in the facility?', type: 'text' },
+          { key: 'smoke_pollution_present',            label: 'Do they sometimes have smoke pollution in the facility?' },
+          { key: 'smoke_pollution_how',                label: 'If yes, how?', type: 'text', conditional: { key: 'smoke_pollution_present', value: 'Yes' } },
+        ],
+      },
+      {
+        title: 'Ghana Health Service Regulations',
+        items: [
+          { key: 'moh_ghs_certification', label: 'Do they have any certification from the Ministry of Health/Ghana Health Service?' },
+          { key: 'moh_ghs_evidence',      label: 'Provide proof/evidence on that effect', type: 'text', conditional: { key: 'moh_ghs_certification', value: 'Yes' } },
+        ],
+      },
+      {
+        title: 'Compliance with EPA Waste Management Guidelines',
+        items: [
+          { key: 'waste_management_plan',         label: 'Do they have a waste management plan?' },
+          { key: 'waste_management_plan_evidence',label: 'If yes, show evidence', type: 'text', conditional: { key: 'waste_management_plan', value: 'Yes' } },
+          { key: 'placenta_pit',                  label: 'Do they have a placenta pit?' },
+        ],
+      },
+      {
+        title: 'Relevant Permits',
+        items: [
+          { key: 'permit_epa',                    label: 'EPA Permits' },
+          { key: 'permit_hefra',                  label: 'HEFRA' },
+          { key: 'permit_ghs',                    label: 'GHS' },
+          { key: 'permit_district_assembly',      label: 'District Assembly Permits' },
+          { key: 'permit_company_registration',   label: 'Company Registration Certificate' },
+          { key: 'permit_awareness',              label: 'Permit Awareness' },
+          { key: 'valid_epa_permit_displayed',    label: 'Does the facility have valid EPA Permits and has it been displayed?' },
+          { key: 'staff_aware_permit_conditions', label: 'Show evidence that all staff is aware of the conditions of this permit', type: 'text' },
+        ],
+      },
+    ],
+  },
+
   // ── Agrochemical & Pesticide (PP) ────────────────────────────
   PP: {
     label: 'Agrochemical & Pesticide',
@@ -336,6 +418,5 @@ const PLACEHOLDER = (label) => ({
 })
 
 MONITORING_CHECKLISTS.CI = PLACEHOLDER('Infrastructure')
-MONITORING_CHECKLISTS.CH = PLACEHOLDER('Health')
 MONITORING_CHECKLISTS.CA = PLACEHOLDER('Agriculture')
 MONITORING_CHECKLISTS.CM = PLACEHOLDER('Mining')

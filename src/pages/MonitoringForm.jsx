@@ -11,6 +11,7 @@ import { tsToInput, inputToTs } from '../utils/records'
 import { decodeFileNumberParam, facilityPath } from '../utils/fileNumbers'
 import { DISTRICTS } from '../data/constants'
 import { MONITORING_CHECKLISTS, CHECKLIST_OPTIONS, computeCompliance } from '../data/monitoringChecklists'
+import { useGPS } from '../hooks/useGPS'
 import PhotoCapture from '../components/PhotoCapture'
 import GPSField from '../components/GPSField'
 import Spinner from '../components/Spinner'
@@ -21,12 +22,25 @@ function buildDefaults(checklist) {
   for (const section of checklist.sections) {
     for (const item of section.items) {
       defaults[item.key] = ''
+      defaults[`${item.key}_remark`] = ''
     }
   }
   for (const field of checklist.extraFields ?? []) {
     defaults[field.key] = field.default ?? ''
   }
   return defaults
+}
+
+// Pre-fill new-visit facility fields from the facility profile (+ latest permit)
+function buildAutofill(checklist, facility, latestPermit) {
+  const src = { ...(facility ?? {}), permit_number: latestPermit?.permit_number ?? '' }
+  const out = {}
+  for (const field of checklist?.extraFields ?? []) {
+    if (!field.autofill) continue
+    const v = src[field.autofill]
+    if (v != null && v !== '') out[field.key] = v
+  }
+  return out
 }
 
 export default function MonitoringForm() {
@@ -50,9 +64,9 @@ export default function MonitoringForm() {
     corrective_timeline: '',
     follow_up_date: '',
     officer_team: [],
-    gps: null,
     ...buildDefaults(checklist),
   })
+  const { coordinates: gps, setCoordinates: setGps, loading: gpsLoading, error: gpsError, capture: captureGPS, clear: clearGPS } = useGPS(null)
   const [allStaff, setAllStaff] = useState([])
   const [photos, setPhotos] = useState([])
   const [monId, setMonId] = useState('')
@@ -64,14 +78,17 @@ export default function MonitoringForm() {
     async function load() {
       try {
         const facility = await getFacility(fileNumber).catch(() => null)
-        setSectorPrefix(facility?.sector_prefix ?? 'CI')
+        const prefix = facility?.sector_prefix ?? 'CI'
+        const cl = MONITORING_CHECKLISTS[prefix] ?? MONITORING_CHECKLISTS.CI
+        setSectorPrefix(prefix)
         listStaff().then(setAllStaff).catch(() => setAllStaff([]))
         if (isEditing) {
           const rec = await getSubRecord(fileNumber, 'monitoring', recordId)
           if (!rec) { setError('Record not found.'); return }
           setMonId(rec.mon_id ?? '')
           setPhotos(rec.photos ?? [])
-          const defaults = buildDefaults(checklist)
+          if (rec.gps) setGps(rec.gps)
+          const defaults = buildDefaults(cl)
           const merged = { ...defaults }
           for (const key of Object.keys(defaults)) {
             if (rec[key] !== undefined) merged[key] = rec[key]
@@ -84,14 +101,22 @@ export default function MonitoringForm() {
             corrective_timeline: rec.corrective_timeline ?? '',
             follow_up_date:      tsToInput(rec.follow_up_date),
             officer_team:        Array.isArray(rec.officer_team) ? rec.officer_team : [],
-            gps:                 rec.gps ?? null,
             ...merged,
           })
         } else {
-          const existing = await listSubRecords(fileNumber, 'monitoring')
+          const [existing, permits] = await Promise.all([
+            listSubRecords(fileNumber, 'monitoring'),
+            listSubRecords(fileNumber, 'permits').catch(() => []),
+          ])
           const next = String(existing.length + 1).padStart(3, '0')
           setMonId(`MON-${fileNumber}-${next}`)
-          setFormData((p) => ({ ...p, officer_name: staff?.name ?? '' }))
+          if (facility?.coordinates) setGps(facility.coordinates)
+          setFormData((p) => ({
+            ...p,
+            ...buildDefaults(cl),
+            ...buildAutofill(cl, facility, permits[0]),
+            officer_name: staff?.name ?? '',
+          }))
         }
       } catch {
         setError('Failed to load data.')
@@ -158,13 +183,14 @@ export default function MonitoringForm() {
       linked_permit_id: location.state?.permitId ?? '',
     }
 
-    if (formData.gps) payload.gps = formData.gps
+    if (gps) payload.gps = gps
 
-    // Store all checklist and extra field values flat
+    // Store all checklist and extra field values flat (answer + per-item remark)
     for (const section of checklist.sections) {
       for (const item of section.items) {
         if (isVisible(item)) {
           payload[item.key] = formData[item.key] ?? ''
+          payload[`${item.key}_remark`] = formData[`${item.key}_remark`] ?? ''
         }
       }
     }
@@ -242,7 +268,14 @@ export default function MonitoringForm() {
                   style={{ background: '#f9fafb', color: '#6b7280', cursor: 'not-allowed' }} />
               </div>
             </div>
-            <GPSField value={formData.gps} onChange={(v) => set('gps', v)} />
+            <GPSField
+              coordinates={gps}
+              loading={gpsLoading}
+              error={gpsError}
+              onCapture={captureGPS}
+              onClear={clearGPS}
+              onChange={setGps}
+            />
           </div>
         </div>
 
@@ -292,30 +325,37 @@ export default function MonitoringForm() {
                   if (!isVisible(item)) return null
                   return (
                     <div key={item.key} className="monitoring-checklist__row">
-                      <span className="monitoring-checklist__label">{item.label}</span>
-                      {item.type === 'text' ? (
-                        <input className="input monitoring-checklist__input"
-                          type="text"
-                          value={formData[item.key] ?? ''}
-                          onChange={(e) => set(item.key, e.target.value)}
-                          placeholder="Enter…" />
-                      ) : item.type === 'select' ? (
-                        <select className="select monitoring-checklist__select"
-                          value={formData[item.key] ?? ''}
-                          onChange={(e) => set(item.key, e.target.value)}>
-                          {(item.options ?? CHECKLIST_OPTIONS).map((o) => (
-                            <option key={o} value={o}>{o || '— Select —'}</option>
-                          ))}
-                        </select>
-                      ) : (
-                        <select className="select monitoring-checklist__select"
-                          value={formData[item.key] ?? ''}
-                          onChange={(e) => set(item.key, e.target.value)}>
-                          {CHECKLIST_OPTIONS.map((o) => (
-                            <option key={o} value={o}>{o || '— Select —'}</option>
-                          ))}
-                        </select>
-                      )}
+                      <div className="monitoring-checklist__main">
+                        <span className="monitoring-checklist__label">{item.label}</span>
+                        {item.type === 'text' ? (
+                          <input className="input monitoring-checklist__input"
+                            type="text"
+                            value={formData[item.key] ?? ''}
+                            onChange={(e) => set(item.key, e.target.value)}
+                            placeholder="Enter…" />
+                        ) : item.type === 'select' ? (
+                          <select className="select monitoring-checklist__select"
+                            value={formData[item.key] ?? ''}
+                            onChange={(e) => set(item.key, e.target.value)}>
+                            {(item.options ?? CHECKLIST_OPTIONS).map((o) => (
+                              <option key={o} value={o}>{o || '— Select —'}</option>
+                            ))}
+                          </select>
+                        ) : (
+                          <select className="select monitoring-checklist__select"
+                            value={formData[item.key] ?? ''}
+                            onChange={(e) => set(item.key, e.target.value)}>
+                            {CHECKLIST_OPTIONS.map((o) => (
+                              <option key={o} value={o}>{o || '— Select —'}</option>
+                            ))}
+                          </select>
+                        )}
+                      </div>
+                      <input className="input monitoring-checklist__remark"
+                        type="text"
+                        value={formData[`${item.key}_remark`] ?? ''}
+                        onChange={(e) => set(`${item.key}_remark`, e.target.value)}
+                        placeholder="Remarks…" />
                     </div>
                   )
                 })}
@@ -383,10 +423,10 @@ export default function MonitoringForm() {
           </div>
         </div>
 
-        {/* ── Team of Officers ── */}
+        {/* ── Inspecting Officers ── */}
         <div className="form-card">
           <div className="form-section">
-            <div className="form-section-title">Team of Officers</div>
+            <div className="form-section-title">Inspecting Officers</div>
             <div className="form-group">
               <label>Lead Officer</label>
               <input className="input" value={staff?.name ?? '—'} readOnly

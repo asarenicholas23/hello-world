@@ -469,6 +469,12 @@ function MonitoringDoc({ record: r, facility: f }) {
     ? { label: r.compliance_status }
     : complianceBand(pct)
   const team = Array.isArray(r.officer_team) ? r.officer_team : []
+  const hasRemarks = (checklist?.sections ?? []).some((s) =>
+    s.items.some((it) => {
+      const v = r[`${it.key}_remark`]
+      return v != null && String(v).trim() !== ''
+    }),
+  )
 
   return (
     <>
@@ -479,6 +485,10 @@ function MonitoringDoc({ record: r, facility: f }) {
         <Row label="Sector"            value={f?.sector ?? sectorPrefix} />
         <Row label="Location"          value={r.location ?? f?.location} />
         <Row label="Monitoring ID"     value={r.mon_id} />
+        {r.gps?.lat != null && (
+          <Row label="GPS Coordinates"
+            value={`${Number(r.gps.lat).toFixed(6)}, ${Number(r.gps.lng).toFixed(6)}`} />
+        )}
         {pct != null && (
           <Row label="Compliance Score"
             value={`${compliant}/${applicable} items compliant (${pct}%)`} />
@@ -500,11 +510,12 @@ function MonitoringDoc({ record: r, facility: f }) {
       {checklist?.sections.map((section) => (
         <div key={section.title}>
           <SecTitle>{section.title}</SecTitle>
-          <table className="doc-table doc-checklist-table">
+          <table className={`doc-table doc-checklist-table${hasRemarks ? ' doc-checklist-table--remarks' : ''}`}>
             <thead>
               <tr>
                 <th className="doc-th doc-th--item">Item</th>
                 <th className="doc-th doc-th--result">Result</th>
+                {hasRemarks && <th className="doc-th doc-th--remark">Remarks</th>}
               </tr>
             </thead>
             <tbody>
@@ -521,6 +532,9 @@ function MonitoringDoc({ record: r, facility: f }) {
                         : <ChecklistValue v={r[item.key]} />
                       }
                     </td>
+                    {hasRemarks && (
+                      <td className="doc-td doc-td--remark">{r[`${item.key}_remark`] || ''}</td>
+                    )}
                   </tr>
                 )
               })}
@@ -552,7 +566,7 @@ function MonitoringDoc({ record: r, facility: f }) {
 
       {team.length > 0 && (
         <>
-          <SecTitle>Team of Officers</SecTitle>
+          <SecTitle>Inspecting Officers</SecTitle>
           <table className="doc-table"><tbody>
             <Row label="Lead Officer" value={r.officer_name} />
             {team.map((o, i) => (
@@ -659,6 +673,11 @@ const PRINT_CSS = `
   .doc-th { padding: 5px 7px; font-size: 9.5pt; font-weight: 700; border: 1px solid #ccc; text-align: left; }
   .doc-th--item { width: 70%; }
   .doc-th--result { width: 30%; text-align: center; }
+  .doc-td--remark { width: 40%; }
+  .doc-checklist-table--remarks .doc-th--item,
+  .doc-checklist-table--remarks .doc-td--item { width: 45%; }
+  .doc-checklist-table--remarks .doc-th--result,
+  .doc-checklist-table--remarks .doc-td--result { width: 15%; }
   .doc-td { padding: 5px 7px; font-size: 9.5pt; border: 1px solid #ddd; vertical-align: top; }
   .doc-td--label { width: 38%; font-weight: 600; background: #fafafa; color: #333; white-space: nowrap; }
   .doc-td--value { width: 62%; }

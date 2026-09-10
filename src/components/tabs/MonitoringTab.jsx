@@ -4,40 +4,40 @@ import { Plus, Edit2, Trash2, AlertCircle, Image, FileText } from 'lucide-react'
 import { listSubRecords, deleteSubRecord } from '../../firebase/subrecords'
 import { fmtDate } from '../../utils/records'
 import { facilityPath } from '../../utils/fileNumbers'
-import { MONITORING_CHECKLISTS } from '../../data/monitoringChecklists'
+import { MONITORING_CHECKLISTS, computeCompliance, complianceBand } from '../../data/monitoringChecklists'
 import Spinner from '../Spinner'
 import RecordDocumentModal from '../RecordDocumentModal'
 import { FIELD_ROLES, hasFullDataAccess } from '../../data/constants'
 
 function complianceSummary(r) {
-  const prefix = r.sector_prefix ?? r.mon_id?.split('-')[1]?.replace(/\d+$/, '')
-  if (!prefix) return null
-  const checklist = MONITORING_CHECKLISTS[prefix]
-  if (!checklist) return null
-
-  let yes = 0, total = 0
-  for (const section of checklist.sections) {
-    for (const item of section.items) {
-      if (item.type === 'text' || item.type === 'select') continue
-      if (item.conditional) continue  // skip conditional items for summary
-      total++
-      if (r[item.key] === 'Yes') yes++
-    }
+  // Prefer the score snapshot saved with the record; recompute for older ones.
+  if (r.compliance_applicable != null) {
+    return r.compliance_applicable > 0
+      ? { yes: r.compliance_compliant ?? 0, total: r.compliance_applicable }
+      : null
   }
-  return total > 0 ? { yes, total } : null
+  const prefix = r.sector_prefix ?? r.mon_id?.split('-')[1]?.replace(/\d+$/, '')
+  const checklist = prefix ? MONITORING_CHECKLISTS[prefix] : null
+  if (!checklist) return null
+  const { applicable, compliant } = computeCompliance(checklist, r)
+  return applicable > 0 ? { yes: compliant, total: applicable } : null
+}
+
+const BADGE_TINT = {
+  Excellent: ['#dcfce7', '#166534'],
+  Good:      ['#dcfce7', '#166534'],
+  Fair:      ['#fef9c3', '#854d0e'],
+  Poor:      ['#fee2e2', '#991b1b'],
 }
 
 function ComplianceBadge({ r }) {
   const summary = complianceSummary(r)
   if (!summary) return null
-  const pct = summary.yes / summary.total
-  let bg, color
-  if (pct >= 0.8)      { bg = '#dcfce7'; color = '#166534' }
-  else if (pct >= 0.5) { bg = '#fef9c3'; color = '#854d0e' }
-  else                  { bg = '#fee2e2'; color = '#991b1b' }
+  const pct = Math.round((summary.yes / summary.total) * 100)
+  const [bg, color] = BADGE_TINT[complianceBand(pct)?.label] ?? ['#f3f4f6', '#374151']
   return (
-    <span className="record-badge" style={{ bg, color, background: bg }}>
-      {summary.yes}/{summary.total} compliant
+    <span className="record-badge" style={{ color, background: bg }}>
+      {summary.yes}/{summary.total} compliant ({pct}%)
     </span>
   )
 }

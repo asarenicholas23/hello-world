@@ -1385,9 +1385,12 @@ body {
 /* ── New monitoring checklist (Yes/No/N/A rows) ────────── */
 .monitoring-checklist { display: flex; flex-direction: column; gap: 6px; }
 .monitoring-checklist__row {
-  display: flex; align-items: center; gap: 10px;
+  display: flex; flex-direction: column; gap: 6px;
   padding: 8px 10px; background: #f9fafb;
   border: 1px solid #f3f4f6; border-radius: 6px;
+}
+.monitoring-checklist__main {
+  display: flex; align-items: center; gap: 10px;
 }
 .monitoring-checklist__label {
   flex: 1; font-size: 13px; color: #374151; line-height: 1.4;
@@ -1398,8 +1401,12 @@ body {
 .monitoring-checklist__input {
   width: 200px; min-width: 140px; flex-shrink: 0; font-size: 13px;
 }
+.monitoring-checklist__remark {
+  width: 100%; font-size: 12px; background: #fff;
+}
+.monitoring-checklist__remark::placeholder { color: #9ca3af; font-style: italic; }
 @media (max-width: 600px) {
-  .monitoring-checklist__row { flex-direction: column; align-items: stretch; gap: 6px; }
+  .monitoring-checklist__main { flex-direction: column; align-items: stretch; gap: 6px; }
   .monitoring-checklist__select,
   .monitoring-checklist__input { width: 100%; min-width: unset; }
 }
@@ -3380,6 +3387,11 @@ body {
 .doc-td--value  { width: 64%; }
 .doc-td--item   { width: 70%; }
 .doc-td--result { width: 30%; text-align: center; vertical-align: middle; }
+.doc-td--remark { width: 40%; color: #4b5563; }
+.doc-checklist-table--remarks .doc-th--item,
+.doc-checklist-table--remarks .doc-td--item   { width: 45%; }
+.doc-checklist-table--remarks .doc-th--result,
+.doc-checklist-table--remarks .doc-td--result { width: 15%; }
 
 /* Checklist value badges */
 .doc-check {

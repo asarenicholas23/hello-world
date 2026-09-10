@@ -102,7 +102,7 @@ export const MONITORING_CHECKLISTS = {
   CE: {
     label: 'Energy',
     extraFields: [
-      { key: 'location',             label: 'Location',                  type: 'text' },
+      { key: 'location',             label: 'Location',                  type: 'text', autofill: 'location' },
       { key: 'tank_capacity_petrol', label: 'Tank Capacity — Petrol',    type: 'text' },
       { key: 'tank_capacity_diesel', label: 'Tank Capacity — Diesel',    type: 'text' },
     ],
@@ -169,7 +169,7 @@ export const MONITORING_CHECKLISTS = {
   CT: {
     label: 'Hospitality',
     extraFields: [
-      { key: 'location', label: 'Location', type: 'text' },
+      { key: 'location', label: 'Location', type: 'text', autofill: 'location' },
     ],
     sections: [
       {
@@ -266,20 +266,22 @@ export const MONITORING_CHECKLISTS = {
   // Official EPA form: "Health Environmental Monitoring and Inspection Checklist"
   CH: {
     label: 'Health',
+    // `autofill` pulls the value from the facility profile when starting a new
+    // visit (still editable). Inspecting officers are chosen in the
+    // "Inspecting Officers" section, not typed here.
     extraFields: [
-      { key: 'facility_name',            label: 'Name of Facility',          type: 'text' },
-      { key: 'location',                 label: 'Location',                  type: 'text' },
-      { key: 'municipality_district',    label: 'Municipality / District',   type: 'district' },
-      { key: 'region',                   label: 'Region',                    type: 'readonly', default: 'Ashanti' },
-      { key: 'epa_permit_number',        label: 'EPA Permit Number',         type: 'text' },
+      { key: 'facility_name',            label: 'Name of Facility',          type: 'text',     autofill: 'name' },
+      { key: 'location',                 label: 'Location',                  type: 'text',     autofill: 'location' },
+      { key: 'municipality_district',    label: 'Municipality / District',   type: 'district', autofill: 'district' },
+      { key: 'region',                   label: 'Region',                    type: 'readonly', default: 'Ashanti', autofill: 'region' },
+      { key: 'epa_permit_number',        label: 'EPA Permit Number',         type: 'text',     autofill: 'permit_number' },
       { key: 'time_inspection',          label: 'Time of Inspection',        type: 'text' },
       { key: 'type_of_facility',         label: 'Type of Facility',          type: 'select', options: ['', 'Government Hospital', 'Private Hospital', 'Clinic', 'Specialist Hospital'] },
-      { key: 'contact_person',           label: 'Contact Person',            type: 'text' },
-      { key: 'contact_position',         label: 'Position',                  type: 'text' },
-      { key: 'telephone',                label: 'Telephone Number',          type: 'text' },
+      { key: 'contact_person',           label: 'Contact Person',            type: 'text',     autofill: 'contact_person' },
+      { key: 'contact_position',         label: 'Position',                  type: 'text',     autofill: 'designation' },
+      { key: 'telephone',                label: 'Telephone Number',          type: 'text',     autofill: 'phone' },
       { key: 'number_of_beds',           label: 'Number of Beds',            type: 'text' },
       { key: 'average_daily_attendance', label: 'Average Daily Attendance',  type: 'text' },
-      { key: 'inspecting_officers',      label: 'Inspecting Officer(s)',     type: 'text' },
     ],
     sections: [
       {
@@ -404,16 +406,16 @@ export const MONITORING_CHECKLISTS = {
     label: 'Agrochemical & Pesticide',
     extraFields: [
       { key: 'owner_name',     label: 'Owner of Company',    type: 'text' },
-      { key: 'contact_person', label: 'Contact Person',      type: 'text' },
-      { key: 'position',       label: 'Position',            type: 'text' },
-      { key: 'location',       label: 'Location of Premise', type: 'text' },
-      { key: 'postal_address', label: 'Postal Address',      type: 'text' },
+      { key: 'contact_person', label: 'Contact Person',      type: 'text',     autofill: 'contact_person' },
+      { key: 'position',       label: 'Position',            type: 'text',     autofill: 'designation' },
+      { key: 'location',       label: 'Location of Premise', type: 'text',     autofill: 'location' },
+      { key: 'postal_address', label: 'Postal Address',      type: 'text',     autofill: 'address' },
       { key: 'license_number', label: 'License Number',      type: 'text' },
       { key: 'coordinates',    label: 'Coordinates',         type: 'text' },
       { key: 'town',           label: 'Town',                type: 'text' },
-      { key: 'district',       label: 'District',            type: 'district' },
-      { key: 'tel',            label: 'Tel',                 type: 'text' },
-      { key: 'email',          label: 'Email',               type: 'text' },
+      { key: 'district',       label: 'District',            type: 'district', autofill: 'district' },
+      { key: 'tel',            label: 'Tel',                 type: 'text',     autofill: 'phone' },
+      { key: 'email',          label: 'Email',               type: 'text',     autofill: 'email' },
     ],
     sections: [
       {

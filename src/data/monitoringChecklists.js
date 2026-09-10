@@ -274,7 +274,7 @@ export const MONITORING_CHECKLISTS = {
       { key: 'location',                 label: 'Location',                  type: 'text',     autofill: 'location' },
       { key: 'municipality_district',    label: 'Municipality / District',   type: 'district', autofill: 'district' },
       { key: 'region',                   label: 'Region',                    type: 'readonly', default: 'Ashanti', autofill: 'region' },
-      { key: 'epa_permit_number',        label: 'EPA Permit Number',         type: 'text',     autofill: 'permit_number' },
+      { key: 'epa_permit_number',        label: 'EPA Permit Number',         type: 'permit',   autofill: 'permit_number' },
       { key: 'time_inspection',          label: 'Time of Inspection',        type: 'text' },
       { key: 'type_of_facility',         label: 'Type of Facility',          type: 'select', options: ['', 'Government Hospital', 'Private Hospital', 'Clinic', 'Specialist Hospital'] },
       { key: 'contact_person',           label: 'Contact Person',            type: 'text',     autofill: 'contact_person' },

@@ -68,6 +68,7 @@ export default function MonitoringForm() {
   })
   const { coordinates: gps, setCoordinates: setGps, loading: gpsLoading, error: gpsError, capture: captureGPS, clear: clearGPS } = useGPS(null)
   const [allStaff, setAllStaff] = useState([])
+  const [permits, setPermits] = useState([])
   const [photos, setPhotos] = useState([])
   const [monId, setMonId] = useState('')
   const [initialLoading, setInitialLoading] = useState(true)
@@ -82,6 +83,9 @@ export default function MonitoringForm() {
         const cl = MONITORING_CHECKLISTS[prefix] ?? MONITORING_CHECKLISTS.CI
         setSectorPrefix(prefix)
         listStaff().then(setAllStaff).catch(() => setAllStaff([]))
+        const facilityPermits = (await listSubRecords(fileNumber, 'permits').catch(() => []))
+          .filter((p) => p.permit_number)
+        setPermits(facilityPermits)
         if (isEditing) {
           const rec = await getSubRecord(fileNumber, 'monitoring', recordId)
           if (!rec) { setError('Record not found.'); return }
@@ -104,17 +108,14 @@ export default function MonitoringForm() {
             ...merged,
           })
         } else {
-          const [existing, permits] = await Promise.all([
-            listSubRecords(fileNumber, 'monitoring'),
-            listSubRecords(fileNumber, 'permits').catch(() => []),
-          ])
+          const existing = await listSubRecords(fileNumber, 'monitoring')
           const next = String(existing.length + 1).padStart(3, '0')
           setMonId(`MON-${fileNumber}-${next}`)
           if (facility?.coordinates) setGps(facility.coordinates)
           setFormData((p) => ({
             ...p,
             ...buildDefaults(cl),
-            ...buildAutofill(cl, facility, permits[0]),
+            ...buildAutofill(cl, facility, facilityPermits[0]),
             officer_name: staff?.name ?? '',
           }))
         }
@@ -180,7 +181,10 @@ export default function MonitoringForm() {
       compliance_status:     summary.band?.label ?? '',
       photos,
       sector_prefix: sectorPrefix,
-      linked_permit_id: location.state?.permitId ?? '',
+      linked_permit_id:
+        location.state?.permitId ??
+        permits.find((p) => p.permit_number === formData.epa_permit_number)?.id ??
+        '',
     }
 
     if (gps) payload.gps = gps
@@ -296,6 +300,23 @@ export default function MonitoringForm() {
                           <option key={d.code} value={d.code}>{d.name}</option>
                         ))}
                       </select>
+                    ) : field.type === 'permit' ? (
+                      permits.length > 0 ? (
+                        <select className="select" value={formData[field.key] ?? ''}
+                          onChange={(e) => set(field.key, e.target.value)}>
+                          <option value="">Select permit…</option>
+                          {permits.map((p) => (
+                            <option key={p.id} value={p.permit_number}>{p.permit_number}</option>
+                          ))}
+                          {formData[field.key] && !permits.some((p) => p.permit_number === formData[field.key]) && (
+                            <option value={formData[field.key]}>{formData[field.key]}</option>
+                          )}
+                        </select>
+                      ) : (
+                        <input className="input" type="text" value={formData[field.key] ?? ''}
+                          onChange={(e) => set(field.key, e.target.value)}
+                          placeholder="No permits on file — type the number" />
+                      )
                     ) : field.type === 'select' ? (
                       <select className="select" value={formData[field.key] ?? ''}
                         onChange={(e) => set(field.key, e.target.value)}>

@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Edit2, Trash2, AlertCircle, Image, FileText } from 'lucide-react'
+import { Plus, Edit2, Trash2, AlertCircle, Image, FileText, FileSignature } from 'lucide-react'
 import { listSubRecords, deleteSubRecord } from '../../firebase/subrecords'
 import { fmtDate } from '../../utils/records'
 import { facilityPath } from '../../utils/fileNumbers'
 import { MONITORING_CHECKLISTS, computeCompliance, complianceBand } from '../../data/monitoringChecklists'
 import Spinner from '../Spinner'
 import RecordDocumentModal from '../RecordDocumentModal'
+import MonitoringReportModal from '../MonitoringReportModal'
 import { FIELD_ROLES, hasFullDataAccess } from '../../data/constants'
 
 function complianceSummary(r) {
@@ -51,6 +52,7 @@ export default function MonitoringTab({ fileNumber, role, dataAccess }) {
   const [selectedIds, setSelectedIds] = useState([])
   const [deletingSelected, setDeletingSelected] = useState(false)
   const [viewRecord, setViewRecord] = useState(null)
+  const [reportRecord, setReportRecord] = useState(null)
 
   useEffect(() => { load() }, [fileNumber])
 
@@ -124,6 +126,13 @@ export default function MonitoringTab({ fileNumber, role, dataAccess }) {
           onClose={() => setViewRecord(null)}
         />
       )}
+      {reportRecord && (
+        <MonitoringReportModal
+          record={reportRecord}
+          fileNumber={fileNumber}
+          onClose={() => setReportRecord(null)}
+        />
+      )}
       {canEdit && (
         <div className="tab-toolbar">
           <button className="btn btn--primary btn--sm"
@@ -184,6 +193,9 @@ export default function MonitoringTab({ fileNumber, role, dataAccess }) {
               <div className="record-item__actions">
                 <button className="btn btn--ghost btn--xs" onClick={() => setViewRecord(r)}>
                   <FileText size={12} /> View
+                </button>
+                <button className="btn btn--ghost btn--xs" onClick={() => setReportRecord(r)}>
+                  <FileSignature size={12} /> Generate Report
                 </button>
                 {canEdit && (
                   <>

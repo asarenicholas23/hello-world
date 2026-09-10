@@ -3553,3 +3553,11 @@ body {
   .cscore-kpis { grid-template-columns: repeat(2, 1fr); }
   .cscore-charts { grid-template-columns: 1fr; }
 }
+
+/* ═══ Generate Monitoring Report modal ══════════════════ */
+.mrep-hint { font-size: 12px; color: #6b7280; margin: 6px 0 14px; }
+.mrep-label { display: block; font-size: 11px; font-weight: 600; color: #6b7280;
+  text-transform: uppercase; letter-spacing: .02em; margin: 10px 0 4px; }
+.mrep-sec { font-size: 13px; font-weight: 700; color: #1f2937;
+  margin: 18px 0 6px; padding-bottom: 4px; border-bottom: 1px solid #e5e7eb; }
+.mrep-sec span { font-weight: 400; font-size: 11px; color: #9ca3af; text-transform: none; letter-spacing: 0; }

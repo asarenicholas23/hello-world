@@ -79,6 +79,9 @@ export function buildMonitoringReportDraft(record = {}, facility = null) {
   for (const section of checklist?.sections ?? []) {
     let yesCount = 0
     let noCount = 0
+    // Yes items with no remark: held back per-section so a fully-compliant
+    // section gets one summary line instead of one generic line per item.
+    const unremarkedYes = []
     for (const item of section.items) {
       if (item.type === 'text' || item.type === 'select' || item.conditional) continue
       const answer = record[item.key]
@@ -86,16 +89,22 @@ export function buildMonitoringReportDraft(record = {}, facility = null) {
       if (answer === 'Yes') {
         yesCount++
         if (remark) addTo(strengths, seenS, remark)
+        else unremarkedYes.push(`${item.label} was confirmed in place.`)
       } else if (answer === 'No') {
         noCount++
         addTo(concerns, seenC, remark || `${item.label} — found not to be in place / non-compliant at the time of the visit.`)
       }
     }
-    // Commend sections the facility got fully right, even where no remark was left
     const applicableInSection = yesCount + noCount
     if (applicableInSection >= 2 && noCount === 0) {
+      // Commend sections the facility got fully right, even where no remark was left
       const sectionLabel = section.title.replace(/^[A-Z]:\s*/, '')
       addTo(strengths, seenS, `Full compliance was observed under ${sectionLabel} — all ${applicableInSection} applicable items were met.`)
+    } else {
+      // Mixed or partial section — still credit each compliant item individually,
+      // so a facility with scattered gaps (rather than one weak section) still
+      // gets its passing items acknowledged.
+      unremarkedYes.forEach((line) => addTo(strengths, seenS, line))
     }
   }
 

@@ -3561,3 +3561,6 @@ body {
 .mrep-sec { font-size: 13px; font-weight: 700; color: #1f2937;
   margin: 18px 0 6px; padding-bottom: 4px; border-bottom: 1px solid #e5e7eb; }
 .mrep-sec span { font-weight: 400; font-size: 11px; color: #9ca3af; text-transform: none; letter-spacing: 0; }
+.mrep-label__hint { text-transform: none; font-weight: 400; color: #9ca3af; letter-spacing: 0; }
+.mrep-textarea--good { border-color: #bbf7d0; background: #f0fdf4; }
+.mrep-textarea--bad  { border-color: #fecaca; background: #fef2f2; }

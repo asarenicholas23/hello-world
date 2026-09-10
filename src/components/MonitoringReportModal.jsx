@@ -15,6 +15,7 @@ const LETTER_CSS = `
   h1.rt { font-size: 12.5pt; font-weight: 700; text-transform: uppercase; text-align: center; margin: 14px 0 4px; }
   .to { white-space: pre-line; margin: 14px 0; }
   h2.sh { font-size: 12pt; font-weight: 700; margin: 16px 0 6px; }
+  h3.ssh { font-size: 11.5pt; font-weight: 700; margin: 10px 0 4px; }
   p { margin: 0 0 10px; text-align: justify; }
   ul { margin: 0 0 12px; padding-left: 22px; }
   li { margin-bottom: 8px; text-align: justify; }
@@ -22,12 +23,21 @@ const LETTER_CSS = `
   .sig__name { font-weight: 700; margin-top: 22px; }
 `
 
+const NO_STRENGTHS_FALLBACK = 'No specific positive practices were separately recorded for this visit.'
+const NO_CONCERNS_FALLBACK = 'No non-compliance issues were observed during this visit.'
+
 function lines(text) {
   return String(text || '').split(/\n+/).map((s) => s.trim()).filter(Boolean)
 }
 
+function bulletList(text, fallback) {
+  const items = lines(text)
+  return items.length ? items : [fallback]
+}
+
 function reportHtml(f) {
-  const obs = lines(f.observations).map((l) => `<li>${escapeHtml(l)}</li>`).join('')
+  const strengths = bulletList(f.strengths, NO_STRENGTHS_FALLBACK).map((l) => `<li>${escapeHtml(l)}</li>`).join('')
+  const concerns = bulletList(f.concerns, NO_CONCERNS_FALLBACK).map((l) => `<li>${escapeHtml(l)}</li>`).join('')
   const recs = lines(f.recommendations).map((l) => `<li>${escapeHtml(l)}</li>`).join('')
   const intro = [f.introduction, f.complianceLine].filter(Boolean)
     .map((p) => `<p>${escapeHtml(p)}</p>`).join('')
@@ -42,7 +52,11 @@ function reportHtml(f) {
   <h2 class="sh">1.0&nbsp;&nbsp;Introduction</h2>
   ${intro}
   <h2 class="sh">2.0&nbsp;&nbsp;Observations</h2>
-  <ul>${obs}</ul>
+  ${f.notesParagraph ? `<p>${escapeHtml(f.notesParagraph)}</p>` : ''}
+  <h3 class="ssh">2.1&nbsp;&nbsp;Positive Practices Observed</h3>
+  <ul>${strengths}</ul>
+  <h3 class="ssh">2.2&nbsp;&nbsp;Areas Requiring Attention</h3>
+  <ul>${concerns}</ul>
   <h2 class="sh">3.0&nbsp;&nbsp;Recommendations</h2>
   <p>The following recommendations are to be implemented prior to the next monitoring visit:</p>
   <ul>${recs}</ul>
@@ -69,7 +83,13 @@ function plainText(f) {
     f.complianceLine,
     '',
     '2.0 Observations',
-    ...lines(f.observations).map((l) => `• ${l}`),
+    f.notesParagraph,
+    '',
+    '2.1 Positive Practices Observed',
+    ...bulletList(f.strengths, NO_STRENGTHS_FALLBACK).map((l) => `• ${l}`),
+    '',
+    '2.2 Areas Requiring Attention',
+    ...bulletList(f.concerns, NO_CONCERNS_FALLBACK).map((l) => `• ${l}`),
     '',
     '3.0 Recommendations',
     'The following recommendations are to be implemented prior to the next monitoring visit:',
@@ -107,10 +127,12 @@ export default function MonitoringReportModal({ record, facility: facilityProp, 
 
   function set(key, value) { setForm((p) => ({ ...p, [key]: value })) }
 
+  const toText = (v) => (Array.isArray(v) ? v.join('\n') : (v ?? ''))
   const printable = {
     ...form,
-    observations: Array.isArray(form.observations) ? form.observations.join('\n') : form.observations,
-    recommendations: Array.isArray(form.recommendations) ? form.recommendations.join('\n') : form.recommendations,
+    strengths: toText(form.strengths),
+    concerns: toText(form.concerns),
+    recommendations: toText(form.recommendations),
   }
 
   function handlePrint() {
@@ -133,8 +155,9 @@ export default function MonitoringReportModal({ record, facility: facilityProp, 
     }
   }
 
-  const obsText = Array.isArray(form.observations) ? form.observations.join('\n') : (form.observations ?? '')
-  const recText = Array.isArray(form.recommendations) ? form.recommendations.join('\n') : (form.recommendations ?? '')
+  const strengthsText = toText(form.strengths)
+  const concernsText = toText(form.concerns)
+  const recText = toText(form.recommendations)
 
   return createPortal(
     <div className="doc-modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) onClose() }}>
@@ -179,9 +202,19 @@ export default function MonitoringReportModal({ record, facility: facilityProp, 
             <textarea className="input textarea" rows={2} value={form.complianceLine ?? ''}
               onChange={(e) => set('complianceLine', e.target.value)} />
 
-            <div className="mrep-sec">2.0 Observations <span>· one bullet per line</span></div>
-            <textarea className="input textarea" rows={8} value={obsText}
-              onChange={(e) => set('observations', e.target.value)} />
+            <div className="mrep-sec">2.0 Observations</div>
+            <label className="mrep-label">General notes (optional lead-in paragraph)</label>
+            <textarea className="input textarea" rows={2} value={form.notesParagraph ?? ''}
+              onChange={(e) => set('notesParagraph', e.target.value)} />
+
+            <label className="mrep-label">2.1 Positive Practices Observed <span className="mrep-label__hint">· one bullet per line · what the facility is doing well</span></label>
+            <textarea className="input textarea mrep-textarea--good" rows={6} value={strengthsText}
+              onChange={(e) => set('strengths', e.target.value)}
+              placeholder="e.g. Waste bins were colour-coded and appropriately placed across the facility." />
+
+            <label className="mrep-label">2.2 Areas Requiring Attention <span className="mrep-label__hint">· one bullet per line</span></label>
+            <textarea className="input textarea mrep-textarea--bad" rows={6} value={concernsText}
+              onChange={(e) => set('concerns', e.target.value)} />
 
             <div className="mrep-sec">3.0 Recommendations <span>· one bullet per line</span></div>
             <textarea className="input textarea" rows={8} value={recText}

@@ -50,38 +50,53 @@ export function buildMonitoringReportDraft(record = {}, facility = null) {
     applicable = c.applicable; compliant = c.compliant; rate = c.rate
   }
   const band = rate == null ? null : (record.compliance_status || complianceBand(rate)?.label)
+  const bandTone = rate == null ? ''
+    : rate >= 80 ? ' reflecting a strong level of compliance with the facility’s permit conditions.'
+    : rate >= 60 ? ' reflecting a reasonable level of compliance, with some areas requiring improvement.'
+    : rate >= 40 ? ' indicating several areas of non-compliance that require corrective action.'
+    : ' indicating significant non-compliance that requires urgent corrective action.'
   const complianceLine = rate == null
     ? ''
     : `At this visit the facility recorded an overall compliance score of ${rate}%${band ? ` (${band})` : ''}` +
-      (applicable ? `, based on ${compliant} of ${applicable} applicable checklist items.` : '.')
+      (applicable ? `, based on ${compliant} of ${applicable} applicable checklist items,` : ',') + bandTone
 
-  // ── Observations ──────────────────────────────────────────
-  const observations = []
-  const seen = new Set()
-  const add = (line) => {
+  // officer's free-text overall observations, kept as a short lead-in paragraph
+  const notesParagraph = String(record.notes || '').split(/\n+/).map((s) => s.trim()).filter(Boolean).join(' ')
+
+  // ── Observations, split into what's going well and what isn't ─────
+  // (a single "all the things that are wrong" list reads as entirely
+  // negative — pulling out compliant items and fully-compliant sections
+  // gives credit for the facility's good practices too)
+  const strengths = []
+  const concerns = []
+  const seenS = new Set()
+  const seenC = new Set()
+  const addTo = (arr, seen, line) => {
     const t = String(line || '').trim()
-    if (t && !seen.has(t.toLowerCase())) { seen.add(t.toLowerCase()); observations.push(t) }
+    if (t && !seen.has(t.toLowerCase())) { seen.add(t.toLowerCase()); arr.push(t) }
   }
 
-  // officer's free-text overall observations, split into bullets
-  String(record.notes || '').split(/\n+/).forEach(add)
-
-  // per-item remarks + non-compliant items
   for (const section of checklist?.sections ?? []) {
+    let yesCount = 0
+    let noCount = 0
     for (const item of section.items) {
       if (item.type === 'text' || item.type === 'select' || item.conditional) continue
       const answer = record[item.key]
       const remark = String(record[`${item.key}_remark`] || '').trim()
-      if (answer === 'No') {
-        add(remark || `${item.label} — found not to be in place / non-compliant at the time of the visit.`)
-      } else if (remark) {
-        add(`${item.label}: ${remark}`)
+      if (answer === 'Yes') {
+        yesCount++
+        if (remark) addTo(strengths, seenS, remark)
+      } else if (answer === 'No') {
+        noCount++
+        addTo(concerns, seenC, remark || `${item.label} — found not to be in place / non-compliant at the time of the visit.`)
       }
     }
-  }
-
-  if (observations.length === 0) {
-    add('No significant environmental concerns were observed at the time of the visit.')
+    // Commend sections the facility got fully right, even where no remark was left
+    const applicableInSection = yesCount + noCount
+    if (applicableInSection >= 2 && noCount === 0) {
+      const sectionLabel = section.title.replace(/^[A-Z]:\s*/, '')
+      addTo(strengths, seenS, `Full compliance was observed under ${sectionLabel} — all ${applicableInSection} applicable items were met.`)
+    }
   }
 
   // ── Recommendations ───────────────────────────────────────
@@ -108,7 +123,9 @@ export function buildMonitoringReportDraft(record = {}, facility = null) {
     title: `COMPLIANCE MONITORING REPORT – ${name.toUpperCase()}${location ? `, ${location.toUpperCase()}` : ''}`,
     introduction,
     complianceLine,
-    observations,
+    notesParagraph,
+    strengths,
+    concerns,
     recommendations,
     signatory: officer || '',
     signatoryTitle: 'Lead Monitoring Officer',

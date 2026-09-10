@@ -1427,6 +1427,39 @@ body {
   .monitoring-summary { grid-template-columns: repeat(2, 1fr); }
 }
 
+/* ── Recommendations (suggestions + editable list) ─────── */
+.rec-suggestions {
+  border: 1px dashed #d1d5db; border-radius: 8px;
+  padding: 10px 12px; margin-bottom: 12px; background: #fafafa;
+}
+.rec-suggestions__hd {
+  display: flex; justify-content: space-between; align-items: center; gap: 8px;
+  font-size: 11px; font-weight: 700; color: #6b7280;
+  text-transform: uppercase; letter-spacing: .03em; margin-bottom: 6px;
+}
+.rec-suggestion {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 7px 0; border-top: 1px solid #eee;
+}
+.rec-suggestion__text { flex: 1; min-width: 180px; font-size: 13px; color: #374151; line-height: 1.4; }
+.rec-suggestion__actions { display: flex; gap: 4px; flex-shrink: 0; }
+.rec-list {
+  margin: 0 0 10px; padding-left: 22px;
+  display: flex; flex-direction: column; gap: 6px;
+}
+.rec-list__item { display: flex; align-items: center; gap: 8px; }
+.rec-list__item .input { flex: 1; }
+.rec-list__tag {
+  flex-shrink: 0; font-size: 10px; font-weight: 700; text-transform: uppercase;
+  color: #4d7c0f; background: #ecfccb; border-radius: 4px; padding: 2px 5px;
+}
+.rec-list__remove {
+  flex-shrink: 0; display: inline-flex; align-items: center;
+  border: 0; background: transparent; color: #9ca3af; cursor: pointer; padding: 4px;
+}
+.rec-list__remove:hover { color: #dc2626; }
+.rec-list__empty { font-size: 13px; color: #9ca3af; margin: 0 0 10px; }
+
 /* ── Team of officers chips ────────────────────────────── */
 .officer-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
 .officer-chip {
@@ -3413,6 +3446,8 @@ body {
 }
 .doc-notes-block p { margin-bottom: 6px; }
 .doc-notes-block p:last-child { margin-bottom: 0; }
+.doc-rec-list { margin: 4px 0 6px; padding-left: 22px; font-size: 12px; line-height: 1.55; color: #374151; }
+.doc-rec-list li { margin-bottom: 4px; }
 
 /* Signature block */
 .doc-sig-block {

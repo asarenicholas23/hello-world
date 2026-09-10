@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, AlertCircle, Save, Loader, WifiOff, X } from 'lucide-react'
+import { ArrowLeft, AlertCircle, Save, Loader, WifiOff, X, Check, Plus } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useSync } from '../context/SyncContext'
 import { getSubRecord, createSubRecord, updateSubRecord, listSubRecords } from '../firebase/subrecords'
@@ -10,7 +10,7 @@ import { listStaff } from '../firebase/staff'
 import { tsToInput, inputToTs } from '../utils/records'
 import { decodeFileNumberParam, facilityPath } from '../utils/fileNumbers'
 import { DISTRICTS } from '../data/constants'
-import { MONITORING_CHECKLISTS, CHECKLIST_OPTIONS, computeCompliance } from '../data/monitoringChecklists'
+import { MONITORING_CHECKLISTS, CHECKLIST_OPTIONS, computeCompliance, suggestedRecommendations } from '../data/monitoringChecklists'
 import { useGPS } from '../hooks/useGPS'
 import PhotoCapture from '../components/PhotoCapture'
 import GPSField from '../components/GPSField'
@@ -29,6 +29,26 @@ function buildDefaults(checklist) {
     defaults[field.key] = field.default ?? ''
   }
   return defaults
+}
+
+let RID = 0
+const rid = () => `rec-${Date.now().toString(36)}-${RID++}`
+
+// Normalise a stored `recommendations` value into editable list rows.
+// Accepts the current array-of-objects shape, a legacy plain string, or null.
+function normalizeRecs(v) {
+  if (Array.isArray(v)) {
+    return v.map((r) => ({
+      id: rid(),
+      text: typeof r === 'string' ? r : (r.text ?? ''),
+      source: (typeof r === 'object' && r?.source) || 'manual',
+      key: (typeof r === 'object' && r?.item_key) || null,
+    }))
+  }
+  if (typeof v === 'string' && v.trim()) {
+    return [{ id: rid(), text: v.trim(), source: 'manual', key: null }]
+  }
+  return []
 }
 
 // Pre-fill new-visit facility fields from the facility profile (+ latest permit)
@@ -60,7 +80,8 @@ export default function MonitoringForm() {
     date: '',
     officer_name: '',
     notes: '',
-    recommendations: '',
+    recommendations: [],
+    dismissed_rec_keys: [],
     corrective_timeline: '',
     follow_up_date: '',
     officer_team: [],
@@ -101,7 +122,8 @@ export default function MonitoringForm() {
             date:                tsToInput(rec.date),
             officer_name:        rec.officer_name ?? '',
             notes:               rec.notes ?? '',
-            recommendations:     rec.recommendations ?? '',
+            recommendations:     normalizeRecs(rec.recommendations),
+            dismissed_rec_keys:  Array.isArray(rec.dismissed_rec_keys) ? rec.dismissed_rec_keys : [],
             corrective_timeline: rec.corrective_timeline ?? '',
             follow_up_date:      tsToInput(rec.follow_up_date),
             officer_team:        Array.isArray(rec.officer_team) ? rec.officer_team : [],
@@ -157,6 +179,53 @@ export default function MonitoringForm() {
     setFormData((p) => ({ ...p, officer_team: p.officer_team.filter((o) => o.uid !== uid) }))
   }
 
+  // Draft recommendations from "No" answers, minus ones already accepted/dismissed
+  const pendingSuggestions = useMemo(() => {
+    const accepted = new Set(formData.recommendations.map((r) => r.key).filter(Boolean))
+    const dismissed = new Set(formData.dismissed_rec_keys)
+    return suggestedRecommendations(checklist, formData, isVisible)
+      .filter((s) => !accepted.has(s.key) && !dismissed.has(s.key))
+  }, [checklist, formData]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  function acceptSuggestion(s) {
+    setFormData((p) => ({
+      ...p,
+      recommendations: [...p.recommendations, { id: rid(), text: s.text, source: 'suggested', key: s.key }],
+    }))
+  }
+
+  function acceptAllSuggestions() {
+    setFormData((p) => ({
+      ...p,
+      recommendations: [
+        ...p.recommendations,
+        ...pendingSuggestions.map((s) => ({ id: rid(), text: s.text, source: 'suggested', key: s.key })),
+      ],
+    }))
+  }
+
+  function dismissSuggestion(s) {
+    setFormData((p) => ({ ...p, dismissed_rec_keys: [...p.dismissed_rec_keys, s.key] }))
+  }
+
+  function addRecommendation() {
+    setFormData((p) => ({
+      ...p,
+      recommendations: [...p.recommendations, { id: rid(), text: '', source: 'manual', key: null }],
+    }))
+  }
+
+  function updateRecommendation(id, text) {
+    setFormData((p) => ({
+      ...p,
+      recommendations: p.recommendations.map((r) => (r.id === id ? { ...r, text } : r)),
+    }))
+  }
+
+  function removeRecommendation(id) {
+    setFormData((p) => ({ ...p, recommendations: p.recommendations.filter((r) => r.id !== id) }))
+  }
+
   async function handleSubmit(e) {
     e.preventDefault()
     if (!formData.date) { setError('Date is required.'); return }
@@ -170,7 +239,10 @@ export default function MonitoringForm() {
       officer_id:   user.uid,
       officer_name: staff?.name ?? formData.officer_name,
       notes:        formData.notes.trim(),
-      recommendations:     formData.recommendations.trim(),
+      recommendations: formData.recommendations
+        .map((r) => ({ text: r.text.trim(), source: r.source, item_key: r.key ?? null }))
+        .filter((r) => r.text),
+      dismissed_rec_keys:  formData.dismissed_rec_keys,
       corrective_timeline: formData.corrective_timeline.trim(),
       follow_up_date:      inputToTs(formData.follow_up_date),
       officer_team:        formData.officer_team,
@@ -436,11 +508,53 @@ export default function MonitoringForm() {
         <div className="form-card">
           <div className="form-section">
             <div className="form-section-title">Recommendations</div>
-            <div className="form-group">
-              <textarea className="input textarea" value={formData.recommendations}
-                onChange={(e) => set('recommendations', e.target.value)}
-                rows={4} placeholder="Corrective actions and recommendations for the facility…" />
-            </div>
+
+            {pendingSuggestions.length > 0 && (
+              <div className="rec-suggestions">
+                <div className="rec-suggestions__hd">
+                  <span>Suggested from non-compliant items ({pendingSuggestions.length})</span>
+                  <button type="button" className="btn btn--ghost btn--sm" onClick={acceptAllSuggestions}>
+                    Accept all
+                  </button>
+                </div>
+                {pendingSuggestions.map((s) => (
+                  <div key={s.key} className="rec-suggestion">
+                    <span className="rec-suggestion__text">{s.text}</span>
+                    <div className="rec-suggestion__actions">
+                      <button type="button" className="btn btn--ghost btn--sm" onClick={() => acceptSuggestion(s)}>
+                        <Check size={13} /> Accept
+                      </button>
+                      <button type="button" className="btn btn--ghost btn--sm" onClick={() => dismissSuggestion(s)}>
+                        <X size={13} /> Dismiss
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {formData.recommendations.length > 0 ? (
+              <ol className="rec-list">
+                {formData.recommendations.map((r) => (
+                  <li key={r.id} className="rec-list__item">
+                    <input className="input" type="text" value={r.text}
+                      onChange={(e) => updateRecommendation(r.id, e.target.value)}
+                      placeholder="Recommendation…" />
+                    {r.source === 'suggested' && <span className="rec-list__tag">auto</span>}
+                    <button type="button" className="rec-list__remove"
+                      onClick={() => removeRecommendation(r.id)} aria-label="Remove recommendation">
+                      <X size={14} />
+                    </button>
+                  </li>
+                ))}
+              </ol>
+            ) : (
+              <p className="rec-list__empty">No recommendations yet — accept a suggestion above or add one.</p>
+            )}
+
+            <button type="button" className="btn btn--ghost btn--sm" onClick={addRecommendation}>
+              <Plus size={14} /> Add recommendation
+            </button>
           </div>
         </div>
 

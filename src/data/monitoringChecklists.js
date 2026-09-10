@@ -516,3 +516,24 @@ export function computeCompliance(checklist, data, isVisible = () => true) {
   const rate = applicable > 0 ? Math.round((compliant / applicable) * 100) : null
   return { applicable, compliant, rate, band: complianceBand(rate) }
 }
+
+/**
+ * Draft one recommendation per checklist item answered 'No', so the officer
+ * can accept or dismiss it into the visit's recommendation list.
+ * @returns [{ key, text }]
+ */
+export function suggestedRecommendations(checklist, data, isVisible = () => true) {
+  const out = []
+  for (const section of checklist?.sections ?? []) {
+    for (const item of section.items) {
+      if (item.type === 'text' || item.type === 'select' || item.conditional) continue
+      if (!isVisible(item)) continue
+      if (data?.[item.key] !== 'No') continue
+      out.push({
+        key: item.key,
+        text: item.recommendation || `Address non-compliance: ${item.label}`,
+      })
+    }
+  }
+  return out
+}

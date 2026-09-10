@@ -557,7 +557,17 @@ function MonitoringDoc({ record: r, facility: f }) {
         </>
       )}
 
-      {r.recommendations && (
+      {Array.isArray(r.recommendations) && r.recommendations.length > 0 && (
+        <>
+          <SecTitle>Recommendations</SecTitle>
+          <ol className="doc-rec-list">
+            {r.recommendations.map((rec, i) => (
+              <li key={i}>{typeof rec === 'string' ? rec : rec.text}</li>
+            ))}
+          </ol>
+        </>
+      )}
+      {typeof r.recommendations === 'string' && r.recommendations.trim() && (
         <>
           <SecTitle>Recommendations</SecTitle>
           <div className="doc-notes-block">{r.recommendations}</div>
@@ -692,6 +702,8 @@ const PRINT_CSS = `
   .doc-check--blank { color: #999; }
 
   .doc-notes-block { border: 1px solid #ddd; padding: 7px 9px; font-size: 9.5pt; line-height: 1.5; background: #fafafa; min-height: 30px; margin-bottom: 4px; }
+  .doc-rec-list { margin: 4px 0 8px; padding-left: 20px; font-size: 9.5pt; line-height: 1.45; }
+  .doc-rec-list li { margin-bottom: 3px; }
 
   .doc-sig-block { margin-top: 28px; border-top: 1px solid #bbb; padding-top: 14px; }
   .doc-sig-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 10px; }

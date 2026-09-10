@@ -1405,6 +1405,33 @@ body {
 }
 .form-row--wrap { flex-wrap: wrap; }
 
+/* ── Inspection Summary (computed compliance score) ────── */
+.monitoring-summary {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 4px;
+}
+.monitoring-summary__stat {
+  display: flex; flex-direction: column; gap: 2px; align-items: center; text-align: center;
+  padding: 10px 8px; background: #f9fafb; border: 1px solid #f3f4f6; border-radius: 8px;
+}
+.monitoring-summary__num { font-size: 18px; font-weight: 700; color: #111827; line-height: 1.2; }
+.monitoring-summary__lbl { font-size: 11px; color: #6b7280; text-transform: uppercase; letter-spacing: .02em; }
+.monitoring-summary__note { font-size: 12px; color: #6b7280; margin: 8px 0 14px; line-height: 1.5; }
+@media (max-width: 600px) {
+  .monitoring-summary { grid-template-columns: repeat(2, 1fr); }
+}
+
+/* ── Team of officers chips ────────────────────────────── */
+.officer-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+.officer-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: #eef2ff; color: #3730a3; border-radius: 999px;
+  padding: 4px 6px 4px 12px; font-size: 13px;
+}
+.officer-chip button {
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 0; background: transparent; color: inherit; cursor: pointer; padding: 2px;
+}
+
 /* ── KPI cards ────────────────────────────────────────── */
 .kpi-grid {
   display: grid;

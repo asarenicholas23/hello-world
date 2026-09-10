@@ -1,15 +1,16 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, AlertCircle, Save, Loader, WifiOff } from 'lucide-react'
+import { ArrowLeft, AlertCircle, Save, Loader, WifiOff, X } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useSync } from '../context/SyncContext'
 import { getSubRecord, createSubRecord, updateSubRecord, listSubRecords } from '../firebase/subrecords'
 import { linkPermitWorkflowRecord } from '../firebase/workflow'
 import { getFacility } from '../firebase/facilities'
+import { listStaff } from '../firebase/staff'
 import { tsToInput, inputToTs } from '../utils/records'
 import { decodeFileNumberParam, facilityPath } from '../utils/fileNumbers'
 import { DISTRICTS } from '../data/constants'
-import { MONITORING_CHECKLISTS, CHECKLIST_OPTIONS } from '../data/monitoringChecklists'
+import { MONITORING_CHECKLISTS, CHECKLIST_OPTIONS, computeCompliance } from '../data/monitoringChecklists'
 import PhotoCapture from '../components/PhotoCapture'
 import GPSField from '../components/GPSField'
 import Spinner from '../components/Spinner'
@@ -23,7 +24,7 @@ function buildDefaults(checklist) {
     }
   }
   for (const field of checklist.extraFields ?? []) {
-    defaults[field.key] = ''
+    defaults[field.key] = field.default ?? ''
   }
   return defaults
 }
@@ -45,9 +46,14 @@ export default function MonitoringForm() {
     date: '',
     officer_name: '',
     notes: '',
+    recommendations: '',
+    corrective_timeline: '',
+    follow_up_date: '',
+    officer_team: [],
     gps: null,
     ...buildDefaults(checklist),
   })
+  const [allStaff, setAllStaff] = useState([])
   const [photos, setPhotos] = useState([])
   const [monId, setMonId] = useState('')
   const [initialLoading, setInitialLoading] = useState(true)
@@ -59,6 +65,7 @@ export default function MonitoringForm() {
       try {
         const facility = await getFacility(fileNumber).catch(() => null)
         setSectorPrefix(facility?.sector_prefix ?? 'CI')
+        listStaff().then(setAllStaff).catch(() => setAllStaff([]))
         if (isEditing) {
           const rec = await getSubRecord(fileNumber, 'monitoring', recordId)
           if (!rec) { setError('Record not found.'); return }
@@ -70,10 +77,14 @@ export default function MonitoringForm() {
             if (rec[key] !== undefined) merged[key] = rec[key]
           }
           setFormData({
-            date:         tsToInput(rec.date),
-            officer_name: rec.officer_name ?? '',
-            notes:        rec.notes ?? '',
-            gps:          rec.gps ?? null,
+            date:                tsToInput(rec.date),
+            officer_name:        rec.officer_name ?? '',
+            notes:               rec.notes ?? '',
+            recommendations:     rec.recommendations ?? '',
+            corrective_timeline: rec.corrective_timeline ?? '',
+            follow_up_date:      tsToInput(rec.follow_up_date),
+            officer_team:        Array.isArray(rec.officer_team) ? rec.officer_team : [],
+            gps:                 rec.gps ?? null,
             ...merged,
           })
         } else {
@@ -100,6 +111,26 @@ export default function MonitoringForm() {
     return formData[item.conditional.key] === item.conditional.value
   }
 
+  // Live Inspection Summary — Yes/No tally across all checklist sections
+  const summary = useMemo(
+    () => computeCompliance(checklist, formData, isVisible),
+    [checklist, formData], // eslint-disable-line react-hooks/exhaustive-deps
+  )
+
+  const teamOptions = allStaff.filter(
+    (s) => s.id !== user.uid && !formData.officer_team.some((o) => o.uid === s.id),
+  )
+
+  function addTeamOfficer(uid) {
+    const s = allStaff.find((x) => x.id === uid)
+    if (!s) return
+    setFormData((p) => ({ ...p, officer_team: [...p.officer_team, { uid: s.id, name: s.name }] }))
+  }
+
+  function removeTeamOfficer(uid) {
+    setFormData((p) => ({ ...p, officer_team: p.officer_team.filter((o) => o.uid !== uid) }))
+  }
+
   async function handleSubmit(e) {
     e.preventDefault()
     if (!formData.date) { setError('Date is required.'); return }
@@ -113,6 +144,15 @@ export default function MonitoringForm() {
       officer_id:   user.uid,
       officer_name: staff?.name ?? formData.officer_name,
       notes:        formData.notes.trim(),
+      recommendations:     formData.recommendations.trim(),
+      corrective_timeline: formData.corrective_timeline.trim(),
+      follow_up_date:      inputToTs(formData.follow_up_date),
+      officer_team:        formData.officer_team,
+      // Inspection Summary — snapshot of the computed compliance score
+      compliance_applicable: summary.applicable,
+      compliance_compliant:  summary.compliant,
+      compliance_rate:       summary.rate,
+      compliance_status:     summary.band?.label ?? '',
       photos,
       sector_prefix: sectorPrefix,
       linked_permit_id: location.state?.permitId ?? '',
@@ -223,6 +263,14 @@ export default function MonitoringForm() {
                           <option key={d.code} value={d.code}>{d.name}</option>
                         ))}
                       </select>
+                    ) : field.type === 'select' ? (
+                      <select className="select" value={formData[field.key] ?? ''}
+                        onChange={(e) => set(field.key, e.target.value)}>
+                        {field.options.map((o) => <option key={o} value={o}>{o || '— Select —'}</option>)}
+                      </select>
+                    ) : field.type === 'readonly' ? (
+                      <input className="input" value={formData[field.key] || field.default || ''} readOnly
+                        style={{ background: '#f9fafb', color: '#6b7280', cursor: 'not-allowed' }} />
                     ) : (
                       <input className="input" type="text" value={formData[field.key] ?? ''}
                         onChange={(e) => set(field.key, e.target.value)} />
@@ -276,15 +324,109 @@ export default function MonitoringForm() {
           </div>
         ))}
 
+        {/* ── Inspection Summary ── */}
+        <div className="form-card">
+          <div className="form-section">
+            <div className="form-section-title">Inspection Summary</div>
+            <div className="monitoring-summary">
+              <div className="monitoring-summary__stat">
+                <span className="monitoring-summary__num">{summary.applicable}</span>
+                <span className="monitoring-summary__lbl">Applicable</span>
+              </div>
+              <div className="monitoring-summary__stat">
+                <span className="monitoring-summary__num">{summary.compliant}</span>
+                <span className="monitoring-summary__lbl">Compliant</span>
+              </div>
+              <div className="monitoring-summary__stat">
+                <span className="monitoring-summary__num">
+                  {summary.rate == null ? '—' : `${summary.rate}%`}
+                </span>
+                <span className="monitoring-summary__lbl">Compliance rate</span>
+              </div>
+              <div className="monitoring-summary__stat">
+                <span className="monitoring-summary__num"
+                  style={{ color: summary.band?.color ?? '#6b7280' }}>
+                  {summary.band?.label ?? 'Not rated'}
+                </span>
+                <span className="monitoring-summary__lbl">Overall status</span>
+              </div>
+            </div>
+            <p className="monitoring-summary__note">
+              Rate = compliant &divide; applicable (items marked Yes or No; N/A and blank excluded).
+              Bands: Excellent &ge; 80%, Good 60&ndash;79%, Fair 40&ndash;59%, Poor &lt; 40%.
+            </p>
+            <div className="form-row">
+              <div className="form-group">
+                <label>Timeline for Corrective Action</label>
+                <input className="input" type="text" value={formData.corrective_timeline}
+                  onChange={(e) => set('corrective_timeline', e.target.value)}
+                  placeholder="e.g. Within 30 days" />
+              </div>
+              <div className="form-group">
+                <label>Follow-up Inspection Date</label>
+                <input className="input" type="date" value={formData.follow_up_date}
+                  onChange={(e) => set('follow_up_date', e.target.value)} />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* ── Recommendations ── */}
+        <div className="form-card">
+          <div className="form-section">
+            <div className="form-section-title">Recommendations</div>
+            <div className="form-group">
+              <textarea className="input textarea" value={formData.recommendations}
+                onChange={(e) => set('recommendations', e.target.value)}
+                rows={4} placeholder="Corrective actions and recommendations for the facility…" />
+            </div>
+          </div>
+        </div>
+
+        {/* ── Team of Officers ── */}
+        <div className="form-card">
+          <div className="form-section">
+            <div className="form-section-title">Team of Officers</div>
+            <div className="form-group">
+              <label>Lead Officer</label>
+              <input className="input" value={staff?.name ?? '—'} readOnly
+                style={{ background: '#f9fafb', color: '#6b7280', cursor: 'not-allowed' }} />
+            </div>
+            {formData.officer_team.length > 0 && (
+              <div className="officer-chips">
+                {formData.officer_team.map((o) => (
+                  <span key={o.uid} className="officer-chip">
+                    {o.name}
+                    <button type="button" onClick={() => removeTeamOfficer(o.uid)}
+                      aria-label={`Remove ${o.name}`}>
+                      <X size={13} />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+            <div className="form-group">
+              <label>Add Officer</label>
+              <select className="select" value=""
+                onChange={(e) => { if (e.target.value) addTeamOfficer(e.target.value) }}>
+                <option value="">Select officer…</option>
+                {teamOptions.map((s) => (
+                  <option key={s.id} value={s.id}>{s.name}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+        </div>
+
         {/* ── Notes & Photos ── */}
         <div className="form-card">
           <div className="form-section">
             <div className="form-section-title">Notes &amp; Photos</div>
             <div className="form-group">
-              <label>Overall Observations &amp; Recommendations</label>
+              <label>Overall Observations</label>
               <textarea className="input textarea" value={formData.notes}
                 onChange={(e) => set('notes', e.target.value)}
-                rows={3} placeholder="Overall observations, findings and recommendations…" />
+                rows={3} placeholder="Overall observations and findings…" />
             </div>
             <PhotoCapture
               photos={photos}

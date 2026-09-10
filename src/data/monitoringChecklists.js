@@ -263,82 +263,137 @@ export const MONITORING_CHECKLISTS = {
   },
 
   // ── Health / Healthcare Facilities (CH) ──────────────────────
+  // Official EPA form: "Health Environmental Monitoring and Inspection Checklist"
   CH: {
     label: 'Health',
     extraFields: [
-      { key: 'facility_name',     label: 'Name of Healthcare Facility', type: 'text' },
-      { key: 'parent_healthcare', label: 'Parent Healthcare',           type: 'text' },
-      { key: 'year_established',  label: 'Year of Establishment',       type: 'text' },
-      { key: 'location',          label: 'Location',                    type: 'text' },
-      { key: 'contact_person',    label: 'Contact Person',              type: 'text' },
-      { key: 'contact_position',  label: 'Position',                    type: 'text' },
-      { key: 'address',           label: 'Address',                     type: 'text' },
-      { key: 'tel',               label: 'Tel',                         type: 'text' },
-      { key: 'fax',               label: 'Fax',                         type: 'text' },
-      { key: 'email',             label: 'Email',                       type: 'text' },
+      { key: 'facility_name',            label: 'Name of Facility',          type: 'text' },
+      { key: 'location',                 label: 'Location',                  type: 'text' },
+      { key: 'municipality_district',    label: 'Municipality / District',   type: 'district' },
+      { key: 'region',                   label: 'Region',                    type: 'readonly', default: 'Ashanti' },
+      { key: 'epa_permit_number',        label: 'EPA Permit Number',         type: 'text' },
+      { key: 'time_inspection',          label: 'Time of Inspection',        type: 'text' },
+      { key: 'type_of_facility',         label: 'Type of Facility',          type: 'select', options: ['', 'Government Hospital', 'Private Hospital', 'Clinic', 'Specialist Hospital'] },
+      { key: 'contact_person',           label: 'Contact Person',            type: 'text' },
+      { key: 'contact_position',         label: 'Position',                  type: 'text' },
+      { key: 'telephone',                label: 'Telephone Number',          type: 'text' },
+      { key: 'number_of_beds',           label: 'Number of Beds',            type: 'text' },
+      { key: 'average_daily_attendance', label: 'Average Daily Attendance',  type: 'text' },
+      { key: 'inspecting_officers',      label: 'Inspecting Officer(s)',     type: 'text' },
     ],
     sections: [
       {
-        title: 'Mitigation Measures',
+        title: 'A: Environmental Permit and Regulatory Compliance',
         items: [
-          { key: 'waste_segregation',          label: 'Waste is segregated when collected' },
-          { key: 'infectious_waste_incinerate',label: 'Infectious waste disposed of by incineration' },
-          { key: 'infectious_waste_burn',      label: 'Infectious waste disposed of by burning' },
-          { key: 'infectious_waste_burying',   label: 'Infectious waste disposed of by burying' },
-          { key: 'liquid_waste_septic_tank',   label: 'Liquid waste disposed of via septic tank' },
-          { key: 'liquid_waste_open_drainage', label: 'Liquid waste disposed of via open drainage' },
-          { key: 'sanitary_facilities_clean',  label: 'Are sanitary facilities for patients/workers clean and usable at all times?', type: 'select', options: ['', 'Yes', 'No', 'None'] },
+          { key: 'a1_valid_epa_permit',           label: 'Valid EPA Environmental Permit available' },
+          { key: 'a2_permit_conditions_complied', label: 'Permit conditions complied with' },
+          { key: 'a3_environmental_records',       label: 'Environmental records maintained' },
+          { key: 'a4_annual_report_submitted',    label: 'Annual Environmental Report submitted to EPA' },
+          { key: 'a5_environmental_mgmt_plan',     label: 'Environmental Management Plan available' },
+          { key: 'a6_healthcare_waste_plan',      label: 'Healthcare Waste Management Plan available' },
+          { key: 'a7_environmental_officer',      label: 'Environmental officer/designate appointed' },
         ],
       },
       {
-        title: 'Fire Precaution Regulation 2003 (LI 1724)',
+        title: 'B: Healthcare Waste Management',
         items: [
-          { key: 'fire_extinguishers_installed', label: 'Fire extinguishers/firefighting equipment installed on site' },
-          { key: 'assembly_point_labeled',       label: 'Facility has a well labeled assembly point in the event of a fire outbreak' },
-          { key: 'assembly_point_evidence',      label: 'If yes — provide evidence', type: 'text', conditional: { key: 'assembly_point_labeled', value: 'Yes' } },
-          { key: 'staff_trained_firefighting',   label: 'Key staff trained in firefighting techniques' },
-          { key: 'valid_fire_permit',            label: 'Facility is covered by a valid Fire Permit' },
-          { key: 'fire_drill_demonstrated',      label: 'Personnel able to demonstrate fire emergency response drills' },
+          { key: 'b1_colour_coded_bins',       label: 'Colour-coded bins available at all service points' },
+          { key: 'b2_segregation_at_source',   label: 'Waste segregation practiced at source' },
+          { key: 'b3_infectious_segregated',   label: 'Infectious waste properly segregated' },
+          { key: 'b4_sharps_containers',       label: 'Sharps containers available and properly used' },
+          { key: 'b5_bins_labelled',           label: 'Waste bins properly labelled' },
+          { key: 'b6_temporary_storage',       label: 'Temporary waste storage facility available' },
+          { key: 'b7_storage_secured',         label: 'Waste storage area secured against scavengers and pests' },
+          { key: 'b8_collected_regularly',     label: 'Healthcare waste collected regularly' },
+          { key: 'b9_transport_carts_covered', label: 'Waste transportation carts available and covered' },
+          { key: 'b10_generation_records',     label: 'Waste generation records maintained' },
+          { key: 'b11_licensed_contractor',    label: 'Licensed waste contractor engaged' },
+          { key: 'b12_waste_manifests',        label: 'Waste manifests available for verification' },
         ],
       },
       {
-        title: 'Occupational Health and Safety Measures',
+        title: 'C: Incinerator and Air Emissions',
         items: [
-          { key: 'adequate_illumination_ventilation', label: 'Facility has adequate illumination and ventilation systems in place' },
-          { key: 'workers_appropriate_ppe',            label: 'Are workers in appropriate PPEs?' },
-          { key: 'liquid_blood_spillage_management',   label: 'How do they manage liquid/blood spillage on the facility?', type: 'text' },
-          { key: 'use_of_disinfectant',                label: 'Use of disinfectant?' },
-          { key: 'noise_pollution_management',         label: 'How do they manage noise pollution in the facility?', type: 'text' },
-          { key: 'smoke_pollution_present',            label: 'Do they sometimes have smoke pollution in the facility?' },
-          { key: 'smoke_pollution_how',                label: 'If yes, how?', type: 'text', conditional: { key: 'smoke_pollution_present', value: 'Yes' } },
+          { key: 'c1_incinerator_available',       label: 'Incinerator available' },
+          { key: 'c2_incinerator_operational',     label: 'Incinerator in good operational condition' },
+          { key: 'c3_stack_height_adequate',       label: 'Incinerator stack height adequate' },
+          { key: 'c4_no_excessive_smoke',          label: 'No excessive smoke emissions observed' },
+          { key: 'c5_ash_disposal_managed',        label: 'Ash disposal properly managed' },
+          { key: 'c6_incinerator_maint_records',   label: 'Incinerator maintenance records available' },
+          { key: 'c7_generator_emissions_ok',      label: 'Generator emissions acceptable' },
+          { key: 'c8_no_excessive_generator_noise',label: 'Excessive noise from generators absent' },
+          { key: 'c9_no_offensive_odours',         label: 'Offensive odours absent' },
         ],
       },
       {
-        title: 'Ghana Health Service Regulations',
+        title: 'D: Effluent and Wastewater Management',
         items: [
-          { key: 'moh_ghs_certification', label: 'Do they have any certification from the Ministry of Health/Ghana Health Service?' },
-          { key: 'moh_ghs_evidence',      label: 'Provide proof/evidence on that effect', type: 'text', conditional: { key: 'moh_ghs_certification', value: 'Yes' } },
+          { key: 'd1_connected_sewer_treatment',  label: 'Hospital connected to sewer or treatment facility' },
+          { key: 'd2_wwtp_operational',           label: 'Wastewater treatment plant operational' },
+          { key: 'd3_septic_biodigesters_ok',     label: 'Septic tanks/biodigesters functioning properly' },
+          { key: 'd4_no_discharge_open_drains',   label: 'No wastewater discharge to open drains' },
+          { key: 'd5_effluent_monitoring',        label: 'Effluent quality monitoring conducted' },
+          { key: 'd6_drainage_free_blockages',    label: 'Drainage systems free from blockages' },
+          { key: 'd7_no_stagnant_wastewater',     label: 'No stagnant wastewater observed' },
         ],
       },
       {
-        title: 'Compliance with EPA Waste Management Guidelines',
+        title: 'E: Chemicals and Hazardous Materials Management',
         items: [
-          { key: 'waste_management_plan',         label: 'Do they have a waste management plan?' },
-          { key: 'waste_management_plan_evidence',label: 'If yes, show evidence', type: 'text', conditional: { key: 'waste_management_plan', value: 'Yes' } },
-          { key: 'placenta_pit',                  label: 'Do they have a placenta pit?' },
+          { key: 'e1_chemicals_labelled',       label: 'Chemicals properly labelled' },
+          { key: 'e2_msds_available',           label: 'Material Safety Data Sheets available' },
+          { key: 'e3_chemical_storage_secured', label: 'Chemical storage area secured' },
+          { key: 'e4_secondary_containment',    label: 'Secondary containment available' },
+          { key: 'e5_spill_kits',               label: 'Spill kits available' },
+          { key: 'e6_expired_chemicals_managed',label: 'Expired chemicals properly managed' },
+          { key: 'e7_chemical_inventory',       label: 'Chemical inventory maintained' },
         ],
       },
       {
-        title: 'Relevant Permits',
+        title: 'F: Laboratory and Mortuary Operations',
         items: [
-          { key: 'permit_epa',                    label: 'EPA Permits' },
-          { key: 'permit_hefra',                  label: 'HEFRA' },
-          { key: 'permit_ghs',                    label: 'GHS' },
-          { key: 'permit_district_assembly',      label: 'District Assembly Permits' },
-          { key: 'permit_company_registration',   label: 'Company Registration Certificate' },
-          { key: 'permit_awareness',              label: 'Permit Awareness' },
-          { key: 'valid_epa_permit_displayed',    label: 'Does the facility have valid EPA Permits and has it been displayed?' },
-          { key: 'staff_aware_permit_conditions', label: 'Show evidence that all staff is aware of the conditions of this permit', type: 'text' },
+          { key: 'f1_lab_waste_managed',            label: 'Laboratory waste properly managed' },
+          { key: 'f2_chemical_waste_segregated',    label: 'Chemical waste segregated and stored safely' },
+          { key: 'f3_biological_specimens_disposed',label: 'Biological specimens disposed safely' },
+          { key: 'f4_fume_hoods_operational',       label: 'Fume hoods operational' },
+          { key: 'f5_mortuary_waste_managed',       label: 'Mortuary waste properly managed' },
+          { key: 'f6_embalming_chemicals_stored',   label: 'Embalming chemicals stored safely' },
+          { key: 'f7_mortuary_wastewater_managed',  label: 'Mortuary wastewater properly managed' },
+        ],
+      },
+      {
+        title: 'G: Occupational Health and Safety',
+        items: [
+          { key: 'g1_adequate_ppe',           label: 'Adequate PPE available' },
+          { key: 'g2_staff_using_ppe',        label: 'Staff observed using PPE' },
+          { key: 'g3_fire_extinguishers',     label: 'Fire extinguishers available and serviced' },
+          { key: 'g4_fire_exits_marked',      label: 'Fire exits clearly marked' },
+          { key: 'g5_emergency_response_plan',label: 'Emergency response plan available' },
+          { key: 'g6_first_aid_kits',         label: 'First aid kits available' },
+          { key: 'g7_incident_register',      label: 'Incident register maintained' },
+          { key: 'g8_staff_trained_emergency',label: 'Staff trained in emergency response' },
+        ],
+      },
+      {
+        title: 'H: Water Supply and Sanitation',
+        items: [
+          { key: 'h1_potable_water',         label: 'Adequate potable water available' },
+          { key: 'h2_water_storage_clean',   label: 'Water storage facilities clean' },
+          { key: 'h3_water_quality_records', label: 'Water quality testing records available' },
+          { key: 'h4_toilets_clean',         label: 'Toilets clean and functional' },
+          { key: 'h5_handwashing_facilities',label: 'Handwashing facilities available' },
+          { key: 'h6_soap_sanitizers',       label: 'Soap and sanitizers available' },
+        ],
+      },
+      {
+        title: 'I: General Environmental Sanitation',
+        items: [
+          { key: 'i1_compound_clean',           label: 'Compound clean and well maintained' },
+          { key: 'i2_no_indiscriminate_dumping',label: 'No indiscriminate dumping observed' },
+          { key: 'i3_adequate_waste_bins',      label: 'Adequate number of waste bins provided' },
+          { key: 'i4_vegetation_maintained',    label: 'Vegetation properly maintained' },
+          { key: 'i5_vector_pest_control',      label: 'Vector and pest control programme in place' },
+          { key: 'i6_no_stagnant_water',        label: 'No stagnant water observed' },
         ],
       },
     ],
@@ -420,3 +475,42 @@ const PLACEHOLDER = (label) => ({
 MONITORING_CHECKLISTS.CI = PLACEHOLDER('Infrastructure')
 MONITORING_CHECKLISTS.CA = PLACEHOLDER('Agriculture')
 MONITORING_CHECKLISTS.CM = PLACEHOLDER('Mining')
+
+// ── Inspection Summary scoring ───────────────────────────────
+// Compliance Rate = compliant items ÷ applicable items, where an applicable
+// item is one marked 'Yes' or 'No' ('N/A' and blank are excluded). The rate
+// maps to a band using the thresholds below.
+export const COMPLIANCE_BANDS = [
+  { label: 'Excellent', min: 80, color: '#15803d' },
+  { label: 'Good',      min: 60, color: '#4d7c0f' },
+  { label: 'Fair',      min: 40, color: '#b45309' },
+  { label: 'Poor',      min: 0,  color: '#b91c1c' },
+]
+
+export function complianceBand(rate) {
+  if (rate == null || Number.isNaN(rate)) return null
+  return COMPLIANCE_BANDS.find((b) => rate >= b.min) ?? COMPLIANCE_BANDS[COMPLIANCE_BANDS.length - 1]
+}
+
+/**
+ * Tally Yes/No checklist answers across a checklist's sections.
+ * @param checklist  a MONITORING_CHECKLISTS entry
+ * @param data       flat map of item key -> answer
+ * @param isVisible  optional (item) => bool to skip hidden conditional rows
+ * @returns { applicable, compliant, rate, band }
+ */
+export function computeCompliance(checklist, data, isVisible = () => true) {
+  let applicable = 0
+  let compliant = 0
+  for (const section of checklist?.sections ?? []) {
+    for (const item of section.items) {
+      if (item.type === 'text' || item.type === 'select' || item.conditional) continue
+      if (!isVisible(item)) continue
+      const v = data?.[item.key]
+      if (v === 'Yes') { applicable++; compliant++ }
+      else if (v === 'No') { applicable++ }
+    }
+  }
+  const rate = applicable > 0 ? Math.round((compliant / applicable) * 100) : null
+  return { applicable, compliant, rate, band: complianceBand(rate) }
+}

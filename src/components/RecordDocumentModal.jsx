@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import { X, Printer, Edit2 } from 'lucide-react'
 import { getFacility } from '../firebase/facilities'
 import { SITE_VERIFICATION_CHECKLISTS } from '../data/siteVerificationChecklists'
-import { MONITORING_CHECKLISTS } from '../data/monitoringChecklists'
+import { MONITORING_CHECKLISTS, computeCompliance, complianceBand } from '../data/monitoringChecklists'
 import { DISTRICTS, ENFORCEMENT_ACTIONS } from '../data/constants'
 import { fmtDate } from '../utils/records'
 import { facilityPath } from '../utils/fileNumbers'
@@ -460,17 +460,15 @@ function MonitoringDoc({ record: r, facility: f }) {
   const sectorPrefix = f?.sector_prefix ?? r.sector_prefix ?? 'CI'
   const checklist = MONITORING_CHECKLISTS[sectorPrefix] ?? MONITORING_CHECKLISTS.CI
 
-  let yesCount = 0; let totalCount = 0
-  if (checklist) {
-    for (const section of checklist.sections) {
-      for (const item of section.items) {
-        if (item.type === 'text' || item.type === 'select' || item.conditional) continue
-        totalCount++
-        if (r[item.key] === 'Yes') yesCount++
-      }
-    }
-  }
-  const pct = totalCount > 0 ? Math.round((yesCount / totalCount) * 100) : null
+  // Prefer the snapshot stored with the record; recompute if it's an older one.
+  const live = computeCompliance(checklist, r)
+  const applicable = r.compliance_applicable ?? live.applicable
+  const compliant  = r.compliance_compliant ?? live.compliant
+  const pct        = r.compliance_rate ?? live.rate
+  const band       = r.compliance_status
+    ? { label: r.compliance_status }
+    : complianceBand(pct)
+  const team = Array.isArray(r.officer_team) ? r.officer_team : []
 
   return (
     <>
@@ -481,10 +479,11 @@ function MonitoringDoc({ record: r, facility: f }) {
         <Row label="Sector"            value={f?.sector ?? sectorPrefix} />
         <Row label="Location"          value={r.location ?? f?.location} />
         <Row label="Monitoring ID"     value={r.mon_id} />
-        {pct !== null && (
+        {pct != null && (
           <Row label="Compliance Score"
-            value={`${yesCount}/${totalCount} items compliant (${pct}%)`} />
+            value={`${compliant}/${applicable} items compliant (${pct}%)`} />
         )}
+        {band?.label && <Row label="Overall Status" value={band.label} />}
       </tbody></table>
 
       {checklist?.extraFields?.length > 0 && (
@@ -529,6 +528,39 @@ function MonitoringDoc({ record: r, facility: f }) {
           </table>
         </div>
       ))}
+
+      {(pct != null || r.corrective_timeline || r.follow_up_date) && (
+        <>
+          <SecTitle>Inspection Summary</SecTitle>
+          <table className="doc-table"><tbody>
+            <Row label="Total Applicable Items" value={applicable} />
+            <Row label="Total Compliant Items"  value={compliant} />
+            <Row label="Compliance Rate"        value={pct == null ? '—' : `${pct}%`} />
+            <Row label="Overall Compliance Status" value={band?.label} />
+            <Row label="Timeline for Corrective Action" value={r.corrective_timeline} />
+            <Row label="Follow-up Inspection Date" value={fmtDate(r.follow_up_date)} />
+          </tbody></table>
+        </>
+      )}
+
+      {r.recommendations && (
+        <>
+          <SecTitle>Recommendations</SecTitle>
+          <div className="doc-notes-block">{r.recommendations}</div>
+        </>
+      )}
+
+      {team.length > 0 && (
+        <>
+          <SecTitle>Team of Officers</SecTitle>
+          <table className="doc-table"><tbody>
+            <Row label="Lead Officer" value={r.officer_name} />
+            {team.map((o, i) => (
+              <Row key={o.uid ?? i} label={`Officer ${i + 2}`} value={o.name} />
+            ))}
+          </tbody></table>
+        </>
+      )}
 
       {r.notes && (
         <>

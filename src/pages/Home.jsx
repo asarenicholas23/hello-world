@@ -7,7 +7,9 @@ import {
   CheckSquare, AlertTriangle, XCircle, BarChart2, Clock,
   MessageSquare, GraduationCap, TrendingUp,
 } from 'lucide-react'
-import { getDashboardStats, getPermitStats, getMyActivityStats, getFinanceStats } from '../firebase/dashboard'
+import { getDashboardStats, getPermitStats, getMyActivityStats, getFinanceStats, getMonitoringComplianceRows } from '../firebase/dashboard'
+import { facilityComplianceRows } from '../data/compliance'
+import { ComplianceMiniCard } from '../components/ComplianceScorecard'
 import ClockInOutCard from '../components/ClockInOutCard'
 import {
   SECTORS,
@@ -66,6 +68,7 @@ export default function Home() {
   const [permitStats, setPermitStats]   = useState(null)
   const [myStats, setMyStats]           = useState(null)
   const [financeStats, setFinanceStats] = useState(null)
+  const [complianceRows, setComplianceRows] = useState(null)
 
   const [dateFrom, setDateFrom]     = useState('')
   const [dateTo, setDateTo]         = useState('')
@@ -88,6 +91,11 @@ export default function Home() {
     }
     if (hasFullDataAccess(role, dataAccess) || role === 'finance') {
       getFinanceStats(activeFrom, activeTo).then(setFinanceStats).catch(() => {})
+    }
+    if (hasFullDataAccess(role, dataAccess) || role === 'it') {
+      getMonitoringComplianceRows()
+        .then((r) => setComplianceRows(facilityComplianceRows(r)))
+        .catch(() => {})
     }
     if (user?.uid && role !== 'finance') {
       getMyActivityStats(user.uid, activeFrom, activeTo).then(setMyStats).catch(() => {})
@@ -393,6 +401,11 @@ export default function Home() {
             </div>
           </div>
         </>
+      )}
+
+      {/* ── Compliance scorecard entry ─────────────────────── */}
+      {(hasFullDataAccess(role, dataAccess) || role === 'it') && complianceRows?.length > 0 && (
+        <ComplianceMiniCard rows={complianceRows} onClick={() => navigate('/compliance')} />
       )}
 
       {/* ── Permit Analytics entry (admin / data access only) ── */}

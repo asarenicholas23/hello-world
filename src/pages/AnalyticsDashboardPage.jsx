@@ -536,6 +536,9 @@ export default function AnalyticsDashboardPage() {
         <button className="analytics-back-btn" onClick={() => navigate('/')}>
           <ArrowLeft size={16} /> Dashboard
         </button>
+        <button className="analytics-back-btn" onClick={() => navigate('/compliance')}>
+          <ShieldCheck size={16} /> Compliance Scorecard
+        </button>
         <div className="analytics-studio__search">
           <Search size={14} />
           <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search source data..." />

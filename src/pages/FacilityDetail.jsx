@@ -22,6 +22,7 @@ import SiteVerificationsTab from '../components/tabs/SiteVerificationsTab'
 import MonitoringTab from '../components/tabs/MonitoringTab'
 import MonitoringReportsTab from '../components/tabs/MonitoringReportsTab'
 import EnforcementTab from '../components/tabs/EnforcementTab'
+import FacilityComplianceCard from '../components/FacilityComplianceCard'
 import { decodeFileNumberParam, facilityPath } from '../utils/fileNumbers'
 
 const SUB_RECORD_TABS = [
@@ -340,6 +341,12 @@ export default function FacilityDetail() {
           </div>
         </div>
       </div>
+
+      <FacilityComplianceCard
+        fileNumber={fileNumber}
+        sectorPrefix={facility.sector_prefix}
+        onOpen={() => setActiveTab('monitoring')}
+      />
 
       <div style={{ fontSize: 12, color: '#9ca3af', display: 'flex', gap: 16, flexWrap: 'wrap' }}>
         <span>Registered: {formatTimestamp(facility.created_at)}</span>

@@ -273,6 +273,13 @@ export async function getFinanceStats(startMs, endMs) {
   }
 }
 
+// All monitoring visits across every facility, joined with facility name /
+// sector / district — the input for facility compliance scoring.
+export async function getMonitoringComplianceRows() {
+  const facilityMap = await buildFacilityMap()
+  return getCrossRecords('monitoring', facilityMap)
+}
+
 export async function buildFacilityMap() {
   const facilities = await listFacilities()
   return Object.fromEntries(

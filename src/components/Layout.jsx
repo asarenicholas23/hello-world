@@ -11,7 +11,7 @@ import {
   Users, ClipboardList, Activity, CheckSquare,
   LogOut, Menu, X, Leaf, Upload, Flag, BarChart2, TrendingUp,
   Briefcase, LayoutList, MessageSquare, GraduationCap, BellRing, Mail, Gauge,
-  WifiOff, RefreshCw, CheckCircle2, Clock, ChevronDown,
+  WifiOff, RefreshCw, CheckCircle2, Clock, ChevronDown, Target,
 } from 'lucide-react'
 
 // Nav is organised into labelled, collapsible groups so the sidebar stays
@@ -20,6 +20,7 @@ const ADMIN_NAV = [
   { section: 'Overview', items: [
     { label: 'Dashboard',        icon: LayoutDashboard, path: '/' },
     { label: 'Analytics',        icon: Gauge,           path: '/analytics' },
+    { label: 'Compliance',       icon: Target,          path: '/compliance' },
   ]},
   { section: 'Facilities & Records', items: [
     { label: 'Facilities',       icon: Building2,       path: '/facilities' },
@@ -134,6 +135,7 @@ function flattenNav(navGroups) {
 const PAGE_TITLE = {
   '/':                   'Dashboard',
   '/analytics':          'Analytics',
+  '/compliance':         'Compliance',
   '/facilities':         'Facilities',
   '/permits':            'Permits',
   '/permit-analytics':   'Permit Analytics',

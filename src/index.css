@@ -3490,3 +3490,66 @@ body {
   .doc-sig-grid { grid-template-columns: 1fr; }
   .doc-paper-header__meta { flex-direction: column; align-items: flex-start; }
 }
+
+/* ═══ Compliance Scorecard ═══════════════════════════════ */
+.cscore { display: flex; flex-direction: column; gap: 16px; }
+.cscore-filters { margin-bottom: 0; }
+
+.cscore-kpis {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;
+}
+.cscore-kpi {
+  display: flex; align-items: center; gap: 10px;
+  background: #fff; border: 1px solid #eef0f2; border-radius: 10px; padding: 12px 14px;
+}
+.cscore-kpi--link { cursor: pointer; }
+.cscore-kpi--link:hover { border-color: #d1d5db; }
+.cscore-kpi__icon {
+  width: 36px; height: 36px; border-radius: 9px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+}
+.cscore-kpi strong { display: block; font-size: 18px; font-weight: 700; color: #111827; line-height: 1.15; }
+.cscore-kpi span { display: block; font-size: 11px; color: #6b7280; margin-top: 2px; }
+
+.cscore-charts { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.cscore-chart { padding: 14px 16px; }
+.cscore-chart__title { font-size: 13px; font-weight: 700; color: #374151; margin-bottom: 10px; }
+.cscore-legend { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 8px; }
+.cscore-legend__item { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; color: #4b5563; }
+.cscore-legend__item i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+.cscore-legend__item em { color: #9ca3af; font-style: normal; }
+
+.cscore-table-card { padding: 14px 16px; }
+.cscore-table-wrap { overflow-x: auto; }
+.cscore-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.cscore-table th {
+  text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .03em;
+  color: #6b7280; font-weight: 700; padding: 8px 10px; border-bottom: 1px solid #e5e7eb;
+}
+.cscore-th--sort { cursor: pointer; user-select: none; }
+.cscore-th--sort:hover { color: #111827; }
+.cscore-table td { padding: 9px 10px; border-bottom: 1px solid #f3f4f6; vertical-align: middle; }
+.cscore-table tbody tr { cursor: pointer; }
+.cscore-table tbody tr:hover { background: #f9fafb; }
+.cscore-rank { font-weight: 700; color: #9ca3af; text-align: center; }
+.cscore-fac { font-weight: 600; color: #1f2937; }
+
+.cscore-score { display: flex; align-items: center; gap: 8px; }
+.cscore-score__track { flex: 1; min-width: 70px; height: 8px; border-radius: 999px; background: #f0f0f0; overflow: hidden; }
+.cscore-score__fill { height: 100%; border-radius: 999px; }
+.cscore-score__pct { font-weight: 700; font-size: 12px; color: #374151; min-width: 34px; text-align: right; }
+.cscore-band {
+  font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .02em;
+  padding: 2px 7px; border-radius: 999px; white-space: nowrap;
+}
+
+.cscore-mini-bar { display: flex; height: 8px; border-radius: 999px; overflow: hidden; margin: 6px 0; background: #f0f0f0; }
+.cscore-mini-seg { display: block; }
+
+.fac-compliance__row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.fac-compliance__pct { font-size: 22px; font-weight: 800; color: #111827; }
+
+@media (max-width: 900px) {
+  .cscore-kpis { grid-template-columns: repeat(2, 1fr); }
+  .cscore-charts { grid-template-columns: 1fr; }
+}

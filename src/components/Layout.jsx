@@ -19,7 +19,6 @@ import {
 const ADMIN_NAV = [
   { section: 'Overview', items: [
     { label: 'Dashboard',        icon: LayoutDashboard, path: '/' },
-    { label: 'Analytics',        icon: Gauge,           path: '/analytics' },
     { label: 'Compliance',       icon: Target,          path: '/compliance' },
   ]},
   { section: 'Facilities & Records', items: [
@@ -28,11 +27,9 @@ const ADMIN_NAV = [
     { label: 'Permit Analytics', icon: BarChart2,       path: '/permit-analytics' },
     { label: 'Finance',          icon: Banknote,        path: '/finance' },
   ]},
-  { section: 'Staff & Attendance', items: [
+  { section: 'Staff', items: [
     { label: 'Staff',            icon: Users,           path: '/staff' },
     { label: 'All Assignments',  icon: LayoutList,      path: '/all-assignments' },
-    { label: 'My Attendance',    icon: Clock,           path: '/my-attendance' },
-    { label: 'Attendance',       icon: ClipboardList,   path: '/attendance' },
   ]},
   { section: 'Field Data', items: [
     { label: 'Import Data',      icon: Upload,          path: '/import' },
@@ -61,7 +58,6 @@ const FIELD_NAV = [
   ]},
   { section: 'My Work', items: [
     { label: 'My Assignments',    icon: Briefcase,       path: '/my-assignments' },
-    { label: 'My Attendance',     icon: Clock,           path: '/my-attendance' },
   ]},
   { section: 'Community', items: [
     { label: 'Complaints',        icon: MessageSquare,   path: '/complaints' },
@@ -82,6 +78,39 @@ const DATA_ACCESS_NAV = ADMIN_NAV
   }))
   .filter((group) => group.items.length > 0)
 
+// I.T is the only role with the clock-in flow (My Attendance / Attendance)
+// and the Analytics dashboard — everyone else has those stripped out above.
+const IT_NAV = [
+  { section: 'Overview', items: [
+    { label: 'Dashboard',        icon: LayoutDashboard, path: '/' },
+    { label: 'Analytics',        icon: Gauge,           path: '/analytics' },
+    { label: 'Compliance',       icon: Target,          path: '/compliance' },
+  ]},
+  { section: 'Facilities & Records', items: [
+    { label: 'Facilities',       icon: Building2,       path: '/facilities' },
+    { label: 'Permits',          icon: FileText,        path: '/permits' },
+    { label: 'Permit Analytics', icon: BarChart2,       path: '/permit-analytics' },
+    { label: 'Finance',          icon: Banknote,        path: '/finance' },
+  ]},
+  { section: 'Staff & Attendance', items: [
+    { label: 'All Assignments',  icon: LayoutList,      path: '/all-assignments' },
+    { label: 'My Attendance',    icon: Clock,           path: '/my-attendance' },
+    { label: 'Attendance',       icon: ClipboardList,   path: '/attendance' },
+  ]},
+  { section: 'Field Data', items: [
+    { label: 'Import Data',      icon: Upload,          path: '/import' },
+    { label: 'Field Reports',    icon: Flag,            path: '/field-reports' },
+    { label: 'Visit Reports',    icon: TrendingUp,      path: '/visit-reports' },
+    { label: 'Complaints',       icon: MessageSquare,   path: '/complaints' },
+    { label: 'Env. Education',   icon: GraduationCap,   path: '/env-education' },
+  ]},
+  { section: 'Communications', items: [
+    { label: 'SMS',              icon: BellRing,        path: '/sms' },
+    { label: 'Email',            icon: Mail,            path: '/email' },
+    { label: 'Chat with Osei',   icon: MessageSquare,   path: '/chat' },
+  ]},
+]
+
 const NAV_BY_ROLE = {
   director:          ADMIN_NAV,
   admin:             ADMIN_NAV,
@@ -89,6 +118,7 @@ const NAV_BY_ROLE = {
   officer:           ADMIN_NAV,
   assistant_officer: FIELD_NAV,
   junior_officer:    FIELD_NAV,
+  it:                IT_NAV,
   finance: [
     { section: 'Overview', items: [
       { label: 'Dashboard',  icon: LayoutDashboard, path: '/' },
@@ -99,7 +129,6 @@ const NAV_BY_ROLE = {
     ]},
     { section: 'My Work', items: [
       { label: 'Field Reports', icon: Flag,          path: '/field-reports' },
-      { label: 'My Attendance', icon: Clock,         path: '/my-attendance' },
     ]},
     { section: 'Support', items: [
       { label: 'Chat with Osei', icon: MessageSquare, path: '/chat' },
@@ -111,7 +140,7 @@ const NAV_BY_ROLE = {
 // load — anything not the primary daily-use group. Persisted per-user once
 // they expand/collapse a section themselves (see NAV_STORAGE_KEY below).
 const DEFAULT_COLLAPSED_SECTIONS = [
-  'Staff & Attendance', 'Field Data', 'Communications', 'My Work', 'Community', 'Support',
+  'Staff', 'Staff & Attendance', 'Field Data', 'Communications', 'My Work', 'Community', 'Support',
 ]
 
 const NAV_STORAGE_KEY = 'epa_nav_collapsed_sections'
@@ -195,6 +224,7 @@ function pickMobileTabs(navItems, role) {
     ...flattenNav(ADMIN_NAV),
     ...flattenNav(FIELD_NAV),
     ...flattenNav(NAV_BY_ROLE.finance ?? []),
+    ...flattenNav(NAV_BY_ROLE.it ?? []),
   ]
   const byPath = new Map(allKnownItems.map((item) => [item.path, item]))
   return paths.map((path) => byPath.get(path)).filter(Boolean)
@@ -226,11 +256,13 @@ export default function Layout() {
       pushToast(`${title}${body ? ` — ${body}` : ''}`, 'success', 6000)
     })
   }, [pushToast])
-  const navItems = ADMIN_VIEW_ROLES.has(staff?.role)
-    ? ADMIN_NAV
-    : staff?.data_access
-      ? DATA_ACCESS_NAV
-      : (NAV_BY_ROLE[staff?.role] ?? [])
+  const navItems = staff?.role === 'it'
+    ? IT_NAV
+    : ADMIN_VIEW_ROLES.has(staff?.role)
+      ? ADMIN_NAV
+      : staff?.data_access
+        ? DATA_ACCESS_NAV
+        : (NAV_BY_ROLE[staff?.role] ?? [])
   const mobileTabItems = pickMobileTabs(navItems, staff?.role)
   const initials = staff?.name
     ?.split(' ')

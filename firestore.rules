@@ -18,6 +18,7 @@ service cloud.firestore {
     function isAssistantOfficer() { return isAuthed() && staffRole() == 'assistant_officer'; }
     function isJuniorOfficer()    { return isAuthed() && staffRole() == 'junior_officer'; }
     function isFinance()          { return isAuthed() && staffRole() == 'finance'; }
+    function isIT()               { return isAuthed() && staffRole() == 'it'; }
 
     // Any role that does field work
     function isFieldRole() {
@@ -176,16 +177,17 @@ service cloud.firestore {
     // necessarily a `create` and the second (clock-out) is an `update` —
     // this lets us make clock-in fields immutable and clock-out settable
     // exactly once, without a transaction.
+    // Only the I.T role has the clock-in flow — restricted here too, not
+    // just hidden in the UI.
     match /attendance/{id} {
-      allow read: if isAuthed()
-                  && (resource == null || resource.data.staff_uid == request.auth.uid || canEditAllEntries());
+      allow read: if isIT();
 
-      allow create: if isAuthed()
+      allow create: if isIT()
                     && request.resource.data.staff_uid == request.auth.uid
                     && request.resource.data.clock_in_at == request.time
                     && request.resource.data.clock_out_at == null;
 
-      allow update: if isAuthed()
+      allow update: if isIT()
                     && resource.data.staff_uid == request.auth.uid
                     && request.resource.data.staff_uid           == resource.data.staff_uid
                     && request.resource.data.date                == resource.data.date

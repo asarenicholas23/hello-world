@@ -13,7 +13,7 @@ import { listEnvEducation } from '../firebase/envEducation'
 import { listFieldReports } from '../firebase/fieldReports'
 import { buildVisitRows } from './VisitReportsPage'
 import {
-  COMPLIANCE_STATUS, DISTRICTS, ENFORCEMENT_ACTIONS, hasFullDataAccess,
+  COMPLIANCE_STATUS, DISTRICTS, ENFORCEMENT_ACTIONS,
   PAYMENT_TYPES, SECTOR_COLORS, SECTORS,
 } from '../data/constants'
 import { useAuth } from '../context/AuthContext'
@@ -229,8 +229,8 @@ function download(content, filename, type = 'text/plain') {
 
 export default function AnalyticsDashboardPage() {
   const navigate = useNavigate()
-  const { role, dataAccess } = useAuth()
-  const canView = hasFullDataAccess(role, dataAccess) || role === 'it'
+  const { role } = useAuth()
+  const canView = role === 'it'
 
   const [facilities, setFacilities] = useState([])
   const [records, setRecords] = useState({ finance: [], permits: [], enforcement: [], education: [], monitoring: [], walkIns: [], enforcementVisits: [], visitOutcomes: [] })
@@ -523,7 +523,7 @@ export default function AnalyticsDashboardPage() {
   )
 
   if (!canView) {
-    return <div className="empty-state">Analytics access is available to I.T and data-access accounts.</div>
+    return <div className="empty-state">Analytics access is available to I.T accounts only.</div>
   }
 
   const dateLabel = dateFrom || dateTo

@@ -20,7 +20,8 @@ function monthStart() {
 }
 
 export default function MyAttendancePage() {
-  const { user, staff } = useAuth()
+  const { user, staff, role } = useAuth()
+  const canView = role === 'it'
 
   const [rows, setRows]       = useState([])
   const [loading, setLoading] = useState(true)
@@ -31,11 +32,12 @@ export default function MyAttendancePage() {
   const [activeTo, setActiveTo]     = useState(dateStr())
 
   useEffect(() => {
+    if (!canView) return
     listAttendanceForStaff(user.uid, { from: activeFrom, to: activeTo })
       .then(setRows)
       .catch(() => setError('Failed to load attendance history.'))
       .finally(() => setLoading(false))
-  }, [user.uid, activeFrom, activeTo])
+  }, [canView, user.uid, activeFrom, activeTo])
 
   function applyDateFilter() { setActiveFrom(dateFrom || null); setActiveTo(dateTo || null) }
   function clearDateFilter() {
@@ -46,6 +48,14 @@ export default function MyAttendancePage() {
   const daysPresent   = rows.length
   const lateCount     = rows.filter((r) => getAttendanceStatus(r) === 'late').length
   const missedCount   = rows.filter((r) => getAttendanceStatus(r) === 'no_clock_out').length
+
+  if (!canView) {
+    return (
+      <div className="page-inner studio-skin">
+        <div className="empty-state">You don&apos;t have access to this page.</div>
+      </div>
+    )
+  }
 
   return (
     <div className="page-inner studio-skin">

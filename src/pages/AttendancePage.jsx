@@ -6,7 +6,7 @@ import { listAllAttendance } from '../firebase/attendance'
 import { listStaff } from '../firebase/staff'
 import { getAttendanceStatus, ATTENDANCE_STATUS_LABEL } from '../utils/attendance'
 import { fmtTime, dateStr } from '../utils/records'
-import { ROLE_LABEL, hasFullDataAccess } from '../data/constants'
+import { ROLE_LABEL } from '../data/constants'
 
 const STATUS_STYLE = {
   on_time:      { bg: '#ecfdf5', color: '#166534' },
@@ -36,7 +36,7 @@ function weekdaysInRange(from, to) {
 }
 
 export default function AttendancePage() {
-  const { role, dataAccess } = useAuth()
+  const { role } = useAuth()
   const navigate = useNavigate()
 
   const [rows, setRows]     = useState([])
@@ -51,7 +51,7 @@ export default function AttendancePage() {
   const [staffFilter, setStaffFilter] = useState('')
   const [onlyIssues, setOnlyIssues]   = useState(false)
 
-  const canView = hasFullDataAccess(role, dataAccess)
+  const canView = role === 'it'
 
   useEffect(() => {
     if (!canView) return

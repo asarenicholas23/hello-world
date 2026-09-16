@@ -122,7 +122,7 @@ export default function Home() {
         </div>
       </div>
 
-      <ClockInOutCard />
+      {role === 'it' && <ClockInOutCard />}
 
       {/* ── Date range filter ───────────────────────────── */}
       {(showMyActivity || showFinanceOverview) && (

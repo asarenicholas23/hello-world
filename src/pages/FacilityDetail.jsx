@@ -4,7 +4,7 @@ import {
   ArrowLeft, Edit2, Trash2, MapPin, Phone, Mail, User,
   Building2, Hash, FileText, Banknote, ClipboardList,
   Activity, ShieldAlert, AlertCircle, ExternalLink, CheckSquare,
-  UserCheck, Clock, FileCheck,
+  UserCheck, Clock, FileCheck, FileSignature,
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { getFacility, deleteFacility } from '../firebase/facilities'
@@ -23,6 +23,7 @@ import MonitoringTab from '../components/tabs/MonitoringTab'
 import MonitoringReportsTab from '../components/tabs/MonitoringReportsTab'
 import EnforcementTab from '../components/tabs/EnforcementTab'
 import FacilityComplianceCard from '../components/FacilityComplianceCard'
+import ScheduleModal from '../components/ScheduleModal'
 import { decodeFileNumberParam, facilityPath } from '../utils/fileNumbers'
 
 const SUB_RECORD_TABS = [
@@ -67,6 +68,9 @@ export default function FacilityDetail() {
 
   // Workflow state
   const [workflowOpen, setWorkflowOpen]     = useState(false)
+
+  // Schedule generator
+  const [scheduleOpen, setScheduleOpen]     = useState(false)
 
   // Assignment state
   const [dialogOpen, setDialogOpen]         = useState(false)
@@ -214,6 +218,9 @@ export default function FacilityDetail() {
           <div className="action-buttons">
             <button className="btn btn--ghost btn--sm" onClick={() => navigate(facilityPath(fileNumber, '/edit'))}>
               <Edit2 size={14} /> Edit
+            </button>
+            <button className="btn btn--ghost btn--sm" onClick={() => setScheduleOpen(true)}>
+              <FileSignature size={14} /> Generate Schedule
             </button>
             {role === 'admin' && (
               <button
@@ -390,6 +397,10 @@ export default function FacilityDetail() {
           onClose={() => setWorkflowOpen(false)}
           onUpdated={(updated) => setFacility(updated)}
         />
+      )}
+
+      {scheduleOpen && (
+        <ScheduleModal facility={facility} fileNumber={fileNumber} onClose={() => setScheduleOpen(false)} />
       )}
 
       <AssignOfficerDialog

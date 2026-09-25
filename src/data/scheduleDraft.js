@@ -1,17 +1,19 @@
-// Build an editable "Schedule to the Environmental Permit" draft from a
-// permit record, the facility profile, and the facility's latest screening
-// record — the same "auto-fill from what we already captured, then
-// hand-edit" approach used for monitoring reports (see
-// monitoringReportDraft.js). Schedules are site-specific, so this is a
-// starting point the officer reviews and edits in ScheduleModal before
-// printing, not a final document.
+// Build an editable "Schedule to the Environmental Permit" draft from the
+// facility profile and the facility's latest screening record — the same
+// "auto-fill from what we already captured, then hand-edit" approach used
+// for monitoring reports (see monitoringReportDraft.js).
 //
-// Site-verification checklists aren't used as a source here: their field
-// keys vary per sector/sub-type (e.g. CE vs CE_FUEL_STATION vs PP), so
-// there's no single reliable shape to pull from generically the way
+// This is a facility-level document, not tied to any one saved permit
+// record: an officer drafts a schedule while preparing a permit (new issue
+// or renewal), often before that permit's number/dates are finalised. So
+// Section 2.0 (Permit Identification Details) is left blank for manual
+// entry rather than pulled from an existing permit sub-record.
+//
+// Site-verification checklists aren't used as a source here either: their
+// field keys vary per sector/sub-type (e.g. CE vs CE_FUEL_STATION vs PP),
+// so there's no single reliable shape to pull from generically the way
 // screenings (a fixed field set for every sector) can be.
 
-import { fmtDate } from '../utils/records'
 import { DISTRICTS, REGION } from './constants'
 import {
   IMPACT_MANAGEMENT_DEFAULTS, MONITORING_TABLE_DEFAULTS,
@@ -28,23 +30,6 @@ function sub(text, vars) {
   return String(text || '').replace(/\{\{(\w+)\}\}/g, (_, k) => vars[k] ?? '')
 }
 
-function addMonths(date, n) {
-  const d = new Date(date)
-  d.setMonth(d.getMonth() + n)
-  return d
-}
-
-function monthsBetween(from, to) {
-  if (!from || !to) return null
-  const months = (to.getFullYear() - from.getFullYear()) * 12 + (to.getMonth() - from.getMonth())
-  return months > 0 ? months : null
-}
-
-function toDate(ts) {
-  if (!ts) return null
-  return ts.toDate ? ts.toDate() : new Date(ts)
-}
-
 function cloneRows(rows) {
   return rows.map((r) => ({ ...r, management: [...(r.management ?? [])] }))
 }
@@ -53,8 +38,8 @@ function cloneMonitoringRows(rows) {
   return rows.map((r) => ({ ...r, parameter: [...(r.parameter ?? [])] }))
 }
 
-export function buildScheduleDraft(permit = {}, facility = null, screening = null) {
-  const entityName = facility?.name || permit.facility_name || facility?.file_number || 'the entity'
+export function buildScheduleDraft(facility = null, screening = null) {
+  const entityName = facility?.name || facility?.file_number || 'the entity'
   const district = districtName(facility?.district)
   const region = facility?.region || REGION
   const vars = { ENTITY: entityName.toUpperCase(), DISTRICT: district, REGION: region }
@@ -71,14 +56,15 @@ export function buildScheduleDraft(permit = {}, facility = null, screening = nul
     typeOfUndertaking: screening?.type_of_undertaking || facility?.type_of_undertaking || '',
   }
 
-  // ── 2.0 Permit Identification Details ─────────────────────
+  // ── 2.0 Permit Identification Details — left blank; this schedule isn't
+  // tied to a saved permit record, so the officer fills these in by hand. ──
   const permitDetails = {
     fileNo: facility?.file_number || '',
-    permitNo: permit.permit_number || '',
-    dateOfIssue: fmtDate(permit.issue_date),
-    dateOfExpiry: fmtDate(permit.expiry_date),
-    effectiveDate: fmtDate(permit.effective_date),
-    placeOfIssue: permit.issue_location || 'Ashanti Regional Office',
+    permitNo: '',
+    dateOfIssue: '',
+    dateOfExpiry: '',
+    effectiveDate: '',
+    placeOfIssue: 'Ashanti Regional Office',
   }
 
   // ── 3.0 Legal Basis (composed) ─────────────────────────────
@@ -137,17 +123,6 @@ export function buildScheduleDraft(permit = {}, facility = null, screening = nul
   // ── Additional Directives ───────────────────────────────────
   const additionalDirectives = [...(EXTRA_DIRECTIVES[sectorPrefix] ?? [])]
 
-  // ── 12.0 Validity Period + related computed dates ───────────
-  const effective = toDate(permit.effective_date)
-  const expiry = toDate(permit.expiry_date)
-  const validityMonths = monthsBetween(effective, expiry)
-  const validityPeriodText = effective && expiry
-    ? `The Permit shall be valid for a period of ${validityMonths ? `${validityMonths} months` : 'the period stated above'} effective from ` +
-      `${fmtDate(permit.effective_date)} and shall expire on ${fmtDate(permit.expiry_date)}.`
-    : 'The validity period will be calculated once the effective and expiry dates are set on the permit.'
-  const renewalDueDate = expiry ? fmtDate({ toDate: () => addMonths(expiry, -3) }) : ''
-  const nextAerDueDate = effective ? fmtDate({ toDate: () => addMonths(effective, 12) }) : ''
-
   return {
     entityProfile,
     permitDetails,
@@ -160,21 +135,19 @@ export function buildScheduleDraft(permit = {}, facility = null, screening = nul
     monitoringRows,
     additionalDirectives,
 
-    validityPeriodText,
-    renewalDueDate,
-    nextAerDueDate,
+    // 12.0 — left as a fill-in-the-blank template; no permit dates exist yet.
+    validityPeriodText:
+      'The Permit shall be valid for a period of ____ months effective from ____________ and shall expire on ____________.',
 
     legalRequirements: [...LEGAL_REQUIREMENTS],
     actsOfParliament: [...ACTS_OF_PARLIAMENT],
     regulationsList: [...REGULATIONS_LIST],
     standardsList: [...STANDARDS_LIST],
 
-    environmentalReporting: sub(STANDARD_CLAUSES.environmentalReporting, vars) +
-      (nextAerDueDate ? ` The next report should be submitted before ${nextAerDueDate} and every twelve (12) months thereafter.` : ''),
+    environmentalReporting: sub(STANDARD_CLAUSES.environmentalReporting, vars),
     rightOfEntry: sub(STANDARD_CLAUSES.rightOfEntry, vars),
     notificationChanges: sub(STANDARD_CLAUSES.notificationChanges, vars),
-    renewal: sub(STANDARD_CLAUSES.renewal, vars) +
-      (renewalDueDate ? ` For this permit, the renewal application is due by ${renewalDueDate}.` : ''),
+    renewal: sub(STANDARD_CLAUSES.renewal, vars),
     permitDisplay: sub(STANDARD_CLAUSES.permitDisplay, vars),
     permitAwareness: sub(STANDARD_CLAUSES.permitAwareness, vars),
     permitLimitation: sub(STANDARD_CLAUSES.permitLimitation, vars),

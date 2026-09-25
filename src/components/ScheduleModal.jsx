@@ -309,7 +309,7 @@ const MONITORING_FIELDS = [
   { key: 'responsibility', label: 'Responsibility', type: 'text' },
 ]
 
-export default function ScheduleModal({ permit, facility: facilityProp, fileNumber, onClose }) {
+export default function ScheduleModal({ facility: facilityProp, fileNumber, onClose }) {
   const [facility, setFacility] = useState(facilityProp ?? null)
   const [screening, setScreening] = useState(null)
   const [loadingContext, setLoadingContext] = useState(!facilityProp)
@@ -336,7 +336,7 @@ export default function ScheduleModal({ permit, facility: facilityProp, fileNumb
     return () => { alive = false }
   }, [fileNumber, facilityProp])
 
-  const draft = useMemo(() => buildScheduleDraft(permit, facility, screening), [permit, facility, screening])
+  const draft = useMemo(() => buildScheduleDraft(facility, screening), [facility, screening])
 
   const [form, setForm] = useState(draft)
   // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -408,7 +408,7 @@ export default function ScheduleModal({ permit, facility: facilityProp, fileNumb
             <p className="mrep-hint">
               {loadingContext
                 ? 'Loading facility and screening data…'
-                : 'Draft generated from the facility profile, this permit, and the facility’s latest screening record — edit any section below, then Print / PDF or Copy text.'}
+                : 'Draft generated from the facility profile and its latest screening record — fill in the permit details in Section 2.0, edit any other section below, then Print / PDF or Copy text.'}
             </p>
 
             <div className="mrep-sec">1.0 Entity Profile</div>
@@ -532,7 +532,7 @@ export default function ScheduleModal({ permit, facility: facilityProp, fileNumb
             </details>
 
             <div className="mrep-hint" style={{ marginTop: 4 }}>
-              Environmental Protection Authority – Konongo Area Office · {fmtDate(permit?.issue_date)}
+              Environmental Protection Authority – Konongo Area Office · Draft prepared {fmtDate(new Date())}
             </div>
           </div>
         </div>

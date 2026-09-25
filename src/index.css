@@ -3564,3 +3564,18 @@ body {
 .mrep-label__hint { text-transform: none; font-weight: 400; color: #9ca3af; letter-spacing: 0; }
 .mrep-textarea--good { border-color: #bbf7d0; background: #f0fdf4; }
 .mrep-textarea--bad  { border-color: #fecaca; background: #fef2f2; }
+
+/* ═══ Generate Schedule modal ═══════════════════════════ */
+.sched-table { margin: 6px 0 14px; display: flex; flex-direction: column; gap: 10px; }
+.sched-row { border: 1px solid #e5e7eb; border-radius: 8px; padding: 12px; background: #fafafa; }
+.sched-row__grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; }
+.sched-details { margin: 16px 0; border: 1px solid #e5e7eb; border-radius: 8px; padding: 10px 12px; }
+.sched-details summary {
+  cursor: pointer; font-size: 12px; font-weight: 700; color: #6b7280;
+  text-transform: uppercase; letter-spacing: .02em;
+}
+.sched-details[open] summary { margin-bottom: 10px; }
+
+@media (max-width: 600px) {
+  .sched-row__grid { grid-template-columns: 1fr; }
+}

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Edit2, Trash2, AlertCircle, Paperclip, PackageCheck } from 'lucide-react'
+import { Plus, Edit2, Trash2, AlertCircle, Paperclip, PackageCheck, FileSignature } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { listSubRecords, deleteSubRecord, updateSubRecord } from '../../firebase/subrecords'
 import { fmtDate, permitStatus } from '../../utils/records'
@@ -8,6 +8,7 @@ import { normalizeAttachmentUrl } from '../../utils/attachments'
 import { facilityPath } from '../../utils/fileNumbers'
 import { ADMIN_ROLES, FIELD_ROLES, hasFullDataAccess } from '../../data/constants'
 import Spinner from '../Spinner'
+import ScheduleModal from '../ScheduleModal'
 
 const STATUS_LABELS = { active: 'Active', expiring: 'Expiring Soon', expired: 'Expired' }
 const STATUS_COLORS = {
@@ -25,6 +26,7 @@ export default function PermitsTab({ fileNumber, facilityOfficer }) {
   const [error, setError]           = useState('')
   const [deletingId, setDeletingId] = useState(null)
   const [togglingId, setTogglingId] = useState(null)
+  const [scheduleRecord, setScheduleRecord] = useState(null)
 
   const canAdd  = ADMIN_ROLES.has(role) || dataAccess || (FIELD_ROLES.has(role) && user?.uid === facilityOfficer)
   const canEdit = hasFullDataAccess(role, dataAccess)
@@ -64,6 +66,10 @@ export default function PermitsTab({ fileNumber, facilityOfficer }) {
 
   return (
     <div>
+      {scheduleRecord && (
+        <ScheduleModal permit={scheduleRecord} fileNumber={fileNumber} onClose={() => setScheduleRecord(null)} />
+      )}
+
       {canAdd && (
         <div className="tab-toolbar">
           <button className="btn btn--primary btn--sm" onClick={() => navigate(facilityPath(fileNumber, '/permits/new'))}>
@@ -126,6 +132,9 @@ export default function PermitsTab({ fileNumber, facilityOfficer }) {
                     </button>
                     <button className="btn btn--ghost btn--xs" onClick={() => navigate(facilityPath(fileNumber, `/permits/${r.id}/edit`))}>
                       <Edit2 size={12} /> Edit
+                    </button>
+                    <button className="btn btn--ghost btn--xs" onClick={() => setScheduleRecord(r)}>
+                      <FileSignature size={12} /> Generate Schedule
                     </button>
                     {canDelete && (
                       <button className="btn btn--ghost btn--xs btn--danger"

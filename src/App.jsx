@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { Capacitor } from '@capacitor/core'
 import { AuthProvider } from './context/AuthContext'
 import { SyncProvider } from './context/SyncContext'
 import ProtectedRoute from './components/ProtectedRoute'
@@ -94,8 +95,8 @@ export default function App() {
               <Route path="staff/new" element={<StaffForm />} />
               <Route path="staff/:uid/edit" element={<StaffForm />} />
 
-              {/* Admin utilities */}
-              <Route path="import" element={<ImportPage />} />
+              {/* Admin utilities — bulk import is desktop-only, not in the mobile app */}
+              <Route path="import" element={Capacitor.isNativePlatform() ? <Navigate to="/" replace /> : <ImportPage />} />
 
               {/* Field Reports */}
               <Route path="field-reports" element={<FieldReportsPage />} />

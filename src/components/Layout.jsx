@@ -1,15 +1,17 @@
 import { useState, useEffect } from 'react'
 import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom'
+import { Capacitor } from '@capacitor/core'
 import { useAuth } from '../context/AuthContext'
 import { useSync } from '../context/SyncContext'
 import { ADMIN_VIEW_ROLES, ROLE_LABEL } from '../data/constants'
 import NotificationBell from './NotificationBell'
 import ChatWidget from './ChatWidget'
+import epaLogo from '../assets/epa-logo-1-removebg-preview.png'
 import { onForegroundMessage } from '../firebase/fcm'
 import {
   LayoutDashboard, Building2, FileText, Banknote,
   Users, ClipboardList, Activity, CheckSquare,
-  LogOut, Menu, X, Leaf, Upload, Flag, BarChart2, TrendingUp,
+  LogOut, Menu, X, Upload, Flag, BarChart2, TrendingUp,
   Briefcase, LayoutList, MessageSquare, GraduationCap, BellRing, Mail, Gauge,
   WifiOff, RefreshCw, CheckCircle2, Clock, ChevronDown, Target,
 } from 'lucide-react'
@@ -161,6 +163,16 @@ function flattenNav(navGroups) {
   return navGroups.flatMap((group) => group.items)
 }
 
+// Desktop-only tools hidden from the mobile app (see App.jsx for the route guard).
+const NATIVE_HIDDEN_PATHS = new Set(['/import'])
+
+function withoutNativeHidden(navGroups) {
+  if (!Capacitor.isNativePlatform()) return navGroups
+  return navGroups
+    .map((group) => ({ ...group, items: group.items.filter((item) => !NATIVE_HIDDEN_PATHS.has(item.path)) }))
+    .filter((group) => group.items.length > 0)
+}
+
 const PAGE_TITLE = {
   '/':                   'Dashboard',
   '/analytics':          'Analytics',
@@ -256,13 +268,13 @@ export default function Layout() {
       pushToast(`${title}${body ? ` — ${body}` : ''}`, 'success', 6000)
     })
   }, [pushToast])
-  const navItems = staff?.role === 'it'
+  const navItems = withoutNativeHidden(staff?.role === 'it'
     ? IT_NAV
     : ADMIN_VIEW_ROLES.has(staff?.role)
       ? ADMIN_NAV
       : staff?.data_access
         ? DATA_ACCESS_NAV
-        : (NAV_BY_ROLE[staff?.role] ?? [])
+        : (NAV_BY_ROLE[staff?.role] ?? []))
   const mobileTabItems = pickMobileTabs(navItems, staff?.role)
   const initials = staff?.name
     ?.split(' ')
@@ -288,7 +300,7 @@ export default function Layout() {
 
       <aside className={`sidebar${sidebarOpen ? ' sidebar--open' : ''}`}>
         <div className="sidebar__brand">
-          <Leaf size={22} className="brand-icon" />
+          <img src={epaLogo} alt="" className="brand-icon" />
           <span className="brand-text">EPA Permit</span>
           <button className="sidebar__close" onClick={() => setSidebarOpen(false)}>
             <X size={18} />
@@ -379,7 +391,7 @@ export default function Layout() {
           </button>
           <NotificationBell uid={staff?.uid ?? staff?.id} />
           <span
-            className="badge"
+            className="badge topbar__role"
             style={{
               background: ROLE_COLOR[staff?.role] ?? '#374151',
               color: '#fff',

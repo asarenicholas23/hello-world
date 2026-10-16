@@ -17,8 +17,8 @@ messaging.onBackgroundMessage((payload) => {
   const body  = payload.notification?.body  ?? ''
   self.registration.showNotification(title, {
     body,
-    icon:  '/favicon.svg',
-    badge: '/favicon.svg',
+    icon:  '/epa-logo-192.png',
+    badge: '/notification-badge.png',
     data:  { url: '/' },
   })
 })

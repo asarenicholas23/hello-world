@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate, Navigate } from 'react-router-dom'
-import { Eye, EyeOff, Leaf, AlertCircle, LogIn } from 'lucide-react'
+import { Eye, EyeOff, AlertCircle, LogIn } from 'lucide-react'
+import epaLogo from '../assets/epa-logo-1-removebg-preview.png'
 import { useAuth } from '../context/AuthContext'
 
 export default function Login() {
@@ -36,9 +37,7 @@ export default function Login() {
     <div className="login-page">
       <div className="login-card">
         <div className="login-brand">
-          <div className="login-brand__icon">
-            <Leaf size={32} color="#4ade80" />
-          </div>
+          <img className="login-brand__logo" src={epaLogo} alt="Ghana EPA logo" />
           <div className="login-brand__title">EPA Permit Management</div>
           <div className="login-brand__sub">Konongo Area Office · Ghana EPA</div>
         </div>

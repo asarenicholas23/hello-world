@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
+import { Capacitor } from '@capacitor/core'
 import { Building2, MapPin, Phone, Plus, Search, User, AlertCircle, Clock, Trash2, CheckCircle, LayoutGrid, Table2, MessageSquare, PackageCheck, Download } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useSync } from '../context/SyncContext'
@@ -8,6 +9,12 @@ import { getPermitDetailsMap, getPermitReadySet } from '../firebase/dashboard'
 import { SECTORS, DISTRICTS, SECTOR_COLORS, ADMIN_ROLES } from '../data/constants'
 import { facilityPath } from '../utils/fileNumbers'
 import Spinner from '../components/Spinner'
+
+// The mobile app defaults to cards (the table needs a wide screen) and keeps its
+// own saved preference so it doesn't inherit the desktop choice.
+const IS_NATIVE = Capacitor.isNativePlatform()
+const VIEW_STORAGE_KEY = IS_NATIVE ? 'facilities-view-native' : 'facilities-view'
+const DEFAULT_VIEW = IS_NATIVE ? 'cards' : 'table'
 
 const SORT_OPTIONS = [
   { value: 'newest',  label: 'Newest first' },
@@ -126,13 +133,13 @@ export default function Facilities() {
   const [readySetLoading, setReadySetLoading] = useState(false)
   const [readyFilter, setReadyFilter]         = useState(false)
   const [sort, setSort]   = useState('newest')
-  const [view, setView]   = useState(() => localStorage.getItem('facilities-view') ?? 'table')
+  const [view, setView]   = useState(() => localStorage.getItem(VIEW_STORAGE_KEY) ?? DEFAULT_VIEW)
   const [selectedIds, setSelectedIds] = useState([])
   const [deletingSelected, setDeletingSelected] = useState(false)
 
   function toggleView(v) {
     setView(v)
-    localStorage.setItem('facilities-view', v)
+    localStorage.setItem(VIEW_STORAGE_KEY, v)
   }
 
   useEffect(() => {

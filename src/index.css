@@ -37,7 +37,12 @@ body {
   padding: 20px 18px 16px;
   border-bottom: 1px solid #1e293b;
 }
-.brand-icon { color: #22c55e; }
+/* EPA logo sits on a white disc so its colours read on the dark sidebar. */
+.brand-icon {
+  width: 34px; height: 34px; flex-shrink: 0;
+  object-fit: contain;
+  background: #fff; border-radius: 50%; padding: 3px;
+}
 .brand-text {
   font-size: 17px;
   font-weight: 700;
@@ -86,6 +91,9 @@ body {
 /* ── Main area ────────────────────────────────────────── */
 .main-area {
   flex: 1;
+  /* Flex items default to min-width:auto, which lets wide content (button rows,
+     tables) stretch the whole app past the screen on phones. */
+  min-width: 0;
   margin-left: 232px;
   display: flex;
   flex-direction: column;
@@ -513,7 +521,7 @@ body {
   color: #1d4ed8; font-size: 13px; text-decoration: underline;
   padding: 0;
 }
-.action-buttons { display: flex; gap: 10px; }
+.action-buttons { display: flex; gap: 10px; flex-wrap: wrap; }
 
 /* ── Overlay ──────────────────────────────────────────── */
 .sidebar-overlay {
@@ -1067,11 +1075,9 @@ body {
   align-items: center;
   margin-bottom: 32px;
 }
-.login-brand__icon {
-  width: 64px; height: 64px;
-  border-radius: 16px;
-  background: #064e3b;
-  display: flex; align-items: center; justify-content: center;
+.login-brand__logo {
+  width: 88px; height: 88px;
+  object-fit: contain;
   margin-bottom: 14px;
 }
 .login-brand__title {
@@ -1235,6 +1241,22 @@ body {
   .form-row { grid-template-columns: 1fr; }
   .kpi-grid { grid-template-columns: repeat(2, 1fr); }
   .page-content { padding: 16px 16px calc(96px + env(safe-area-inset-bottom)); }
+  /* Header action rows wrap onto new lines instead of running off-screen. */
+  .page-header { flex-wrap: wrap; }
+  .page-header > * { min-width: 0; max-width: 100%; }
+  .page-header > div:not(:first-child) { flex-wrap: wrap; }
+  .detail-header { flex-wrap: wrap; }
+  /* Topbar: let the office name truncate instead of sliding under the icons,
+     and keep the floating chat button clear of the bottom tab bar. */
+  .topbar { padding-left: 12px; padding-right: 12px; gap: 6px; }
+  .topbar__office { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .topbar__page-title { display: none; }
+  .topbar__role { flex-shrink: 0; }
+  .chat-widget { right: 16px; bottom: calc(84px + env(safe-area-inset-bottom)); }
+  .detail-header > * { min-width: 0; max-width: 100%; }
+  /* A select is as wide as its longest option; cap it at the screen width. */
+  .filter-group { min-width: 0; max-width: 100%; }
+  .select, select { max-width: 100%; }
   .login-card { padding: 32px 24px; }
   .home-welcome { padding: 20px; }
   .home-welcome__name { font-size: 20px; }
@@ -1242,6 +1264,8 @@ body {
 }
 @media (max-width: 480px) {
   .action-grid { grid-template-columns: 1fr; }
+  /* No room for the role pill on small phones; the role is shown in the side menu. */
+  .topbar__role { display: none; }
 }
 
 /* ── Photo Capture ────────────────────────────────────── */
@@ -1582,8 +1606,9 @@ body {
 .cross-record__body {
   display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
 }
-.cross-record__content { display: flex; flex-direction: column; gap: 3px; flex: 1; }
-.cross-record__primary { font-size: 14px; font-weight: 600; color: #111827; font-family: monospace; }
+.cross-record__content { display: flex; flex-direction: column; gap: 3px; flex: 1; min-width: 0; }
+/* Long permit numbers break at any character rather than pushing badges off-screen. */
+.cross-record__primary { font-size: 14px; font-weight: 600; color: #111827; font-family: monospace; overflow-wrap: anywhere; }
 .cross-record__meta    { font-size: 12px; color: #6b7280; }
 .cross-record__note    { font-size: 12px; color: #374151; }
 
@@ -1904,7 +1929,7 @@ body {
 .facility-table__row:hover td { background: #f0fdf4; }
 .facility-table__row--selected td { background: #eff6ff; }
 .facility-table__fileno { font-weight: 700; color: #059669; }
-.facility-table__name   { font-weight: 500; color: #111827; white-space: normal; max-width: 220px; }
+.facility-table__name   { font-weight: 500; color: #111827; white-space: normal; min-width: 160px; max-width: 220px; }
 
 /* ── Staff table ──────────────────────────────────────── */
 .staff-table { width: 100%; border-collapse: collapse; font-size: 13px; }
@@ -2692,8 +2717,9 @@ body {
 .studio-skin .btn { border-radius: 999px; font-weight: 700; }
 .studio-skin .btn--primary { background: #111827; }
 .studio-skin .btn--ghost { border-radius: 999px; }
-.studio-skin .table-wrapper,
 .studio-skin .card { overflow: hidden; }
+/* Wide tables must still scroll sideways (auto also clips the rounded corners). */
+.studio-skin .table-wrapper { overflow-x: auto; overflow-y: hidden; }
 .studio-skin .table th,
 .studio-skin .facility-table th,
 .studio-skin .staff-table th,
@@ -2739,7 +2765,7 @@ body {
   background: #f3f4f6; color: #374151;
 }
 .field-report-card__meta {
-  display: flex; align-items: center; gap: 8px;
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
   font-size: 12px; color: #6b7280; white-space: nowrap;
 }
 
@@ -3578,4 +3604,44 @@ body {
 
 @media (max-width: 600px) {
   .sched-row__grid { grid-template-columns: 1fr; }
+}
+
+/* ── Native app (Capacitor APK/IPA) ───────────────────── */
+/* `.native-app` is set on <html> in main.jsx only when running inside the
+   mobile app, so these rules never affect the desktop web build. */
+.native-app {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  /* Blocks double-tap zoom; pinch zoom is off via the viewport meta. */
+  touch-action: manipulation;
+}
+.native-app,
+.native-app body {
+  /* `clip` (not `hidden`) stops sideways page panning without breaking
+     position: sticky on the topbar. Wide tables still scroll in their wrappers. */
+  overflow-x: clip;
+  max-width: 100%;
+  overscroll-behavior: none;
+}
+.native-app body { -webkit-tap-highlight-color: transparent; }
+
+/* Inputs under 16px make mobile browsers zoom in on focus. !important beats
+   inline font sizes set on individual fields. */
+.native-app input,
+.native-app select,
+.native-app textarea {
+  font-size: 16px !important;
+}
+
+/* Media should never push the page wider than the screen. */
+.native-app img,
+.native-app video { max-width: 100%; height: auto; }
+
+/* App-like feel: navigation chrome isn't text-selectable on long-press. */
+.native-app .sidebar,
+.native-app .mobile-tabbar,
+.native-app .topbar,
+.native-app button {
+  -webkit-user-select: none;
+  user-select: none;
 }

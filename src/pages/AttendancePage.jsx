@@ -159,43 +159,45 @@ export default function AttendancePage() {
         <div className="empty-state">No attendance records match these filters.</div>
       ) : (
         <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-          <table className="staff-table">
-            <thead>
-              <tr>
-                <th>Staff</th>
-                <th>Role</th>
-                <th>Date</th>
-                <th>Clock In</th>
-                <th>Clock Out</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {displayed.map((r) => {
-                const status = getAttendanceStatus(r)
-                const style = STATUS_STYLE[status] ?? {}
-                return (
-                  <tr key={r.id}>
-                    <td>{r.staff_name}</td>
-                    <td>{ROLE_LABEL[r.staff_role] ?? r.staff_role}</td>
-                    <td>{r.date}</td>
-                    <td>{fmtTime(r.clock_in_at)} <span style={{ color: '#9ca3af', fontSize: 11 }}>({r.clock_in_distance_m}m)</span></td>
-                    <td>
-                      {r.clock_out_at
-                        ? <>{fmtTime(r.clock_out_at)} <span style={{ color: '#9ca3af', fontSize: 11 }}>({r.clock_out_distance_m}m)</span></>
-                        : <span style={{ color: '#9ca3af' }}>—</span>
-                      }
-                    </td>
-                    <td>
-                      <span className="staff-role-badge" style={{ background: style.bg, color: style.color }}>
-                        {ATTENDANCE_STATUS_LABEL[status] ?? status}
-                      </span>
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
+          <div className="table-wrapper">
+            <table className="staff-table">
+              <thead>
+                <tr>
+                  <th>Staff</th>
+                  <th>Role</th>
+                  <th>Date</th>
+                  <th>Clock In</th>
+                  <th>Clock Out</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {displayed.map((r) => {
+                  const status = getAttendanceStatus(r)
+                  const style = STATUS_STYLE[status] ?? {}
+                  return (
+                    <tr key={r.id}>
+                      <td>{r.staff_name}</td>
+                      <td>{ROLE_LABEL[r.staff_role] ?? r.staff_role}</td>
+                      <td>{r.date}</td>
+                      <td>{fmtTime(r.clock_in_at)} <span style={{ color: '#9ca3af', fontSize: 11 }}>({r.clock_in_distance_m}m)</span></td>
+                      <td>
+                        {r.clock_out_at
+                          ? <>{fmtTime(r.clock_out_at)} <span style={{ color: '#9ca3af', fontSize: 11 }}>({r.clock_out_distance_m}m)</span></>
+                          : <span style={{ color: '#9ca3af' }}>—</span>
+                        }
+                      </td>
+                      <td>
+                        <span className="staff-role-badge" style={{ background: style.bg, color: style.color }}>
+                          {ATTENDANCE_STATUS_LABEL[status] ?? status}
+                        </span>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
     </div>

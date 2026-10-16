@@ -454,7 +454,7 @@ export default function CrossRecordsPage() {
             {loading ? 'Loading…' : `${filtered.length} of ${records.length} records across all facilities`}
           </div>
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
           {canBulkManage && filtered.length > 0 && (
             <>
               <button

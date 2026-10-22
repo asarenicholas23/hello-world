@@ -2,7 +2,7 @@
   "name": "epa-permit-functions",
   "description": "Cloud Functions for EPA Permit Management System",
   "engines": {
-    "node": "20"
+    "node": "24"
   },
   "main": "index.js",
   "scripts": {

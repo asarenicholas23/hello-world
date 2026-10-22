@@ -374,7 +374,7 @@ export default function FacilityDetail() {
                 className={`tab${activeTab === tab.key ? ' tab--active' : ''}`}
                 onClick={() => setActiveTab(tab.key)}
               >
-                <TabIcon size={13} style={{ marginRight: 5 }} />
+                <TabIcon size={13} />
                 {tab.label}
               </button>
             )

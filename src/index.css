@@ -753,7 +753,8 @@ body {
 }
 
 /* ── Sub-record tabs ──────────────────────────────────── */
-.tabs {
+.tabs,
+.tab-bar {
   display: flex;
   gap: 0;
   border-bottom: 2px solid #e5e7eb;
@@ -761,7 +762,8 @@ body {
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
 }
-.tab {
+.tab,
+.tab-btn {
   padding: 10px 16px;
   font-size: 13px;
   font-weight: 600;
@@ -775,10 +777,13 @@ body {
   transition: color 0.15s;
   display: flex;
   align-items: center;
+  gap: 6px;
   font-family: inherit;
 }
-.tab:hover { color: #374151; }
-.tab--active { color: #065f46; border-bottom-color: #065f46; }
+.tab:hover,
+.tab-btn:hover { color: #374151; }
+.tab--active,
+.tab-btn--active { color: #065f46; border-bottom-color: #065f46; }
 
 /* ── Sync indicator (topbar) ──────────────────────────── */
 .sync-indicator {

@@ -1,5 +1,5 @@
-const admin = require('firebase-admin')
-admin.initializeApp()
+const { initializeApp } = require('firebase-admin/app')
+initializeApp()
 
 const { sendFacilitySms }       = require('./sms/onCall')
 const { sendNotificationEmail } = require('./email/onNotification')

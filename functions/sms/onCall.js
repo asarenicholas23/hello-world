@@ -1,6 +1,6 @@
-const { onCall, HttpsError } = require('firebase-functions/v2/https')
-const { defineSecret }      = require('firebase-functions/params')
-const admin                 = require('firebase-admin')
+const { onCall, HttpsError }       = require('firebase-functions/v2/https')
+const { defineSecret }             = require('firebase-functions/params')
+const { getFirestore, FieldValue } = require('firebase-admin/firestore')
 const { sendSms, normalizePhone } = require('./arkesel')
 const { permitExpiry, permitExpired, unpaidInvoice, enforcementReminder, permitReady } = require('./templates')
 
@@ -9,7 +9,7 @@ const ADMIN_ROLES     = new Set(['admin', 'director'])
 
 async function assertAdmin(auth) {
   if (!auth?.uid) throw new HttpsError('unauthenticated', 'Sign in required.')
-  const snap = await admin.firestore().doc(`staff/${auth.uid}`).get()
+  const snap = await getFirestore().doc(`staff/${auth.uid}`).get()
   if (!snap.exists) throw new HttpsError('permission-denied', 'Admin, Director, or Data Access role required.')
   const data = snap.data()
   if (!ADMIN_ROLES.has(data.role) && !data.data_access) {
@@ -20,7 +20,7 @@ async function assertAdmin(auth) {
 async function logSms(db, payload) {
   await db.collection('sms_log').add({
     ...payload,
-    sent_at: admin.firestore.FieldValue.serverTimestamp(),
+    sent_at: FieldValue.serverTimestamp(),
   })
 }
 
@@ -30,7 +30,7 @@ exports.sendFacilitySms = onCall({
   secrets: [ARKESEL_API_KEY],
 }, async (request) => {
   await assertAdmin(request.auth)
-  const db     = admin.firestore()
+  const db     = getFirestore()
   const apiKey = ARKESEL_API_KEY.value()
   const { facilityId, template, customMessage, extraPhones = [], facilityName: overrideName } = request.data
 

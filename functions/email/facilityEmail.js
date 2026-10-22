@@ -1,7 +1,7 @@
-const { onCall, HttpsError } = require('firebase-functions/v2/https')
-const { defineSecret }      = require('firebase-functions/params')
-const admin                 = require('firebase-admin')
-const nodemailer            = require('nodemailer')
+const { onCall, HttpsError }       = require('firebase-functions/v2/https')
+const { defineSecret }             = require('firebase-functions/params')
+const { getFirestore, FieldValue } = require('firebase-admin/firestore')
+const nodemailer                   = require('nodemailer')
 const {
   permitExpiry, permitExpired, unpaidInvoice, enforcementReminder, permitReady, OFFICE, CONTACT,
 } = require('../sms/templates')
@@ -14,7 +14,7 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 async function assertAdmin(auth) {
   if (!auth?.uid) throw new HttpsError('unauthenticated', 'Sign in required.')
-  const snap = await admin.firestore().doc(`staff/${auth.uid}`).get()
+  const snap = await getFirestore().doc(`staff/${auth.uid}`).get()
   if (!snap.exists) throw new HttpsError('permission-denied', 'Admin, Director, or Data Access role required.')
   const data = snap.data()
   if (!ADMIN_ROLES.has(data.role) && !data.data_access) {
@@ -25,7 +25,7 @@ async function assertAdmin(auth) {
 async function logEmail(db, payload) {
   await db.collection('email_log').add({
     ...payload,
-    sent_at: admin.firestore.FieldValue.serverTimestamp(),
+    sent_at: FieldValue.serverTimestamp(),
   })
 }
 
@@ -66,7 +66,7 @@ exports.sendFacilityEmail = onCall({
   secrets: [EMAIL_USER, EMAIL_PASS],
 }, async (request) => {
   await assertAdmin(request.auth)
-  const db = admin.firestore()
+  const db = getFirestore()
   const {
     facilityId, template, customSubject, customMessage,
     extraEmails = [], attachments = [], facilityName: overrideName,
@@ -157,8 +157,10 @@ exports.sendFacilityEmail = onCall({
     throw new HttpsError('invalid-argument', `Unknown template: ${template}`)
   }
 
+  // Attachment URLs come from the caller: only fetch https links, never local
+  // file paths or plain-http internal addresses (e.g. the metadata server).
   const mailAttachments = attachments
-    .filter((a) => a?.url && a?.filename)
+    .filter((a) => a?.filename && /^https:\/\//i.test(String(a?.url ?? '')))
     .map((a) => ({ filename: a.filename, path: a.url }))
 
   const emailUser = EMAIL_USER.value()
@@ -166,6 +168,7 @@ exports.sendFacilityEmail = onCall({
   const transporter = nodemailer.createTransport({
     service: 'gmail',
     auth: { user: emailUser, pass: emailPass },
+    disableFileAccess: true,
   })
 
   try {

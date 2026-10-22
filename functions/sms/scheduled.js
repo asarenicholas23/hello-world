@@ -1,6 +1,6 @@
-const { onSchedule }   = require('firebase-functions/v2/scheduler')
-const { defineSecret } = require('firebase-functions/params')
-const admin            = require('firebase-admin')
+const { onSchedule }               = require('firebase-functions/v2/scheduler')
+const { defineSecret }             = require('firebase-functions/params')
+const { getFirestore, FieldValue } = require('firebase-admin/firestore')
 const { sendSms, normalizePhone } = require('./arkesel')
 const { permitExpiry, permitExpired, unpaidInvoice } = require('./templates')
 
@@ -27,14 +27,14 @@ async function alreadySent(db, key) {
 
 async function markSent(db, key) {
   await db.collection('sms_dedup').doc(key).set({
-    sent_at: admin.firestore.FieldValue.serverTimestamp(),
+    sent_at: FieldValue.serverTimestamp(),
   })
 }
 
 async function logSms(db, payload) {
   await db.collection('sms_log').add({
     ...payload,
-    sent_at: admin.firestore.FieldValue.serverTimestamp(),
+    sent_at: FieldValue.serverTimestamp(),
   })
 }
 
@@ -46,7 +46,7 @@ exports.dailyPermitReminders = onSchedule({
   secrets:   [ARKESEL_API_KEY],
 }, async () => {
   return // DISABLED — remove this line to enable scheduled permit reminders
-  const db     = admin.firestore()
+  const db     = getFirestore()
   const apiKey = ARKESEL_API_KEY.value()
   const now    = Date.now()
   const todayStr = new Date().toISOString().slice(0, 10)
@@ -112,7 +112,7 @@ exports.weeklyUnpaidReminders = onSchedule({
   secrets:   [ARKESEL_API_KEY],
 }, async () => {
   return // DISABLED — remove this line to enable scheduled unpaid invoice reminders
-  const db     = admin.firestore()
+  const db     = getFirestore()
   const apiKey = ARKESEL_API_KEY.value()
   const weekKey = `W${isoWeek(new Date())}_${new Date().getFullYear()}`
 

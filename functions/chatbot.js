@@ -1,6 +1,7 @@
 
 const functions = require('firebase-functions');
-const admin = require('firebase-admin');
+const { getFirestore } = require('firebase-admin/firestore');
+const { getAuth } = require('firebase-admin/auth');
 const { OpenAI } = require('openai');
 
 const openrouterKey = functions.params.defineSecret('OPENROUTER_KEY');
@@ -16,7 +17,7 @@ async function resolveAuth(data, context) {
   if (!token) return null
 
   try {
-    const decoded = await admin.auth().verifyIdToken(token)
+    const decoded = await getAuth().verifyIdToken(token)
     return { uid: decoded.uid, token: decoded, rawToken: token }
   } catch (err) {
     console.error('chatbot verifyIdToken failed', err)
@@ -384,7 +385,7 @@ exports.chatbot = functions.https.onCall({ secrets: [openrouterKey] }, async (da
     apiKey: process.env.OPENROUTER_KEY,
     baseURL: 'https://openrouter.ai/api/v1',
   });
-  const db = admin.firestore()
+  const db = getFirestore()
 
   try {
     const userMessage = messagePayload.filter((msg) => msg.role === 'user').map((msg) => msg.content).join(' ')

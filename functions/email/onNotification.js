@@ -1,7 +1,8 @@
-const { onDocumentCreated } = require('firebase-functions/v2/firestore')
-const { defineSecret }      = require('firebase-functions/params')
-const admin                 = require('firebase-admin')
-const nodemailer            = require('nodemailer')
+const { onDocumentCreated }        = require('firebase-functions/v2/firestore')
+const { defineSecret }             = require('firebase-functions/params')
+const { getFirestore, FieldValue } = require('firebase-admin/firestore')
+const { getMessaging }             = require('firebase-admin/messaging')
+const nodemailer                   = require('nodemailer')
 
 const EMAIL_USER = defineSecret('EMAIL_USER')
 const EMAIL_PASS = defineSecret('EMAIL_PASS')
@@ -67,7 +68,7 @@ exports.sendNotificationEmail = onDocumentCreated({
   if (!recipient_uid || !message) return
 
   // Fetch recipient's staff doc
-  const staffSnap = await admin.firestore().doc(`staff/${recipient_uid}`).get()
+  const staffSnap = await getFirestore().doc(`staff/${recipient_uid}`).get()
   if (!staffSnap.exists) return
 
   const staffData  = staffSnap.data()
@@ -80,16 +81,15 @@ exports.sendNotificationEmail = onDocumentCreated({
   // --- FCM push notification ---
   if (fcmTokens.length > 0) {
     try {
-      const res = await admin.messaging().sendEachForMulticast({
+      const res = await getMessaging().sendEachForMulticast({
         tokens: fcmTokens,
         notification: { title: subject, body: message },
-        webpush: { notification: { icon: '/favicon.svg' } },
+        webpush: { notification: { icon: '/epa-logo-192.png' } },
       })
       // Remove tokens that are no longer valid
       const staleTokens = fcmTokens.filter((_, i) => res.responses[i]?.error)
       if (staleTokens.length > 0) {
-        const { FieldValue } = require('firebase-admin/firestore')
-        await admin.firestore().doc(`staff/${recipient_uid}`).update({
+        await getFirestore().doc(`staff/${recipient_uid}`).update({
           fcm_tokens: FieldValue.arrayRemove(...staleTokens),
         })
       }

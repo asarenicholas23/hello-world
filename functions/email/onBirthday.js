@@ -1,6 +1,6 @@
 const { onSchedule }   = require('firebase-functions/v2/scheduler')
 const { defineSecret } = require('firebase-functions/params')
-const admin            = require('firebase-admin')
+const { getFirestore } = require('firebase-admin/firestore')
 const nodemailer       = require('nodemailer')
 
 const EMAIL_USER = defineSecret('EMAIL_USER')
@@ -51,7 +51,7 @@ exports.birthdayReminders = onSchedule({
   const today = new Date()
   const todayMD = `${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
 
-  const staffSnap = await admin.firestore().collection('staff').get()
+  const staffSnap = await getFirestore().collection('staff').get()
   const allStaff  = staffSnap.docs.map((d) => d.data())
 
   const celebrants = allStaff.filter((s) => s.date_of_birth?.slice(5) === todayMD)

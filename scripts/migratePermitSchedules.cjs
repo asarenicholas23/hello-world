@@ -29,7 +29,9 @@
 const fs = require('fs')
 const path = require('path')
 const crypto = require('crypto')
-const admin = require('firebase-admin')
+const { initializeApp, getApp, cert } = require('firebase-admin/app')
+const { getFirestore, FieldValue } = require('firebase-admin/firestore')
+const { getStorage } = require('firebase-admin/storage')
 
 const DEFAULT_FOLDER_ID = '1MZseKzFB72GbVmbs0q7z9gzImpCOhTsa'
 
@@ -73,12 +75,12 @@ function readEnvFile() {
 
 function initAdmin() {
   try {
-    return admin.app()
+    return getApp()
   } catch {
     const envVars = readEnvFile()
     const serviceAccount = require('./serviceAccountKey.json')
-    return admin.initializeApp({
-      credential: admin.credential.cert(serviceAccount),
+    return initializeApp({
+      credential: cert(serviceAccount),
       storageBucket: envVars.VITE_FIREBASE_STORAGE_BUCKET || `${serviceAccount.project_id}.firebasestorage.app`,
     })
   }
@@ -300,8 +302,8 @@ async function uploadToStorage(bucket, permit, driveFile, fileBuffer) {
 async function main() {
   const args = parseArgs(process.argv.slice(2))
   initAdmin()
-  const db = admin.firestore()
-  const bucket = admin.storage().bucket()
+  const db = getFirestore()
+  const bucket = getStorage().bucket()
   const driveToken = getDriveAccessToken()
 
   console.log('\n=== Permit Schedule Migration ===\n')
@@ -359,7 +361,7 @@ async function main() {
         legacy_schedule_drive_file_id: driveFile.id,
         legacy_schedule_drive_path: driveFile.path,
         schedule_migration_source: 'appsheet-drive',
-        updated_at: admin.firestore.FieldValue.serverTimestamp(),
+        updated_at: FieldValue.serverTimestamp(),
       })
 
       summary.migrated += 1

@@ -31,7 +31,9 @@
 const fs = require('fs')
 const path = require('path')
 const crypto = require('crypto')
-const admin = require('firebase-admin')
+const { initializeApp, getApp, cert } = require('firebase-admin/app')
+const { getFirestore, FieldValue } = require('firebase-admin/firestore')
+const { getStorage } = require('firebase-admin/storage')
 
 const DEFAULT_FOLDER_ID = '1bj2AFbOVWWvNEduYuRLrCM-GijqJO4UJ'
 const DEFAULT_APPSHEET_PREFIX = 'Permit_Files_/'
@@ -77,12 +79,12 @@ function readEnvFile() {
 function initAdmin() {
   let app
   try {
-    app = admin.app()
+    app = getApp()
   } catch {
     const envVars = readEnvFile()
     const serviceAccount = require('./serviceAccountKey.json')
-    app = admin.initializeApp({
-      credential: admin.credential.cert(serviceAccount),
+    app = initializeApp({
+      credential: cert(serviceAccount),
       storageBucket: envVars.VITE_FIREBASE_STORAGE_BUCKET || `${serviceAccount.project_id}.firebasestorage.app`,
     })
   }
@@ -284,8 +286,8 @@ async function uploadToStorage(bucket, permit, driveFile, fileBuffer) {
 async function main() {
   const args = parseArgs(process.argv.slice(2))
   const app = initAdmin()
-  const db = admin.firestore()
-  const bucket = admin.storage().bucket()
+  const db = getFirestore()
+  const bucket = getStorage().bucket()
   const driveToken = getDriveAccessToken()
 
   console.log('\n=== Permit Drive Migration ===\n')
@@ -339,7 +341,7 @@ async function main() {
         legacy_permit_image_drive_file_id: driveFile.id,
         legacy_permit_image_drive_path: driveFile.path,
         permit_image_url: uploaded.downloadUrl,
-        updated_at: admin.firestore.FieldValue.serverTimestamp(),
+        updated_at: FieldValue.serverTimestamp(),
         migration_source: 'appsheet-drive',
       })
 

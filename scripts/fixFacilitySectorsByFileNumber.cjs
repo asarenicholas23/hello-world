@@ -12,7 +12,8 @@
  *   --limit=<number>   stop after matching this many mismatches
  */
 
-const admin = require('firebase-admin')
+const { initializeApp, getApp, cert } = require('firebase-admin/app')
+const { getFirestore, FieldValue } = require('firebase-admin/firestore')
 
 const SECTORS = [
   { prefix: 'CU', name: 'Manufacturing' },
@@ -45,11 +46,11 @@ function parseArgs(argv) {
 
 function initAdmin() {
   try {
-    return admin.app()
+    return getApp()
   } catch {
     const serviceAccount = require('./serviceAccountKey.json')
-    return admin.initializeApp({
-      credential: admin.credential.cert(serviceAccount),
+    return initializeApp({
+      credential: cert(serviceAccount),
     })
   }
 }
@@ -70,7 +71,7 @@ async function commitBatch(batch, count) {
 async function main() {
   const options = parseArgs(process.argv.slice(2))
   initAdmin()
-  const db = admin.firestore()
+  const db = getFirestore()
 
   const snap = await db.collection('facilities').get()
   let batch = db.batch()
@@ -117,8 +118,8 @@ async function main() {
       batch.update(doc.ref, {
         sector: expected.name,
         sector_prefix: expected.prefix,
-        sector_repaired_at: admin.firestore.FieldValue.serverTimestamp(),
-        updated_at: admin.firestore.FieldValue.serverTimestamp(),
+        sector_repaired_at: FieldValue.serverTimestamp(),
+        updated_at: FieldValue.serverTimestamp(),
       })
       batchCount += 1
       stats.updated += 1

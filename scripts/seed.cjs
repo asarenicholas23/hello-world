@@ -11,15 +11,17 @@
  *   4. node scripts/seed.cjs
  */
 
-const admin = require('firebase-admin')
+const { initializeApp, cert } = require('firebase-admin/app')
+const { getFirestore } = require('firebase-admin/firestore')
+const { getAuth } = require('firebase-admin/auth')
 const serviceAccount = require('./serviceAccountKey.json')
 
-admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount),
+initializeApp({
+  credential: cert(serviceAccount),
 })
 
-const db        = admin.firestore()
-const authAdmin = admin.auth()
+const db        = getFirestore()
+const authAdmin = getAuth()
 
 // role_level mirrors src/data/constants.js ROLES
 const ROLE_LEVEL = {

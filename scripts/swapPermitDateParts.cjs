@@ -24,7 +24,8 @@
  *   --force                  include docs already marked date_parts_swapped_at
  */
 
-const admin = require('firebase-admin')
+const { initializeApp, getApp, cert } = require('firebase-admin/app')
+const { getFirestore, FieldValue, Timestamp } = require('firebase-admin/firestore')
 
 const DEFAULT_FIELDS = ['issue_date', 'effective_date', 'expiry_date']
 
@@ -77,11 +78,11 @@ function parseFilterDate(value, mode) {
 
 function initAdmin() {
   try {
-    return admin.app()
+    return getApp()
   } catch {
     const serviceAccount = require('./serviceAccountKey.json')
-    return admin.initializeApp({
-      credential: admin.credential.cert(serviceAccount),
+    return initializeApp({
+      credential: cert(serviceAccount),
     })
   }
 }
@@ -143,7 +144,7 @@ function swapMonthDay(value) {
     skipped: false,
     before: date,
     after: swapped,
-    timestamp: admin.firestore.Timestamp.fromDate(swapped),
+    timestamp: Timestamp.fromDate(swapped),
   }
 }
 
@@ -154,7 +155,7 @@ async function commitBatch(batch, count) {
 async function main() {
   const options = parseArgs(process.argv.slice(2))
   initAdmin()
-  const db = admin.firestore()
+  const db = getFirestore()
 
   if (options.recent) {
     const snap = await db.collectionGroup('permits').get()
@@ -253,9 +254,9 @@ async function main() {
 
     stats.docsChanged += 1
     if (options.write) {
-      update.date_parts_swapped_at = admin.firestore.FieldValue.serverTimestamp()
-      update.date_parts_swapped_fields = admin.firestore.FieldValue.arrayUnion(...changedFields)
-      update.updated_at = admin.firestore.FieldValue.serverTimestamp()
+      update.date_parts_swapped_at = FieldValue.serverTimestamp()
+      update.date_parts_swapped_fields = FieldValue.arrayUnion(...changedFields)
+      update.updated_at = FieldValue.serverTimestamp()
       batch.update(doc.ref, update)
       batchCount += 1
 

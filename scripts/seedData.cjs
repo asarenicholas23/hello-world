@@ -10,22 +10,24 @@
  *   node scripts/seedData.cjs
  */
 
-const admin = require('firebase-admin')
+const { initializeApp, getApp, cert } = require('firebase-admin/app')
+const { getFirestore, FieldValue, Timestamp } = require('firebase-admin/firestore')
+const { getAuth } = require('firebase-admin/auth')
 
 // Re-use existing key if already initialised by another require
 let app
 try {
-  app = admin.app()
+  app = getApp()
 } catch {
   const serviceAccount = require('./serviceAccountKey.json')
-  app = admin.initializeApp({ credential: admin.credential.cert(serviceAccount) })
+  app = initializeApp({ credential: cert(serviceAccount) })
 }
 
-const db   = admin.firestore()
-const auth = admin.auth()
+const db   = getFirestore()
+const auth = getAuth()
 
-const TS = (dateStr) => admin.firestore.Timestamp.fromDate(new Date(dateStr))
-const NOW = admin.firestore.FieldValue.serverTimestamp
+const TS = (dateStr) => Timestamp.fromDate(new Date(dateStr))
+const NOW = FieldValue.serverTimestamp
 
 // Resolve staff UIDs at runtime
 async function getUids() {

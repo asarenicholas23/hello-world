@@ -14,14 +14,15 @@
  *   node scripts/migrateStaffIdToSystemId.cjs --write
  */
 
-const admin = require('firebase-admin')
+const { initializeApp, cert } = require('firebase-admin/app')
+const { getFirestore } = require('firebase-admin/firestore')
 const serviceAccount = require('./serviceAccountKey.json')
 
-admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount),
+initializeApp({
+  credential: cert(serviceAccount),
 })
 
-const db = admin.firestore()
+const db = getFirestore()
 const WRITE = process.argv.includes('--write')
 
 async function migrate() {

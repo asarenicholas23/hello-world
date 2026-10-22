@@ -13,5 +13,19 @@ service firebase.storage {
       allow read:  if request.auth != null;
       allow write: if request.auth != null;
     }
+    // Attachments uploaded on the Email page. Only staff allowed to send
+    // email (same check as the sendFacilityEmail function) may upload.
+    match /email_attachments/{fileName} {
+      allow read:   if request.auth != null;
+      allow create: if request.auth != null && canSendEmail()
+                    && request.resource.size < 20 * 1024 * 1024;
+    }
+  }
+
+  function canSendEmail() {
+    let path = /databases/(default)/documents/staff/$(request.auth.uid);
+    return firestore.exists(path) && (
+      firestore.get(path).data.get('role', '') in ['admin', 'director']
+      || firestore.get(path).data.get('data_access', false) == true);
   }
 }

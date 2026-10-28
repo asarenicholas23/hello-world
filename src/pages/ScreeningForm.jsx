@@ -14,19 +14,12 @@ import Spinner from '../components/Spinner'
 import ScreeningFields from '../components/forms/ScreeningFields'
 import ChecklistFields from '../components/forms/ChecklistFields'
 import { EMPTY_SCREENING_FORM, buildScreeningPayload } from '../data/screeningFieldMeta'
-import { SITE_VERIFICATION_CHECKLISTS } from '../data/siteVerificationChecklists'
+import { SITE_VERIFICATION_CHECKLISTS, buildChecklistDefaults, applyChecklistPayload } from '../data/siteVerificationChecklists'
 
 const EMPTY = EMPTY_SCREENING_FORM
 const PP_CHECKLIST = SITE_VERIFICATION_CHECKLISTS.PP
-
-function buildChecklistDefaults(checklist) {
-  const defaults = {}
-  for (const section of checklist.sections) {
-    for (const item of section.items) defaults[item.key] = ''
-  }
-  for (const field of checklist.extraFields ?? []) defaults[field.key] = ''
-  return defaults
-}
+// New pesticide inspections include the written report alongside the checklist.
+const PP_OPTS = { includeReport: true }
 
 export default function ScreeningForm() {
   const params = useParams()
@@ -42,7 +35,7 @@ export default function ScreeningForm() {
   const isPesticide = sectorPrefix === 'PP'
 
   const [form, setForm]               = useState(EMPTY)
-  const [checklistData, setChecklistData] = useState({ date: '', notes: '', ...buildChecklistDefaults(PP_CHECKLIST) })
+  const [checklistData, setChecklistData] = useState({ date: '', notes: '', ...buildChecklistDefaults(PP_CHECKLIST, PP_OPTS) })
   const [screeningId, setScreeningId] = useState('')
   const [photos, setPhotos]           = useState([])
   const [allStaff, setAllStaff]       = useState([])
@@ -80,7 +73,7 @@ export default function ScreeningForm() {
           if (!rec) { setError('Record not found.'); return }
 
           if (usesPesticideChecklist) {
-            const defaults = buildChecklistDefaults(PP_CHECKLIST)
+            const defaults = buildChecklistDefaults(PP_CHECKLIST, PP_OPTS)
             const merged = { ...defaults }
             for (const key of Object.keys(defaults)) {
               if (rec[key] !== undefined) merged[key] = rec[key]
@@ -192,14 +185,7 @@ export default function ScreeningForm() {
         sector_prefix: 'PP',
         facility_sub_type: 'PP',
       }
-      for (const section of PP_CHECKLIST.sections) {
-        for (const item of section.items) {
-          if (isChecklistItemVisible(item)) payload[item.key] = checklistData[item.key] ?? ''
-        }
-      }
-      for (const field of PP_CHECKLIST.extraFields ?? []) {
-        payload[field.key] = checklistData[field.key] ?? ''
-      }
+      applyChecklistPayload(payload, PP_CHECKLIST, checklistData, { ...PP_OPTS, isVisible: isChecklistItemVisible })
     } else {
       payload = {
         ...buildScreeningPayload(form, coordinates),
@@ -297,6 +283,7 @@ export default function ScreeningForm() {
             onPhotosChange={setPhotos}
             photoFileNumber={fileNumber}
             photoCategory="screenings"
+            showReport
           />
         ) : (
           <ScreeningFields

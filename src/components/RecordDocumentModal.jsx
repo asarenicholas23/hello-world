@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import { X, Printer, Edit2 } from 'lucide-react'
 import { getFacility } from '../firebase/facilities'
-import { SITE_VERIFICATION_CHECKLISTS } from '../data/siteVerificationChecklists'
+import { SITE_VERIFICATION_CHECKLISTS, cleanWorkers, checklistReportItems } from '../data/siteVerificationChecklists'
 import { MONITORING_CHECKLISTS, computeCompliance, complianceBand } from '../data/monitoringChecklists'
 import { DISTRICTS, ENFORCEMENT_ACTIONS } from '../data/constants'
 import { fmtDate } from '../utils/records'
@@ -394,13 +394,16 @@ function SiteVerificationDoc({ record: r, facility: f }) {
         <>
           <div className="srd-sub-hd">Facility Details</div>
           <table className="srd-data-table"><tbody>
-            {checklist.extraFields.map((field) => (
+            {checklist.extraFields.filter((field) => field.type !== 'workers').map((field) => (
               <tr key={field.key}>
                 <td className="srd-dl">{field.label}</td>
                 <td className="srd-dv">{val(r[field.key])}</td>
               </tr>
             ))}
           </tbody></table>
+          {checklist.extraFields.filter((field) => field.type === 'workers').map((field) => (
+            <WorkersTable key={field.key} title={field.label} workers={r[field.key]} />
+          ))}
         </>
       )}
 
@@ -450,6 +453,94 @@ function SiteVerificationDoc({ record: r, facility: f }) {
           <td className="srd-dl">Date of Verification</td>
           <td className="srd-dv">{fmtDate(r.date)}</td>
         </tr>
+      </tbody></table>
+
+      <PesticideReport checklist={checklist} record={r} facility={f} />
+    </div>
+  )
+}
+
+function WorkersTable({ title, workers }) {
+  const rows = cleanWorkers(workers)
+  if (!rows.length) return null
+  return (
+    <>
+      <div className="srd-sub-hd">{title}</div>
+      <table className="srd-consult-table">
+        <thead>
+          <tr>
+            <th className="srd-cth srd-cth--no">No</th>
+            <th className="srd-cth">Name</th>
+            <th className="srd-cth">Sex</th>
+            <th className="srd-cth">Age</th>
+            <th className="srd-cth">Position</th>
+            <th className="srd-cth">Academic Qualification</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((w, i) => (
+            <tr key={i}>
+              <td className="srd-ctd srd-ctd--no">{i + 1}</td>
+              <td className="srd-ctd">{val(w.name)}</td>
+              <td className="srd-ctd">{val(w.sex)}</td>
+              <td className="srd-ctd">{val(w.age)}</td>
+              <td className="srd-ctd">{val(w.position)}</td>
+              <td className="srd-ctd">{val(w.qualification)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </>
+  )
+}
+
+/** EPA/CCMC "Report on Inspection of Pesticides Storage/Retail Premise" —
+ *  printed after the checklist when the record has any report content. */
+function PesticideReport({ checklist, record: r, facility: f }) {
+  const items = checklistReportItems(checklist)
+  if (!items.some((i) => r[i.key] && String(r[i.key]).trim())) return null
+
+  const [premise, recs, signoff] = checklist.report.sections
+  const time = r.report_inspection_time
+  return (
+    <div className="srd-report" style={{ marginTop: 28 }}>
+      <div className="srd-sec-hd" style={{ textAlign: 'center' }}>
+        REPORT ON INSPECTION OF PESTICIDES STORAGE/RETAIL PREMISE
+      </div>
+
+      <div className="srd-sub-hd">1.0&nbsp;&nbsp;Company Details</div>
+      <table className="srd-data-table"><tbody>
+        <tr><td className="srd-dl">i. Company Name</td><td className="srd-dv">{val(r.company_name || f?.name)}</td></tr>
+        <tr><td className="srd-dl">ii. Reference Number</td><td className="srd-dv">{val(r.reference_number)}</td></tr>
+        <tr><td className="srd-dl">iii. License Number</td><td className="srd-dv">{val(r.license_number)}</td></tr>
+      </tbody></table>
+
+      {[premise, recs].filter(Boolean).map((section) => (
+        <div key={section.title}>
+          <div className="srd-sub-hd">{section.title.replace(/^(\d\.\d) /, '$1\u00a0\u00a0')}</div>
+          {section.items.map((item) => (
+            <div key={item.key}>
+              {section.items.length > 1 && <div className="srd-field-lbl">{item.label}</div>}
+              <div className="srd-box srd-box--tall">{r[item.key] && String(r[item.key]).trim() ? r[item.key] : ''}</div>
+            </div>
+          ))}
+        </div>
+      ))}
+
+      {/* Officer names + signatures are printed in the shared signature block below. */}
+      <table className="srd-data-table" style={{ marginTop: 14 }}><tbody>
+        <tr>
+          <td className="srd-dl">Date of Inspection</td>
+          <td className="srd-dv">{fmtDate(r.date)}{time ? ` · Time: ${time}` : ''}</td>
+        </tr>
+        {signoff && (
+          <tr>
+            <td className="srd-dl">Checked by RPO</td>
+            <td className="srd-dv">
+              Name: {val(r.report_rpo_name)} &nbsp;·&nbsp; Date: {r.report_rpo_date ? fmtDate(r.report_rpo_date) : '—'} &nbsp;·&nbsp; Signature: ____________
+            </td>
+          </tr>
+        )}
       </tbody></table>
     </div>
   )

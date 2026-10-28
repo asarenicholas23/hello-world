@@ -10,20 +10,11 @@ import { getFacility } from '../firebase/facilities'
 import { listSubRecords } from '../firebase/subrecords'
 import { inputToTs, tsToInput } from '../utils/records'
 import { EMPTY_SCREENING_FORM, buildScreeningPayload } from '../data/screeningFieldMeta'
-import { SITE_VERIFICATION_CHECKLISTS } from '../data/siteVerificationChecklists'
+import { SITE_VERIFICATION_CHECKLISTS, buildChecklistDefaults, applyChecklistPayload } from '../data/siteVerificationChecklists'
 import ScreeningFields from '../components/forms/ScreeningFields'
 import ChecklistFields from '../components/forms/ChecklistFields'
 import Spinner from '../components/Spinner'
 
-function buildChecklistDefaults(checklist) {
-  const defaults = {}
-  if (!checklist) return defaults
-  for (const section of checklist.sections) {
-    for (const item of section.items) defaults[item.key] = item.default ?? ''
-  }
-  for (const field of checklist.extraFields ?? []) defaults[field.key] = field.default ?? ''
-  return defaults
-}
 
 export default function TaskFillPage() {
   const { taskId } = useParams()
@@ -83,7 +74,8 @@ export default function TaskFillPage() {
           if (isPesticide || t.task_type === 'site_verification') {
             const key = isPesticide ? 'PP' : (sectorPrefix === 'CE' ? (t.form_data?.facility_sub_type ?? 'CE') : (sectorPrefix ?? 'CI'))
             const checklist = SITE_VERIFICATION_CHECKLISTS[key] ?? SITE_VERIFICATION_CHECKLISTS.CI
-            const defaults = buildChecklistDefaults(checklist)
+            // Pesticide screenings (new facilities) also carry the written inspection report.
+            const defaults = buildChecklistDefaults(checklist, { includeReport: isPesticide })
             const merged = { ...defaults }
             for (const k of Object.keys(defaults)) {
               if (t.form_data?.[k] !== undefined) merged[k] = t.form_data[k]
@@ -212,14 +204,10 @@ export default function TaskFillPage() {
       facility_sub_type: checklistKey,
       ...(isSiteVerification ? { linked_permit_id: checklistData.linked_permit_id } : {}),
     }
-    for (const section of checklist.sections) {
-      for (const item of section.items) {
-        if (isChecklistItemVisible(item)) formData[item.key] = checklistData[item.key] ?? ''
-      }
-    }
-    for (const field of checklist.extraFields ?? []) {
-      formData[field.key] = checklistData[field.key] ?? ''
-    }
+    applyChecklistPayload(formData, checklist, checklistData, {
+      includeReport: isPesticideScreening,
+      isVisible: isChecklistItemVisible,
+    })
     return formData
   }
 
@@ -426,6 +414,7 @@ export default function TaskFillPage() {
             photoFileNumber={task.facility_mode === 'registered' ? task.file_number : 'tasks'}
             photoCategory={task.facility_mode === 'registered' ? (isSiteVerification ? 'site_verifications' : 'screenings') : `${taskId}/${isSiteVerification ? 'site_verifications' : 'screenings'}`}
             annotationsByField={unresolvedByField}
+            showReport={isPesticideScreening}
           />
 
           {task.status === 'changes_requested' && (

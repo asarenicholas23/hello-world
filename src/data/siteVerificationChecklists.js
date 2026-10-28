@@ -822,8 +822,45 @@ export const SITE_VERIFICATION_CHECKLISTS = {
       { key: 'company_name',      label: 'Company Name',                 type: 'text' },
       { key: 'owner_of_company',  label: 'Owner of Company',             type: 'text' },
       { key: 'license_number',    label: 'License Number (if any)',      type: 'text' },
+      { key: 'reference_number',  label: 'Reference Number',             type: 'text' },
       { key: 'num_employees',     label: 'Number of Persons Employed',   type: 'text' },
+      { key: 'workers',           label: 'Worker Details',               type: 'workers', default: [] },
     ],
+    // Written report that accompanies the checklist on new-facility inspections.
+    // Source: EPA/CCMC "REPORT ON INSPECTION OF PESTICIDES STORAGE/RETAIL PREMISE".
+    // Company Name, Reference Number and License Number (section 1.0) come from extraFields above.
+    report: {
+      title: 'Inspection Report',
+      sections: [
+        {
+          title: '2.0 Storage/Premise Details',
+          items: [
+            { key: 'report_siting',            label: 'i. Siting of Premise',                   type: 'textarea' },
+            { key: 'report_structure_area',    label: 'ii. Storage/Retail Structure and Area', type: 'textarea' },
+            { key: 'report_storage_capacity',  label: 'iii. Storage Capacity',                 type: 'textarea' },
+            { key: 'report_spillage',          label: 'iv. Spillage Containment',              type: 'textarea' },
+            { key: 'report_ventilation_light', label: 'v. Ventilation and Light',              type: 'textarea' },
+            { key: 'report_ehs',               label: 'vi. Environmental Health and Safety',   type: 'textarea' },
+            { key: 'report_entrance_exit',     label: 'vii. Entrance and Exit',                type: 'textarea' },
+            { key: 'report_disposal',          label: 'viii. Pesticides Disposal Options',     type: 'textarea' },
+          ],
+        },
+        {
+          title: '3.0 Recommendations',
+          items: [
+            { key: 'report_recommendations', label: 'Recommendations', type: 'textarea' },
+          ],
+        },
+        {
+          title: 'Inspection Sign-off',
+          items: [
+            { key: 'report_inspection_time', label: 'Time of Inspection',   type: 'time' },
+            { key: 'report_rpo_name',        label: 'Checked by RPO — Name', type: 'text' },
+            { key: 'report_rpo_date',        label: 'Checked by RPO — Date', type: 'date' },
+          ],
+        },
+      ],
+    },
     sections: [
       {
         title: 'Siting of Premise',
@@ -944,17 +981,95 @@ SITE_VERIFICATION_CHECKLISTS.CM = SV_PLACEHOLDER('Mining')
  * Verification / Pesticides Checklist submissions the same way it does for
  * Screening, without duplicating field definitions.
  */
-export function checklistFieldSections(checklist) {
+export function checklistFieldSections(checklist, { includeReport = false } = {}) {
   const sections = []
   if (checklist.extraFields?.length) {
     sections.push({
       title: 'Facility Information',
-      fields: checklist.extraFields.map((f) => ({ key: f.key, label: f.label })),
+      fields: checklist.extraFields.map((f) => ({
+        key: f.key,
+        label: f.label,
+        ...(f.type === 'workers' ? { format: formatWorkers } : {}),
+      })),
     })
   }
   for (const section of checklist.sections) {
     sections.push({ title: section.title, fields: section.items.map((i) => ({ key: i.key, label: i.label })) })
   }
   sections.push({ title: 'Notes', fields: [{ key: 'notes', label: 'General Comments & Recommendations' }] })
+  if (includeReport && checklist.report) {
+    for (const section of checklist.report.sections) {
+      sections.push({
+        title: `${checklist.report.title} — ${section.title}`,
+        fields: section.items.map((i) => ({ key: i.key, label: i.label })),
+      })
+    }
+  }
   return sections
+}
+
+// ── Worker details (type: 'workers') ─────────────────────────────
+
+export const WORKER_SEX_OPTIONS = ['', 'Male', 'Female']
+export const EMPTY_WORKER = { name: '', sex: '', age: '', position: '', qualification: '' }
+
+function isBlankWorker(w) {
+  return !w || Object.keys(EMPTY_WORKER).every((k) => !String(w[k] ?? '').trim())
+}
+
+/** Drops fully-empty rows and trims values before saving. */
+export function cleanWorkers(list) {
+  if (!Array.isArray(list)) return []
+  return list
+    .filter((w) => !isBlankWorker(w))
+    .map((w) => Object.fromEntries(Object.keys(EMPTY_WORKER).map((k) => [k, String(w[k] ?? '').trim()])))
+}
+
+/** One line per worker — used where a list has to render as plain text. */
+export function formatWorkers(list) {
+  const rows = cleanWorkers(list)
+  if (!rows.length) return '—'
+  return rows.map((w, i) => {
+    const bits = [w.sex, w.age && `${w.age} yrs`, w.position, w.qualification].filter(Boolean)
+    return `${i + 1}. ${w.name || '(no name)'}${bits.length ? ` — ${bits.join(', ')}` : ''}`
+  }).join('\n')
+}
+
+// ── Shared form helpers ──────────────────────────────────────────
+
+/** All report field items, flattened. Empty when the checklist has no report. */
+export function checklistReportItems(checklist) {
+  return (checklist?.report?.sections ?? []).flatMap((s) => s.items)
+}
+
+/** Blank form state for a checklist (optionally including its written report). */
+export function buildChecklistDefaults(checklist, { includeReport = false } = {}) {
+  const defaults = {}
+  if (!checklist) return defaults
+  for (const section of checklist.sections) {
+    for (const item of section.items) defaults[item.key] = item.default ?? ''
+  }
+  for (const field of checklist.extraFields ?? []) defaults[field.key] = field.default ?? ''
+  if (includeReport) {
+    for (const item of checklistReportItems(checklist)) defaults[item.key] = item.default ?? ''
+  }
+  return defaults
+}
+
+/** Copies checklist values from form state into a save payload. */
+export function applyChecklistPayload(payload, checklist, data, { includeReport = false, isVisible = () => true } = {}) {
+  for (const section of checklist.sections) {
+    for (const item of section.items) {
+      if (isVisible(item)) payload[item.key] = data[item.key] ?? ''
+    }
+  }
+  for (const field of checklist.extraFields ?? []) {
+    payload[field.key] = field.type === 'workers' ? cleanWorkers(data[field.key]) : (data[field.key] ?? '')
+  }
+  if (includeReport) {
+    for (const item of checklistReportItems(checklist)) {
+      payload[item.key] = typeof data[item.key] === 'string' ? data[item.key].trim() : (data[item.key] ?? '')
+    }
+  }
+  return payload
 }

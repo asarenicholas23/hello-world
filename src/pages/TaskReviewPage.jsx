@@ -143,7 +143,7 @@ export default function TaskReviewPage() {
   if (isFormBasedTask && !isScreeningForm) {
     const checklistKey = task.form_data?.facility_sub_type ?? task.sector_prefix ?? 'CI'
     const checklist = SITE_VERIFICATION_CHECKLISTS[checklistKey] ?? SITE_VERIFICATION_CHECKLISTS.CI
-    reviewSections = checklistFieldSections(checklist)
+    reviewSections = checklistFieldSections(checklist, { includeReport: task.task_type === 'screening' })
   }
 
   return (

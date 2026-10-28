@@ -57,7 +57,9 @@ export default function AnnotatableFormReview({ formData, sections, annotations 
                       )}
                     </td>
                     <td className="doc-td doc-td--value">
-                      <div>{val(formData?.[f.key])}</div>
+                      <div style={f.format ? { whiteSpace: 'pre-wrap' } : undefined}>
+                        {f.format ? f.format(formData?.[f.key]) : val(formData?.[f.key])}
+                      </div>
                       {note && <div className="task-field-note" style={{ marginTop: 6 }}>{note.comment}</div>}
                       {isOpen && (
                         <div className="task-annotation-popover">

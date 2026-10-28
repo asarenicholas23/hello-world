@@ -10,7 +10,7 @@ import { getFacility } from '../firebase/facilities'
 import { listStaff, getStaffMember } from '../firebase/staff'
 import { tsToInput, inputToTs } from '../utils/records'
 import { decodeFileNumberParam, facilityPath } from '../utils/fileNumbers'
-import { SITE_VERIFICATION_CHECKLISTS } from '../data/siteVerificationChecklists'
+import { SITE_VERIFICATION_CHECKLISTS, cleanWorkers } from '../data/siteVerificationChecklists'
 import ChecklistFields from '../components/forms/ChecklistFields'
 import Spinner from '../components/Spinner'
 
@@ -161,7 +161,7 @@ export default function SiteVerificationForm() {
       }
     }
     for (const field of checklist.extraFields ?? []) {
-      payload[field.key] = formData[field.key] ?? ''
+      payload[field.key] = field.type === 'workers' ? cleanWorkers(formData[field.key]) : (formData[field.key] ?? '')
     }
 
     try {

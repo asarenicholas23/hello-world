@@ -1,0 +1,93 @@
+diff -ru a/CLAUDE.md b/CLAUDE.md
+--- a/CLAUDE.md	2026-11-16 14:47:02.708885938 +0000
++++ b/CLAUDE.md	2026-11-16 14:47:02.747409798 +0000
+@@ -142,6 +142,10 @@
+ | `src/pages/Home.jsx`          | Role-specific home/dashboard             |
+ | `src/App.jsx`                 | Route definitions                        |
+ | `scripts/seed.cjs`            | Seeds test staff + counters (Admin SDK)  |
++| `src/pages/FeeCalculatorPage.jsx` | Act 1080 fee calculator (own sidebar tab, route `/fee-calculator`) |
++| `src/utils/feeCalc.js`        | Pure fee logic: bands, per-unit rates, US$ conversion, penalty |
++| `src/data/act1080Fees.json`   | Fee table extracted from Act 1080 (loaded on demand) |
++| `scripts/build-fee-table.mjs` | Rebuilds the fee table from the fee Sheet's CSV export |
+ | `firestore.rules`             | Firestore security rules                 |
+ | `DATA_MODEL.md`               | Full Firestore schema reference          |
+ 
+@@ -168,3 +172,13 @@
+ - Permit numbers are typed manually — never auto-generated or parsed by the app.
+ - `.env` is gitignored — never commit Firebase credentials.
+ - `scripts/serviceAccountKey.json` is gitignored — never commit.
++
++---
++
++## Fee Calculator (Act 1080)
++
++- Own sidebar tab for every role, route `/fee-calculator`. Not linked to facilities or finance records.
++- Fee table is `src/data/act1080Fees.json`, extracted from the scanned Act 1080 schedule (EPA pages 295–445) and reconciled against the Konongo office extract. To change fees, edit the fee Sheet, export the "Permits and certificates" tab as CSV and run `node scripts/build-fee-table.mjs <file.csv>`. Do not hand-edit the JSON.
++- Calculation rules (confirmed by the office): processing fee and permit fee are separate; per-unit lines are rate × number of units, with the band picked by capacity; non-compliance penalty (late renewal, operating without a permit) is 3 × the permit fee by default; no service charge.
++- Neither Act 1080 nor L.I. 2504 defines the large/medium/small/minor/micro "impact scale"; the page tells officers to use the scale assigned at screening.
++- Full notes: `docs/fee-calculator/README.md`.
+diff -ru a/src/App.jsx b/src/App.jsx
+--- a/src/App.jsx	2026-11-16 14:47:02.705268662 +0000
++++ b/src/App.jsx	2026-11-16 14:47:02.746129634 +0000
+@@ -39,6 +39,7 @@
+ import SmsPage from './pages/SmsPage'
+ import EmailPage from './pages/EmailPage'
+ import ChatPage from './pages/ChatPage'
++import FeeCalculatorPage from './pages/FeeCalculatorPage'
+ 
+ export default function App() {
+   return (
+@@ -103,6 +104,9 @@
+               <Route path="field-reports/new" element={<FieldReportForm />} />
+               <Route path="field-reports/:id/edit" element={<FieldReportForm />} />
+ 
++              {/* Fee Calculator (Act 1080) — static route, so it wins over :module */}
++              <Route path="fee-calculator" element={<FeeCalculatorPage />} />
++
+               {/* Top-level module overviews */}
+               <Route path=":module" element={<CrossRecordsPage />} />
+ 
+diff -ru a/src/components/Layout.jsx b/src/components/Layout.jsx
+--- a/src/components/Layout.jsx	2026-11-16 14:47:02.706945781 +0000
++++ b/src/components/Layout.jsx	2026-11-16 14:47:02.746436404 +0000
+@@ -13,7 +13,7 @@
+   Users, ClipboardList, Activity, CheckSquare,
+   LogOut, Menu, X, Upload, Flag, BarChart2, TrendingUp,
+   Briefcase, LayoutList, MessageSquare, GraduationCap, BellRing, Mail, Gauge,
+-  WifiOff, RefreshCw, CheckCircle2, Clock, ChevronDown, Target,
++  WifiOff, RefreshCw, CheckCircle2, Clock, ChevronDown, Target, Calculator,
+ } from 'lucide-react'
+ 
+ // Nav is organised into labelled, collapsible groups so the sidebar stays
+@@ -28,6 +28,7 @@
+     { label: 'Permits',          icon: FileText,        path: '/permits' },
+     { label: 'Permit Analytics', icon: BarChart2,       path: '/permit-analytics' },
+     { label: 'Finance',          icon: Banknote,        path: '/finance' },
++    { label: 'Fee Calculator',   icon: Calculator,      path: '/fee-calculator' },
+   ]},
+   { section: 'Staff', items: [
+     { label: 'Staff',            icon: Users,           path: '/staff' },
+@@ -57,6 +58,7 @@
+     { label: 'Monitoring',        icon: Activity,        path: '/monitoring' },
+     { label: 'Site Verifications',icon: CheckSquare,     path: '/site-verifications' },
+     { label: 'Field Reports',     icon: Flag,            path: '/field-reports' },
++    { label: 'Fee Calculator',    icon: Calculator,      path: '/fee-calculator' },
+   ]},
+   { section: 'My Work', items: [
+     { label: 'My Assignments',    icon: Briefcase,       path: '/my-assignments' },
+@@ -93,6 +95,7 @@
+     { label: 'Permits',          icon: FileText,        path: '/permits' },
+     { label: 'Permit Analytics', icon: BarChart2,       path: '/permit-analytics' },
+     { label: 'Finance',          icon: Banknote,        path: '/finance' },
++    { label: 'Fee Calculator',   icon: Calculator,      path: '/fee-calculator' },
+   ]},
+   { section: 'Staff & Attendance', items: [
+     { label: 'All Assignments',  icon: LayoutList,      path: '/all-assignments' },
+@@ -128,6 +131,7 @@
+     { section: 'Facilities & Finance', items: [
+       { label: 'Facilities', icon: Building2,       path: '/facilities' },
+       { label: 'Finance',    icon: Banknote,        path: '/finance' },
++      { label: 'Fee Calculator', icon: Calculator,  path: '/fee-calculator' },
+     ]},
+     { section: 'My Work', items: [
+       { label: 'Field Reports', icon: Flag,          path: '/field-reports' },

@@ -146,6 +146,10 @@ field_reports/{id}                    ← for unregistered facilities
 | `src/utils/feeCalc.js`        | Pure fee logic: bands, per-unit rates, US$ conversion, penalty |
 | `src/data/act1080Fees.json`   | Fee table extracted from Act 1080 (loaded on demand) |
 | `scripts/build-fee-table.mjs` | Rebuilds the fee table from the fee Sheet's CSV export |
+| `src/utils/revenueForecast.js` | Fee estimates per facility + revenue forecast (renewals, backlog, unpaid, new) |
+| `src/utils/capacity.js`       | Reads rooms/beds/bags/tank litres etc. from screenings and site verifications |
+| `src/components/ActFinancePanel.jsx` | "Possible finance from Act 1080" (collapsed) on the facility Finance tab |
+| `functions/chatbot.js`        | Osei assistant: tool-calling over the records via OpenRouter |
 | `firestore.rules`             | Firestore security rules                 |
 | `DATA_MODEL.md`               | Full Firestore schema reference          |
 
@@ -182,3 +186,12 @@ node scripts/seed.cjs
 - Calculation rules (confirmed by the office): processing fee and permit fee are separate; per-unit lines are rate × number of units, with the band picked by capacity; non-compliance penalty (late renewal, operating without a permit) is 3 × the permit fee by default; no service charge.
 - Neither Act 1080 nor L.I. 2504 defines the large/medium/small/minor/micro "impact scale"; the page tells officers to use the scale assigned at screening.
 - Full notes: `docs/fee-calculator/README.md`.
+
+---
+
+## Revenue Forecast & Assistant
+
+- Analytics → Finance → Forecast (IT role) uses `buildRevenueForecast`: renewals due in the window, backlog (expired or no permit, not paid since; toggle, on by default), unpaid invoices, new applications on the last-12-months trend. ×3 penalty is a toggle, off by default. "Expected" = possible × collection rate (paid ÷ billed).
+- Each facility's estimate: own last payments → Act 1080 line for its type (`FEE_RULES`) at its capacity (or the median size of surveyed similar facilities) → similar facilities' median paid → sector median. Every row says which.
+- Pricing uses the Act's **permitting** columns (certification as fallback): paid invoices match them (churches 990 + 5,000; fuel 0.02 + 0.03 per litre).
+- The assistant (`functions/chatbot.js`) calls tools (search_facilities, get_facility, revenue_forecast, finance_summary, calculate_fee) and only accepts user/assistant turns from the client. It runs the same code as the app from `functions/shared/`, which `scripts/sync-functions-shared.mjs` regenerates before every functions deploy. Do not edit `functions/shared/` by hand.

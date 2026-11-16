@@ -1,7 +1,8 @@
 {
   "functions": {
     "source": "functions",
-    "runtime": "nodejs24"
+    "runtime": "nodejs24",
+    "predeploy": ["node \"$PROJECT_DIR/scripts/sync-functions-shared.mjs\""]
   },
   "firestore": {
     "database": "(default)",

@@ -2361,6 +2361,30 @@ body {
   color: #111827;
   box-shadow: 0 6px 16px rgba(15, 23, 42, .1);
 }
+.forecast-toggles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+.forecast-toggle {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: 8px;
+  align-items: center;
+  padding: 8px 14px;
+  background: #f8fafc;
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  cursor: pointer;
+  max-width: 100%;
+}
+.forecast-toggle input { grid-row: span 2; width: 16px; height: 16px; accent-color: #111827; cursor: pointer; }
+.forecast-toggle span { font-weight: 800; color: #111827; font-size: 13px; }
+.forecast-toggle small { color: #64748b; font-size: 11.5px; }
+.forecast-toggle.is-on { background: #fff; border-color: #111827; }
+.forecast-toggle.is-disabled { opacity: .5; cursor: not-allowed; }
+.forecast-toggle.is-disabled input { cursor: not-allowed; }
 .period-tabs {
   padding: 4px;
 }
@@ -3670,3 +3694,44 @@ body {
 }
 .checklist-report-banner__title { font-size: 15px; font-weight: 700; color: #1b5e20; margin-bottom: 2px; }
 .srd-ctd--pre { white-space: pre-wrap; }
+
+/* Possible finance from Act 1080 (facility Finance tab) */
+.act-finance {
+  margin: 0 0 14px;
+  border: 1px dashed #cbd5e1;
+  border-radius: 14px;
+  background: #f8fafc;
+}
+.act-finance.is-open { border-style: solid; background: #fff; }
+.act-finance__toggle {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 8px;
+  width: 100%;
+  padding: 10px 14px;
+  border: 0;
+  background: transparent;
+  color: #111827;
+  font-weight: 700;
+  font-size: 13.5px;
+  text-align: left;
+  cursor: pointer;
+}
+.act-finance__toggle small { color: #64748b; font-weight: 500; font-size: 11.5px; }
+.act-finance__body { padding: 0 14px 14px; display: grid; gap: 10px; }
+.act-finance__row { display: grid; gap: 2px; }
+.act-finance__row > span { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: #64748b; font-weight: 700; }
+.act-finance__row small { color: #64748b; font-size: 12px; }
+.act-finance__cap { display: flex; align-items: center; gap: 8px; }
+.act-finance__cap input { width: 120px; max-width: 50%; padding: 6px 8px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 14px; }
+.act-finance__cap em { font-style: normal; color: #374151; font-size: 13px; }
+.act-finance__lines { display: grid; gap: 4px; border-top: 1px solid #f1f5f9; padding-top: 8px; }
+.act-finance__lines > div { display: flex; justify-content: space-between; gap: 12px; font-size: 13px; color: #374151; }
+.act-finance__lines strong { white-space: nowrap; color: #111827; }
+.act-finance__total { border-top: 1px solid #e5e7eb; padding-top: 6px; margin-top: 2px; font-weight: 800; }
+.act-finance__penalty { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #374151; cursor: pointer; }
+.act-finance__penalty input { accent-color: #111827; }
+.act-finance__compare { margin: 0; font-size: 12.5px; color: #374151; background: #f1f5f9; border-radius: 8px; padding: 8px 10px; }
+.act-finance__note { margin: 0; font-size: 12px; color: #64748b; display: flex; gap: 6px; align-items: flex-start; }
+.act-finance__note svg { flex: none; margin-top: 2px; }

@@ -382,7 +382,7 @@ export default function FacilityDetail() {
         </div>
         <div style={{ padding: '4px 0 8px' }}>
           {activeTab === 'permits'            && <PermitsTab           fileNumber={fileNumber} facilityOfficer={facility.primary_officer ?? null} />}
-          {activeTab === 'finance'            && <FinanceTab           fileNumber={fileNumber} role={role} dataAccess={dataAccess} />}
+          {activeTab === 'finance'            && <FinanceTab           fileNumber={fileNumber} role={role} dataAccess={dataAccess} facility={facility} />}
           {activeTab === 'screenings'         && <ScreeningsTab        fileNumber={fileNumber} role={role} dataAccess={dataAccess} />}
           {activeTab === 'site_verifications' && <SiteVerificationsTab fileNumber={fileNumber} role={role} dataAccess={dataAccess} />}
           {activeTab === 'monitoring'         && <MonitoringTab        fileNumber={fileNumber} role={role} dataAccess={dataAccess} />}

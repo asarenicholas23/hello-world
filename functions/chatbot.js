@@ -1,21 +1,44 @@
+// Osei, the in-app assistant. The model answers by calling tools that read the
+// office's records and run the same fee and forecast logic as the app
+// (functions/shared, synced from src/ by scripts/sync-functions-shared.mjs).
+const functions = require('firebase-functions')
+const { getFirestore } = require('firebase-admin/firestore')
+const { getAuth } = require('firebase-admin/auth')
+const { OpenAI } = require('openai')
+const feeTable = require('./shared/act1080Fees.json')
 
-const functions = require('firebase-functions');
-const { getFirestore } = require('firebase-admin/firestore');
-const { getAuth } = require('firebase-admin/auth');
-const { OpenAI } = require('openai');
+const openrouterKey = functions.params.defineSecret('OPENROUTER_KEY')
 
-const openrouterKey = functions.params.defineSecret('OPENROUTER_KEY');
-const facilityIdPattern = /\b(?:CI|CU|CH|CT|CE|PP|CA|CM)\d+\b/gi
+// OpenRouter model id (Claude Sonnet 5.5: $2 / $10 per million tokens in / out, Nov 2026).
+// It rejects a non-default temperature, and its thinking counts toward max_tokens.
+const CHAT_MODEL = 'anthropic/claude-sonnet-5.5'
+const MAX_TOOL_ROUNDS = 6
+const CACHE_MS = 5 * 60 * 1000
+const DAY = 864e5
+
+const SECTORS = { CU: 'Manufacturing', CI: 'Infrastructure', CH: 'Health', CT: 'Hospitality', CE: 'Energy', PP: 'Agrochemical & Pesticide', CA: 'Agriculture', CM: 'Mining' }
+const DISTRICTS = { AAC: 'Asante Akim Central', AAS: 'Asante Akim South', AAN: 'Asante Akim North', SKW: 'Sekyere Kumawu', SAP: 'Sekyere Afram Plains', BF: 'Bosome Freho', KMA: 'Kumasi Metropolitan' }
+
+let sharedModules = null
+async function shared() {
+  if (!sharedModules) {
+    const [fee, capacity, forecast] = await Promise.all([
+      import('./shared/feeCalc.mjs'),
+      import('./shared/capacity.mjs'),
+      import('./shared/revenueForecast.mjs'),
+    ])
+    sharedModules = { FEE: fee.default, ...capacity, ...forecast }
+  }
+  return sharedModules
+}
 
 async function resolveAuth(data, context) {
   if (context?.auth) return context.auth
   if (data?.auth) return data.auth
-
   const rawRequest = data?.rawRequest
   const authHeader = rawRequest?.headers?.authorization || rawRequest?.headers?.Authorization
   const token = authHeader?.split('Bearer ')[1] || authHeader?.split('bearer ')[1]
   if (!token) return null
-
   try {
     const decoded = await getAuth().verifyIdToken(token)
     return { uid: decoded.uid, token: decoded, rawToken: token }
@@ -25,456 +48,412 @@ async function resolveAuth(data, context) {
   }
 }
 
-function normalizeText(text) {
-  return String(text ?? '').trim()
-}
+// ── Data (cached per warm instance) ─────────────────────────────────────────────
 
-function formatDate(value) {
-  if (value == null) return null
-  if (value instanceof Date) return value.toISOString().split('T')[0]
-  if (typeof value === 'string') {
-    const date = new Date(value)
-    return Number.isNaN(date.getTime()) ? value : date.toISOString().split('T')[0]
-  }
-  if (typeof value === 'number') {
-    const date = new Date(value)
-    return Number.isNaN(date.getTime()) ? String(value) : date.toISOString().split('T')[0]
-  }
-  if (typeof value === 'object' && typeof value.toDate === 'function') {
-    return formatDate(value.toDate())
-  }
-  if (typeof value === 'object' && value.seconds != null) {
-    return formatDate(new Date(value.seconds * 1000))
-  }
-  return String(value)
-}
-
-function extractFacilityId(text) {
-  if (!text) return null
-  const matches = text.match(facilityIdPattern)
-  return matches?.[0]?.toUpperCase() ?? null
-}
-
-async function searchFacilitiesByName(db, query) {
-  if (!query || query.length < 2) return []
-  
-  const facilitiesSnap = await db.collection('facilities').get()
-  const matchingFacilities = []
-  
-  for (const doc of facilitiesSnap.docs) {
-    const data = doc.data()
-    const name = normalizeText(data.name)
-    if (name && name.toLowerCase().includes(query.toLowerCase())) {
-      matchingFacilities.push({
-        id: doc.id,
-        name: name,
-        data: data
-      })
-    }
-  }
-  
-  return matchingFacilities.slice(0, 5) // Limit to 5 results
-}
-
-function truncate(text, maxLength = 6200) {
-  const value = normalizeText(text)
-  if (value.length <= maxLength) return value
-  return `${value.slice(0, maxLength - 20)}... [truncated]`
-}
-
-function cosineSimilarity(a, b) {
-  let dot = 0
-  let normA = 0
-  let normB = 0
-  for (let i = 0; i < a.length; i += 1) {
-    dot += a[i] * b[i]
-    normA += a[i] * a[i]
-    normB += b[i] * b[i]
-  }
-  return dot / (Math.sqrt(normA) * Math.sqrt(normB) || 1)
-}
-
-async function createEmbeddings(openai, inputs) {
-  if (!Array.isArray(inputs)) inputs = [inputs]
-  const response = await openai.embeddings.create({
-    model: 'text-embedding-3-small',
-    input: inputs,
-  })
-  return response.data.map((item) => item.embedding)
-}
-
-function summaryForRecord(category, record) {
-  switch (category) {
-    case 'permits':
-      return `Permit ${record.permit_number ?? record.id}: issued ${formatDate(record.issue_date) ?? 'unknown'}, expires ${formatDate(record.expiry_date) ?? 'unknown'}, location ${record.issue_location ?? 'unknown'}`
-    case 'finance':
-      return `Finance ${record.reference_number ?? record.id}: ${record.payment_type ?? 'unknown'} ${record.amount != null ? `GHS ${record.amount}` : ''} ${record.payment_status || 'paid'}${record.permit_number ? ` for permit ${record.permit_number}` : ''}`
-    case 'screenings':
-      return `Screening ${record.id}: district ${record.district ?? 'unknown'}, notes ${normalizeText(record.notes).slice(0, 80)}`
-    case 'site_verifications':
-      return `Site verification ${record.id}: district ${record.district ?? 'unknown'}, notes ${normalizeText(record.notes).slice(0, 80)}`
-    case 'monitoring':
-      return `Monitoring ${record.id}: district ${record.district ?? 'unknown'}, notes ${normalizeText(record.notes).slice(0, 80)}`
-    case 'enforcement':
-      return `Enforcement ${record.id}: invoice status ${record.invoice_status ?? record.payment_status ?? 'unknown'}, notes ${normalizeText(record.notes).slice(0, 80)}`
-    default:
-      return `${category} ${record.id}: ${JSON.stringify(record).slice(0, 120)}`
-  }
-}
-
-async function fetchFacilityContext(db, fileNumber) {
-  const facilityRef = db.collection('facilities').doc(fileNumber)
-  const facilitySnap = await facilityRef.get()
-  if (!facilitySnap.exists) return null
-
-  const facilityData = facilitySnap.data()
-  const subcategories = ['permits', 'finance', 'screenings', 'site_verifications', 'monitoring', 'enforcement']
-
-  const subcollectionResults = await Promise.all(
-    subcategories.map(async (name) => {
-      const snap = await facilityRef.collection(name).get()
-      return {
-        name,
-        records: snap.docs.map((d) => ({ id: d.id, ...d.data() })),
-      }
-    })
-  )
-
-  return { fileNumber, facilityData, subcollectionResults }
-}
-
-function buildFacilityContextSummary({ fileNumber, facilityData, subcollectionResults }) {
-  const lines = []
-  lines.push(`Facility ${fileNumber}`)
-  lines.push(`Name: ${facilityData.name ?? 'unknown'}`)
-  lines.push(`Sector: ${facilityData.sector ?? facilityData.sector_prefix ?? 'unknown'}`)
-  lines.push(`District: ${facilityData.district ?? 'unknown'}`)
-  lines.push(`Location: ${facilityData.location ?? 'unknown'}`)
-  if (facilityData.contact_person) lines.push(`Contact: ${facilityData.contact_person} (${facilityData.phone ?? 'no phone'})`)
-  if (facilityData.email) lines.push(`Email: ${facilityData.email}`)
-  if (facilityData.type_of_undertaking) lines.push(`Type of undertaking: ${facilityData.type_of_undertaking}`)
-
-  for (const section of subcollectionResults) {
-    if (!section.records.length) continue
-    lines.push(`\n${section.name.replace('_', ' ').toUpperCase()} (${section.records.length})`)
-    const preview = section.records.slice(0, 3).map((record) => `- ${summaryForRecord(section.name, record)}`)
-    lines.push(...preview)
-  }
-
-  return truncate(lines.join('\n'), 3000)
-}
-
-function chooseTop(list, limit = 3) {
-  return list
-    .sort((a, b) => b.value - a.value)
-    .slice(0, limit)
-}
-
-function buildAnalyticsSummary({ facilityCount, financeCount, permitCount, screeningCount, siteVerificationCount, monitoringCount, enforcementCount, complaintCount, envEducationCount, fieldReportCount, totalPaidRevenue, totalUnpaid, totalRevenue, topDistrictByRevenue, topSectorByRevenue, topDistrictByUnpaid, topSectorByUnpaid }) {
-  const lines = []
-  lines.push('GLOBAL ANALYTICS SUMMARY')
-  lines.push(`Facilities: ${facilityCount}`)
-  lines.push(`Finance records: ${financeCount}`)
-  lines.push(`Permits: ${permitCount}`)
-  lines.push(`Screenings: ${screeningCount}`)
-  lines.push(`Site verifications: ${siteVerificationCount}`)
-  lines.push(`Monitoring records: ${monitoringCount}`)
-  lines.push(`Enforcement records: ${enforcementCount}`)
-  lines.push(`Complaints: ${complaintCount}`)
-  lines.push(`Environmental education records: ${envEducationCount}`)
-  lines.push(`Field reports: ${fieldReportCount}`)
-  lines.push(`Total revenue (paid + unpaid): GHS ${totalRevenue.toLocaleString('en-GH', { minimumFractionDigits: 2 })}`)
-  lines.push(`Total paid revenue: GHS ${totalPaidRevenue.toLocaleString('en-GH', { minimumFractionDigits: 2 })}`)
-  lines.push(`Total unpaid amount: GHS ${totalUnpaid.toLocaleString('en-GH', { minimumFractionDigits: 2 })}`)
-  if (topDistrictByRevenue) lines.push(`Top district by paid revenue: ${topDistrictByRevenue.key} with GHS ${topDistrictByRevenue.value.toLocaleString('en-GH', { minimumFractionDigits: 2 })}`)
-  if (topSectorByRevenue) lines.push(`Top sector by paid revenue: ${topSectorByRevenue.key} with GHS ${topSectorByRevenue.value.toLocaleString('en-GH', { minimumFractionDigits: 2 })}`)
-  if (topDistrictByUnpaid) lines.push(`Top district by unpaid amount: ${topDistrictByUnpaid.key} with GHS ${topDistrictByUnpaid.value.toLocaleString('en-GH', { minimumFractionDigits: 2 })}`)
-  if (topSectorByUnpaid) lines.push(`Top sector by unpaid amount: ${topSectorByUnpaid.key} with GHS ${topSectorByUnpaid.value.toLocaleString('en-GH', { minimumFractionDigits: 2 })}`)
-  return truncate(lines.join('\n'), 3200)
-}
-
-async function fetchGlobalAnalytics(db) {
-  const [facilitiesSnap, financeSnap, permitsSnap, screeningsSnap, siteVerificationSnap, monitoringSnap, enforcementSnap, complaintsSnap, envEducationSnap, fieldReportsSnap] = await Promise.all([
+let cache = null
+async function loadData(db) {
+  if (cache && Date.now() - cache.at < CACHE_MS) return cache
+  const dec = (id) => { try { return decodeURIComponent(id) } catch { return id } }
+  const sub = async (name) => (await db.collectionGroup(name).get()).docs.map((d) => ({ id: d.id, fileNumber: dec(d.ref.parent.parent.id), ...d.data() }))
+  const [facilitiesSnap, permits, finance, screenings, siteVerifications, enforcement, monitoring, fieldReportsSnap] = await Promise.all([
     db.collection('facilities').get(),
-    db.collectionGroup('finance').get(),
-    db.collectionGroup('permits').get(),
-    db.collectionGroup('screenings').get(),
-    db.collectionGroup('site_verifications').get(),
-    db.collectionGroup('monitoring').get(),
-    db.collectionGroup('enforcement').get(),
-    db.collection('complaints').get(),
-    db.collection('environmental_education').get(),
+    sub('permits'), sub('finance'), sub('screenings'), sub('site_verifications'), sub('enforcement'), sub('monitoring'),
     db.collection('field_reports').get(),
   ])
+  const facilities = facilitiesSnap.docs.map((d) => ({ ...d.data(), file_number: dec(d.id) }))
+  const fieldReports = fieldReportsSnap.docs.map((d) => ({ id: d.id, ...d.data() }))
+  const { buildCapacityIndex, buildFeeContext } = await shared()
+  const capacityIndex = buildCapacityIndex({ screenings, siteVerifications, fieldReports })
+  const ctx = buildFeeContext({ feeTable, facilities, finance, capacityIndex })
+  const byFile = (list) => {
+    const m = new Map()
+    for (const r of list) { if (!m.has(r.fileNumber)) m.set(r.fileNumber, []); m.get(r.fileNumber).push(r) }
+    return m
+  }
+  cache = {
+    at: Date.now(), facilities, permits, finance, screenings, siteVerifications, enforcement, monitoring, fieldReports, ctx,
+    facilityByFile: new Map(facilities.map((f) => [f.file_number, f])),
+    permitsByFile: byFile(permits), financeByFile: byFile(finance), enforcementByFile: byFile(enforcement),
+    screeningsByFile: byFile(screenings), siteVerificationsByFile: byFile(siteVerifications), monitoringByFile: byFile(monitoring),
+  }
+  return cache
+}
 
-  const facilityMap = new Map(facilitiesSnap.docs.map((doc) => {
-    const data = doc.data()
-    return [doc.id, { district: data.district ?? 'unknown', sector: data.sector ?? data.sector_prefix ?? 'unknown' }]
-  }))
+// ── Helpers ─────────────────────────────────────────────────────────────────────
 
-  const revenueByDistrict = {}
-  const unpaidByDistrict = {}
-  const revenueBySector = {}
-  const unpaidBySector = {}
-  let totalPaidRevenue = 0
-  let totalUnpaid = 0
-  let totalRevenue = 0
+function ms(v) {
+  if (v == null || v === '') return null
+  if (typeof v === 'number') return v
+  if (typeof v.toMillis === 'function') return v.toMillis()
+  if (typeof v.seconds === 'number') return v.seconds * 1000
+  if (typeof v._seconds === 'number') return v._seconds * 1000
+  const t = new Date(v).getTime()
+  return Number.isNaN(t) ? null : t
+}
+function day(v) { const t = ms(v); return t ? new Date(t).toISOString().slice(0, 10) : null }
+function cedis(x) { return Math.round((Number(x) || 0) * 100) / 100 }
+function districtName(code) { return DISTRICTS[code] ?? (code || 'Unknown') }
+function sectorName(prefix) { return SECTORS[prefix] ?? prefix ?? null }
+function clean(obj) {
+  return Object.fromEntries(Object.entries(obj).filter(([, v]) => v !== null && v !== undefined && v !== '' && !(Array.isArray(v) && !v.length)))
+}
 
-  financeSnap.docs.forEach((financeDoc) => {
-    const record = financeDoc.data()
-    const facilityId = financeDoc.ref.parent.parent.id
-    const facilityInfo = facilityMap.get(facilityId) || { district: 'unknown', sector: 'unknown' }
-    const amount = Number(record.amount ?? 0)
-    const status = String(record.payment_status ?? 'paid').toLowerCase()
-    totalRevenue += amount
-    if (status === 'unpaid') {
-      totalUnpaid += amount
-      unpaidByDistrict[facilityInfo.district] = (unpaidByDistrict[facilityInfo.district] ?? 0) + amount
-      unpaidBySector[facilityInfo.sector] = (unpaidBySector[facilityInfo.sector] ?? 0) + amount
-    } else {
-      totalPaidRevenue += amount
-      revenueByDistrict[facilityInfo.district] = (revenueByDistrict[facilityInfo.district] ?? 0) + amount
-      revenueBySector[facilityInfo.sector] = (revenueBySector[facilityInfo.sector] ?? 0) + amount
-    }
-  })
+function permitInfo(data, fileNumber, now = Date.now()) {
+  const list = data.permitsByFile.get(fileNumber) ?? []
+  let latest = null
+  for (const p of list) { const e = ms(p.expiry_date); if (e && (!latest || e > latest.e)) latest = { e, p } }
+  if (!latest) return { status: 'none', expiry: null, permit_number: null }
+  const status = latest.e < now ? 'expired' : latest.e < now + 60 * DAY ? 'expiring' : 'active'
+  return { status, expiry: day(latest.e), permit_number: latest.p.permit_number ?? null }
+}
 
-  const topDistrictByRevenue = chooseTop(Object.entries(revenueByDistrict).map(([key, value]) => ({ key, value })))[0] || null
-  const topSectorByRevenue = chooseTop(Object.entries(revenueBySector).map(([key, value]) => ({ key, value })))[0] || null
-  const topDistrictByUnpaid = chooseTop(Object.entries(unpaidByDistrict).map(([key, value]) => ({ key, value })))[0] || null
-  const topSectorByUnpaid = chooseTop(Object.entries(unpaidBySector).map(([key, value]) => ({ key, value })))[0] || null
+function matchesText(f, q) {
+  const hay = [f.name, f.file_number, f.type_of_undertaking, f.location, f.contact_person, f.district, districtName(f.district)].join(' ').toLowerCase()
+  return q.toLowerCase().split(/\s+/).filter(Boolean).every((t) => hay.includes(t))
+}
 
+function resolveDistrict(input) {
+  if (!input) return null
+  const s = String(input).trim().toLowerCase()
+  const hit = Object.entries(DISTRICTS).find(([code, name]) => code.toLowerCase() === s || name.toLowerCase() === s || name.toLowerCase().includes(s))
+  return hit ? hit[0] : String(input).toUpperCase()
+}
+function resolveSector(input) {
+  if (!input) return null
+  const s = String(input).trim().toLowerCase()
+  const hit = Object.entries(SECTORS).find(([p, name]) => p.toLowerCase() === s || name.toLowerCase().includes(s))
+  return hit ? hit[0] : String(input).toUpperCase()
+}
+
+function periodRange(args, now = Date.now()) {
+  if (args.from || args.to) return { from: args.from ? ms(args.from) : null, to: args.to ? ms(`${args.to}T23:59:59`) ?? ms(args.to) : null }
+  const days = { month: 30, quarter: 91, half_year: 182, year: 365 }[args.period ?? 'year'] ?? 365
+  return { from: now, to: now + days * DAY }
+}
+
+// ── Tools ───────────────────────────────────────────────────────────────────────
+
+const TOOLS = [
+  {
+    type: 'function',
+    function: {
+      name: 'search_facilities',
+      description: 'Find facilities by name, file number, type of undertaking, location or contact, and/or filter by district, sector or permit status. Returns up to `limit` matches with permit status.',
+      parameters: {
+        type: 'object',
+        properties: {
+          query: { type: 'string', description: 'Words to match, e.g. "Asuo Barima", "fuel station Juaso", "CT0006".' },
+          district: { type: 'string', description: 'District name or code, e.g. "Asante Akim Central" or "AAC".' },
+          sector: { type: 'string', description: 'Sector name or prefix, e.g. "Hospitality" or "CT".' },
+          permit_status: { type: 'string', enum: ['active', 'expiring', 'expired', 'none'], description: 'expiring = within 60 days.' },
+          limit: { type: 'integer', description: 'Default 15, max 50.' },
+        },
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_facility',
+      description: 'Full record for one facility: profile, permits, payments, screenings, site verifications, monitoring, enforcement, capacities found in field records, and the estimated fee (paid history vs Act 1080).',
+      parameters: { type: 'object', properties: { file_number: { type: 'string' } }, required: ['file_number'] },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'revenue_forecast',
+      description: 'Revenue the office can expect in a future window: renewals due, backlog (expired or no permit and not paid since), unpaid invoices and new applications on trend. Also gives the expected amount after the historical collection rate and the top facilities to target.',
+      parameters: {
+        type: 'object',
+        properties: {
+          period: { type: 'string', enum: ['month', 'quarter', 'half_year', 'year'], description: 'Window starting today. Default year.' },
+          from: { type: 'string', description: 'Start date YYYY-MM-DD (instead of period).' },
+          to: { type: 'string', description: 'End date YYYY-MM-DD (instead of period).' },
+          include_backlog: { type: 'boolean', description: 'Default true.' },
+          include_penalty: { type: 'boolean', description: 'Add 3 × permit fee to backlog facilities. Default false; only when the user asks.' },
+          district: { type: 'string' },
+          sector: { type: 'string' },
+        },
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'finance_summary',
+      description: 'What has been billed and paid in a past window, grouped by district, sector, payment type, month or facility.',
+      parameters: {
+        type: 'object',
+        properties: {
+          from: { type: 'string', description: 'YYYY-MM-DD' },
+          to: { type: 'string', description: 'YYYY-MM-DD' },
+          group_by: { type: 'string', enum: ['district', 'sector', 'payment_type', 'month', 'facility'] },
+          district: { type: 'string' },
+          sector: { type: 'string' },
+        },
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'calculate_fee',
+      description: 'Look up Act 1080 fees for a kind of undertaking (the Fee Calculator). Returns the matching fee lines with processing and permit fees, and the total when a capacity is given. Use for "how much does a X pay" questions about a type rather than a specific facility.',
+      parameters: {
+        type: 'object',
+        properties: {
+          undertaking: { type: 'string', description: 'e.g. "hotel", "sachet water", "fuel filling station", "church", "hostel".' },
+          capacity: { type: 'number', description: 'Rooms, beds, bags a day, litres, tonnes, seats or housing units, whichever the line uses.' },
+          phase: { type: 'string', enum: ['Construction', 'Operation'], description: 'Default Operation.' },
+          penalty: { type: 'boolean', description: 'Add 3 × permit fee.' },
+        },
+        required: ['undertaking'],
+      },
+    },
+  },
+]
+
+async function search_facilities(data, args) {
+  const district = resolveDistrict(args.district)
+  const sector = resolveSector(args.sector)
+  const limit = Math.min(Math.max(Number(args.limit) || 15, 1), 50)
+  const now = Date.now()
+  const hits = []
+  for (const f of data.facilities) {
+    if (district && f.district !== district) continue
+    if (sector && f.sector_prefix !== sector) continue
+    if (args.query && !matchesText(f, args.query)) continue
+    const p = permitInfo(data, f.file_number, now)
+    if (args.permit_status && p.status !== args.permit_status) continue
+    hits.push({ f, p })
+  }
   return {
-    facilityCount: facilitiesSnap.size,
-    financeCount: financeSnap.size,
-    permitCount: permitsSnap.size,
-    screeningCount: screeningsSnap.size,
-    siteVerificationCount: siteVerificationSnap.size,
-    monitoringCount: monitoringSnap.size,
-    enforcementCount: enforcementSnap.size,
-    complaintCount: complaintsSnap.size,
-    envEducationCount: envEducationSnap.size,
-    fieldReportCount: fieldReportsSnap.size,
-    totalPaidRevenue,
-    totalUnpaid,
-    totalRevenue,
-    topDistrictByRevenue,
-    topSectorByRevenue,
-    topDistrictByUnpaid,
-    topSectorByUnpaid,
+    total_matches: hits.length,
+    facilities: hits.slice(0, limit).map(({ f, p }) => clean({
+      file_number: f.file_number, name: f.name, type: f.type_of_undertaking, district: districtName(f.district),
+      sector: sectorName(f.sector_prefix), location: f.location, permit_status: p.status, permit_expiry: p.expiry,
+    })),
   }
 }
 
-async function fetchFacilitiesWithoutPermits(db) {
-  const facilitiesSnap = await db.collection('facilities').get()
-  const facilitiesWithoutPermits = []
-
-  for (const facilityDoc of facilitiesSnap.docs) {
-    const permitsSnap = await facilityDoc.ref.collection('permits').get()
-    if (permitsSnap.empty) {
-      facilitiesWithoutPermits.push(facilityDoc.id)
-    }
-  }
-
-  return facilitiesWithoutPermits
-}
-
-async function fetchExpiredPermitsForFacility(db, facilityId) {
-  const facilityRef = db.collection('facilities').doc(facilityId)
-  const permitsSnap = await facilityRef.collection('permits').get()
-  const expiredPermits = []
-
-  const now = new Date()
-  for (const permitDoc of permitsSnap.docs) {
-    const permit = permitDoc.data()
-    if (permit.expiry_date) {
-      const expiry = new Date(permit.expiry_date)
-      if (expiry < now) {
-        expiredPermits.push({
-          id: permitDoc.id,
-          permit_number: permit.permit_number,
-          expiry_date: permit.expiry_date,
-        })
-      }
-    }
-  }
-
-  return expiredPermits
-}
-
-// Force redeploy - added comment
-async function buildSemanticContext(openai, db, query) {
-  const facilitiesSnap = await db.collection('facilities').get()
-  const facilityCandidates = facilitiesSnap.docs.map((facilityDoc) => {
-    const data = facilityDoc.data()
-    const summaryParts = [
-      `Facility ${facilityDoc.id}`,
-      data.name ? `name ${data.name}` : null,
-      data.sector ? `sector ${data.sector}` : null,
-      data.sector_prefix ? `sector prefix ${data.sector_prefix}` : null,
-      data.district ? `district ${data.district}` : null,
-      data.location ? `location ${data.location}` : null,
-      data.type_of_undertaking ? `undertaking ${data.type_of_undertaking}` : null,
-      data.contact_person ? `contact ${data.contact_person}` : null,
-    ].filter(Boolean).join(', ')
-    return {
-      id: facilityDoc.id,
-      text: summaryParts,
-      kind: 'facility',
-    }
+async function get_facility(data, args) {
+  const fn = String(args.file_number ?? '').trim()
+  const f = data.facilityByFile.get(fn) ?? data.facilities.find((x) => x.file_number.toLowerCase() === fn.toLowerCase())
+  if (!f) return { error: `No facility with file number ${fn}. Use search_facilities to find it.` }
+  const { estimateFacility } = await shared()
+  const file = f.file_number
+  const est = estimateFacility(f, data.ctx, { application: (data.permitsByFile.get(file) ?? []).length ? 'renewal' : 'new' })
+  const caps = Object.fromEntries(Object.entries(est.capacities ?? {}).map(([k, v]) => [k, `${v.value} (from ${v.source}${v.dateMs ? `, ${day(v.dateMs)}` : ''})`]))
+  const sortByDate = (list, key = 'date') => [...(list ?? [])].sort((a, b) => (ms(b[key]) ?? ms(b.created_at) ?? 0) - (ms(a[key]) ?? ms(a.created_at) ?? 0))
+  return clean({
+    file_number: file, name: f.name, type: f.type_of_undertaking, sector: sectorName(f.sector_prefix), district: districtName(f.district),
+    location: f.location, contact: f.contact_person, phone: f.phone, email: f.email, officer: f.primary_officer_name,
+    permit: permitInfo(data, file),
+    permits: sortByDate(data.permitsByFile.get(file), 'issue_date').slice(0, 5).map((p) => clean({ permit_number: p.permit_number, issued: day(p.issue_date), expires: day(p.expiry_date) })),
+    payments: sortByDate(data.financeByFile.get(file)).slice(0, 10).map((r) => clean({ date: day(r.date ?? r.created_at), type: r.payment_type, amount: cedis(r.amount), status: r.payment_status ?? 'paid', reference: r.reference_number })),
+    screenings: sortByDate(data.screeningsByFile.get(file)).slice(0, 3).map((s) => clean({ date: day(s.date ?? s.created_at), capacity: s.capacity, officer: s.officer_name, notes: s.notes })),
+    site_verifications: sortByDate(data.siteVerificationsByFile.get(file)).slice(0, 3).map((s) => clean({ date: day(s.date ?? s.created_at), officer: s.officer_name, notes: s.notes })),
+    monitoring_visits: (data.monitoringByFile.get(file) ?? []).length,
+    enforcement: sortByDate(data.enforcementByFile.get(file)).slice(0, 5).map((e) => clean({ date: day(e.date ?? e.created_at), action: e.action_taken, notes: e.notes })),
+    capacities_on_record: caps,
+    fee_estimate: clean({
+      processing: est.processing, permit: est.permit, total: est.total, basis: est.sourceLabel,
+      act_1080: est.act ? clean({ line: `${est.act.lineId} ${est.act.lineLabel}`, rule: est.act.ruleLabel, processing: est.act.processing, permit: est.act.permit, total: est.act.total, capacity_used: est.act.qty ? `${est.act.qty.value} ${est.act.qty.unit} (${est.act.qty.source})` : null, pages: est.act.pages, note: est.act.note }) : 'No Act 1080 line mapped for this type of undertaking',
+      penalty_if_charged: cedis(est.permit * 3),
+    }),
   })
-
-  if (!facilityCandidates.length) return ''
-
-  const queryEmbedding = (await createEmbeddings(openai, query))[0]
-  const candidates = facilityCandidates.slice(0, 80)
-  const candidateTexts = candidates.map((candidate) => candidate.text)
-  const candidateEmbeddings = await createEmbeddings(openai, candidateTexts)
-
-  const ranked = candidates.map((candidate, index) => ({
-    ...candidate,
-    score: cosineSimilarity(queryEmbedding, candidateEmbeddings[index]),
-  })).sort((a, b) => b.score - a.score).slice(0, 6)
-
-  const lines = ranked.map((candidate) => `- ${candidate.id}: ${candidate.text}`)
-  return `Most relevant facilities to this question:\n${lines.join('\n')}`
 }
 
-async function fetchExpiredPermitsForFacility(db, facilityId) {
-  const facilityRef = db.collection('facilities').doc(facilityId)
-  const permitsSnap = await facilityRef.collection('permits').get()
-  const expiredPermits = []
+async function revenue_forecast(data, args) {
+  const { buildRevenueForecast, SOURCE_NAMES } = await shared()
+  const district = resolveDistrict(args.district)
+  const sector = resolveSector(args.sector)
+  const facilities = data.facilities.filter((f) => (!district || f.district === district) && (!sector || f.sector_prefix === sector))
+  const range = periodRange(args)
+  const fc = buildRevenueForecast({
+    facilities, permits: data.permits, finance: data.finance, ctx: data.ctx, range,
+    includeBacklog: args.include_backlog !== false, includePenalty: args.include_penalty === true,
+  })
+  const backlog = fc.rows.filter((r) => r.stream === 'backlog')
+  const byGroup = (key, label) => {
+    const m = {}
+    fc.rows.forEach((r) => { const k = label(r[key]); m[k] = cedis((m[k] ?? 0) + r.total) })
+    return Object.entries(m).sort((a, b) => b[1] - a[1]).slice(0, 8).map(([name, total]) => ({ name, total }))
+  }
+  return {
+    window: { from: day(range.from), to: day(range.to) },
+    possible_total: fc.possible,
+    expected_total: fc.expected,
+    collection_rate_pct: fc.collectionRate != null ? Math.round(fc.collectionRate * 100) : null,
+    streams: {
+      renewals_due: fc.streams.renewal,
+      backlog: { ...fc.streams.backlog, expired: backlog.filter((r) => r.backlogReason === 'expired').length, no_permit: backlog.filter((r) => r.backlogReason === 'no permit').length },
+      unpaid_invoices: fc.streams.unpaid,
+      new_applications: fc.streams.new,
+    },
+    penalty_included: args.include_penalty === true,
+    penalty_potential_if_charged: cedis(backlog.reduce((s, r) => s + r.permit, 0) * 3),
+    estimate_basis_counts: fc.sourceCounts,
+    by_district: byGroup('facilityDistrict', districtName),
+    by_sector: byGroup('sectorPrefix', sectorName),
+    top_targets: [...fc.rows].sort((a, b) => b.total - a.total).slice(0, 10).map((r) => clean({
+      file_number: r.fileNumber, name: r.facilityName, stream: r.stream, reason: r.backlogReason, expiry: r.expiryMs ? day(r.expiryMs) : null,
+      estimate: r.total, basis: SOURCE_NAMES[r.source] ?? r.source,
+    })),
+  }
+}
 
-  const now = new Date()
-  for (const permitDoc of permitsSnap.docs) {
-    const permit = permitDoc.data()
-    if (permit.expiry_date) {
-      const expiry = new Date(permit.expiry_date)
-      if (expiry < now) {
-        expiredPermits.push({
-          id: permitDoc.id,
-          permit_number: permit.permit_number,
-          expiry_date: permit.expiry_date,
-        })
-      }
+async function finance_summary(data, args) {
+  const { paymentKind } = await shared()
+  const district = resolveDistrict(args.district)
+  const sector = resolveSector(args.sector)
+  const from = args.from ? ms(args.from) : null
+  const to = args.to ? ms(`${args.to}T23:59:59`) ?? ms(args.to) : null
+  const rows = data.finance.filter((r) => {
+    const f = data.facilityByFile.get(r.fileNumber)
+    if (district && f?.district !== district) return false
+    if (sector && f?.sector_prefix !== sector) return false
+    const t = ms(r.date) ?? ms(r.created_at)
+    if (from != null && (!t || t < from)) return false
+    if (to != null && (!t || t > to)) return false
+    return true
+  })
+  const groupKey = (r) => {
+    const f = data.facilityByFile.get(r.fileNumber)
+    switch (args.group_by) {
+      case 'district': return districtName(f?.district) ?? 'Unknown'
+      case 'sector': return sectorName(f?.sector_prefix) ?? 'Unknown'
+      case 'payment_type': return paymentKind(r.payment_type)
+      case 'month': return (day(r.date ?? r.created_at) ?? 'unknown').slice(0, 7)
+      case 'facility': return `${f?.name ?? r.fileNumber} (${r.fileNumber})`
+      default: return 'All'
     }
   }
-
-  return expiredPermits
+  const groups = {}
+  let billed = 0; let paid = 0
+  for (const r of rows) {
+    const a = Number(r.amount) || 0
+    const isPaid = (r.payment_status ?? 'paid') !== 'unpaid'
+    billed += a; if (isPaid) paid += a
+    const g = (groups[groupKey(r)] ??= { billed: 0, paid: 0, unpaid: 0, records: 0 })
+    g.billed += a; g.records += 1
+    if (isPaid) g.paid += a; else g.unpaid += a
+  }
+  const list = Object.entries(groups).map(([name, g]) => ({ name, billed: cedis(g.billed), paid: cedis(g.paid), unpaid: cedis(g.unpaid), records: g.records }))
+  list.sort((a, b) => (args.group_by === 'month' ? a.name.localeCompare(b.name) : b.billed - a.billed))
+  return {
+    window: { from: args.from ?? 'all', to: args.to ?? 'all' },
+    records: rows.length, billed: cedis(billed), paid: cedis(paid), unpaid: cedis(billed - paid),
+    note: 'Most finance records in the app start in December 2025; earlier payments were mostly not migrated.',
+    groups: list.slice(0, 25),
+  }
 }
 
-exports.chatbot = functions.https.onCall({ secrets: [openrouterKey] }, async (data, context) => {
+async function calculate_fee(data, args) {
+  const { FEE } = await shared()
+  const lines = feeTable.main.map(FEE.rowToLine)
+  const fams = FEE.buildFamilies(lines)
+  const phase = args.phase ?? 'Operation'
+  const found = FEE.search(fams, String(args.undertaking ?? '')).slice(0, 4)
+  if (!found.length) return { error: `No Act 1080 line matches "${args.undertaking}". Try other words, e.g. "hotel", "filling station", "sachet".` }
+  const cap = Number(args.capacity)
+  return {
+    note: 'Permitting rates (new or renewal); per-unit lines multiply by the capacity. Impact scale (large…micro) is not defined by Act 1080 or L.I. 2504: use the scale assigned at screening.',
+    matches: found.map((fam) => {
+      const inPhase = fam.lines.filter((l) => !l.phase || l.phase === phase)
+      const useLines = inPhase.length ? inPhase : fam.lines
+      const band = Number.isFinite(cap) && cap > 0 ? useLines.find((l) => FEE.inBand(l, cap)) : null
+      const show = band ? [band] : useLines.slice(0, 8)
+      return {
+        family: fam.title, sector: fam.sector,
+        lines: show.map((l) => {
+          const b = FEE.bill(l, { regime: 'P', qty: Number.isFinite(cap) && cap > 0 ? cap : null, rate: null, penalty: { on: !!args.penalty, mult: 3, base: 'permit' } })
+          return clean({
+            line: `${l.id} ${FEE.stripNumbering(l.label)}`, phase: l.phase, band: l.bmin != null || l.bmax != null ? `${l.bmin ?? ''}–${l.bmax ?? ''} ${l.unit}` : null,
+            basis: l.basis, processing: l.fees.pp?.cur === 'GHS' ? l.fees.pp.v : l.fees.pp ? `${l.fees.pp.cur} ${l.fees.pp.v}` : null,
+            permit: l.fees.pm?.cur === 'GHS' ? l.fees.pm.v : l.fees.pm ? `${l.fees.pm.cur} ${l.fees.pm.v}` : null,
+            total_for_capacity: b.complete ? b.total : null, needs_capacity: b.needQty || null, pages: l.pages,
+          })
+        }),
+      }
+    }),
+  }
+}
+
+const TOOL_IMPL = { search_facilities, get_facility, revenue_forecast, finance_summary, calculate_fee }
+
+function systemPrompt() {
+  const today = new Date().toISOString().slice(0, 10)
+  return `You are Osei, the assistant in the Ghana EPA Konongo Area Office permit app. Today is ${today}.
+
+You answer from the office's records using the tools. Always call a tool before giving a number, a facility detail or a list; never invent facilities, amounts or dates. If a tool returns nothing useful, say what you checked and what is missing.
+
+How the office's money works:
+- Every facility pays a processing fee and a permit fee under the Fees and Charges (Miscellaneous Provisions) Act, 2022 (Act 1080). Permits usually run 12–24 months.
+- Estimates come from, in order: what the facility paid before, the Act 1080 line for its type and capacity, what similar facilities paid, the sector median. Always say which basis a figure uses.
+- Capacities (rooms, beds, bags a day, tank litres) come from screenings and site verifications. When a typical size was assumed, say so.
+- Non-compliance penalty (late renewal or operating without a permit) is 3 × the permit fee. Do not include it unless the user asks; you may mention what it would add.
+- Neither Act 1080 nor the Environmental Assessment Regulations, 2025 (L.I. 2504) define large/medium/small/minor/micro impact scale; that comes from screening.
+- These are estimates. The Ghana.gov invoice from the EPA client portal is the bill.
+- "Expected" revenue applies the office's historical collection rate (paid ÷ billed) to the possible total.
+
+Answer style: short and direct, in plain text (no tables, no markdown headings). Lead with the answer. Use GH¢ with thousands separators. Use short "- " lists for several items. Mention file numbers so staff can find facilities. You can only read data; you cannot edit records, send messages or assign work.`
+}
+
+exports.chatbot = functions.https.onCall({ secrets: [openrouterKey], timeoutSeconds: 120, memory: '512MiB' }, async (data, context) => {
   const authContext = await resolveAuth(data, context)
-  const messagePayload = Array.isArray(data?.messages)
-    ? data.messages
-    : Array.isArray(data?.data?.messages)
-      ? data.data.messages
-      : []
+  const payload = Array.isArray(data?.messages) ? data.messages : Array.isArray(data?.data?.messages) ? data.data.messages : []
+  if (!authContext) throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated')
 
-  console.log('chatbot invocation', {
-    auth: authContext ? { uid: authContext.uid, tokenType: authContext.token ? 'present' : 'missing' } : null,
-    messageCount: messagePayload.length,
-    dataKeys: Object.keys(data || {}),
-  })
+  // Only user and assistant turns from the client; the last 16, each capped in length.
+  const history = payload
+    .filter((m) => (m?.role === 'user' || m?.role === 'assistant') && typeof m.content === 'string')
+    .slice(-16)
+    .map((m) => ({ role: m.role, content: m.content.slice(0, 4000) }))
+  if (!history.some((m) => m.role === 'user')) throw new functions.https.HttpsError('invalid-argument', 'No question was sent')
 
-  if (!authContext) {
-    console.error('chatbot unauthenticated request', { dataKeys: Object.keys(data || {}), data })
-    throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated');
-  }
-
-  const openai = new OpenAI({
-    apiKey: process.env.OPENROUTER_KEY,
-    baseURL: 'https://openrouter.ai/api/v1',
-  });
+  const openai = new OpenAI({ apiKey: process.env.OPENROUTER_KEY, baseURL: 'https://openrouter.ai/api/v1' })
   const db = getFirestore()
 
   try {
-    const userMessage = messagePayload.filter((msg) => msg.role === 'user').map((msg) => msg.content).join(' ')
-    const facilityId = extractFacilityId(userMessage)
-    const contextSections = []
-
-    // Check for specific query types
-    const lowerMessage = userMessage.toLowerCase()
-    const isQueryWithoutPermits = lowerMessage.includes('without permit') || lowerMessage.includes('no permit') || lowerMessage.includes('missing permit')
-    const isQueryExpiredPermit = lowerMessage.includes('expired permit') && facilityId
-
-    let specificFacilities = []
-    
-    if (facilityId) {
-      const facilityContext = await fetchFacilityContext(db, facilityId)
-      if (facilityContext) {
-        contextSections.push(`FACILITY-SPECIFIC CONTEXT\n${buildFacilityContextSummary(facilityContext)}`)
-        specificFacilities.push(facilityId)
-      } else {
-        contextSections.push(`FACILITY-SPECIFIC CONTEXT\nNo facility document found for ${facilityId}.`)
-      }
-    } else {
-      // Try to find facilities by name
-      const nameMatches = await searchFacilitiesByName(db, userMessage)
-      if (nameMatches.length > 0) {
-        const facilitySummaries = nameMatches.map(match => {
-          const context = {
-            fileNumber: match.id,
-            facilityData: match.data,
-            subcollectionResults: []
-          }
-          return buildFacilityContextSummary(context)
-        })
-        contextSections.push(`FACILITIES MATCHING NAME QUERY\n${facilitySummaries.join('\n\n')}`)
-        specificFacilities = nameMatches.map(match => match.id)
-      }
-    }
-
-    // Handle expired permits query for specific facilities
-    if (isQueryExpiredPermit && specificFacilities.length > 0) {
-      for (const facilityId of specificFacilities) {
-        const expiredPermits = await fetchExpiredPermitsForFacility(db, facilityId)
-        if (expiredPermits.length > 0) {
-          const expiredList = expiredPermits.map(p => `- Permit ${p.permit_number} expired on ${p.expiry_date}`).join('\n')
-          contextSections.push(`EXPIRED PERMITS FOR ${facilityId}\n${expiredList}`)
-        } else {
-          contextSections.push(`EXPIRED PERMITS FOR ${facilityId}\nNo expired permits found.`)
-        }
-      }
-    }
-
-    if (isQueryWithoutPermits) {
-      const facilitiesWithoutPermits = await fetchFacilitiesWithoutPermits(db)
-      contextSections.push(`FACILITIES WITHOUT PERMITS\nThere are ${facilitiesWithoutPermits.length} facilities without permits on file: ${facilitiesWithoutPermits.join(', ')}`)
-    }
-
-    const analytics = await fetchGlobalAnalytics(db)
-    contextSections.push(buildAnalyticsSummary(analytics))
-
-    const semanticContext = await buildSemanticContext(openai, db, userMessage || 'EPA data')
-      .catch(err => {
-        console.error('Semantic context build failed:', err.message)
-        return ''
+    const store = await loadData(db)
+    const messages = [{ role: 'system', content: systemPrompt() }, ...history]
+    const toolLog = []
+    for (let round = 0; round <= MAX_TOOL_ROUNDS; round += 1) {
+      const response = await openai.chat.completions.create({
+        model: CHAT_MODEL,
+        messages,
+        tools: round < MAX_TOOL_ROUNDS ? TOOLS : undefined,
+        max_tokens: 4000,
       })
-    if (semanticContext) {
-      contextSections.push(`SEMANTIC SEARCH CONTEXT\n${semanticContext}`)
+      const msg = response.choices[0].message
+      const calls = msg.tool_calls ?? []
+      if (!calls.length) {
+        console.log('chatbot answered', { uid: authContext.uid, rounds: round, tools: toolLog })
+        return { reply: msg.content || 'Sorry, I could not put an answer together. Please rephrase the question.' }
+      }
+      messages.push({ role: 'assistant', content: msg.content || null, tool_calls: calls })
+      for (const call of calls) {
+        let result
+        try {
+          const impl = TOOL_IMPL[call.function.name]
+          const args = JSON.parse(call.function.arguments || '{}')
+          result = impl ? await impl(store, args) : { error: `Unknown tool ${call.function.name}` }
+          toolLog.push(call.function.name)
+        } catch (err) {
+          console.error('chatbot tool failed', call.function.name, err)
+          result = { error: `The ${call.function.name} lookup failed: ${err.message}` }
+        }
+        messages.push({ role: 'tool', tool_call_id: call.id, content: JSON.stringify(result).slice(0, 14000) })
+      }
     }
-
-    const systemPrompt = `You are Osei, a Ghana EPA assistant. Use only the data provided in the context sections below. Answer clearly and concisely. If the user asks about a specific facility, use the facility context. If the user asks about broader finance or district/sector analytics, use the global analytics summary. For queries about facilities without permits or expired permits, use the specific sections provided. If the answer is not contained in the provided app data, say you do not have enough information in the app data to answer. You cannot perform actions like editing records or assigning facilities; you can only provide information and suggestions.`
-
-    console.log('chatbot context', { facilityId, contextSectionsCount: contextSections.length, totalContextLength: contextSections.join('\n\n').length })
-
-    const response = await openai.chat.completions.create({
-      model: 'openai/gpt-3.5-turbo',
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'system', content: truncate(contextSections.join('\n\n')) },
-        ...messagePayload,
-      ],
-      max_tokens: 500,
-    });
-
-    return { reply: response.choices[0].message.content };
+    return { reply: 'That question needed more lookups than I can do at once. Please ask about one facility, district or period at a time.' }
   } catch (error) {
-    console.error('OpenRouter API error:', {
-      message: error?.message,
-      stack: error?.stack,
-      response: error?.response?.data ?? null,
-    });
-    throw new functions.https.HttpsError('internal', 'Failed to get chatbot response');
+    console.error('OpenRouter API error:', { message: error?.message, stack: error?.stack, response: error?.response?.data ?? null })
+    throw new functions.https.HttpsError('internal', 'Failed to get chatbot response')
   }
-});
+})
+
+// Exposed for local testing of the tools without the model.
+exports._tools = { loadData, TOOL_IMPL }

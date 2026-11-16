@@ -20,6 +20,8 @@ import { useAuth } from '../context/AuthContext'
 import { facilityPath } from '../utils/fileNumbers'
 import { fmtDate, permitStatus } from '../utils/records'
 import Spinner from '../components/Spinner'
+import { buildCapacityIndex } from '../utils/capacity'
+import { buildFeeContext, buildRevenueForecast, SOURCE_NAMES } from '../utils/revenueForecast'
 
 const TABS = [
   { key: 'finance', label: 'Finance', icon: Banknote, route: '/finance' },
@@ -42,6 +44,7 @@ const FINANCE_MODES = [
 ]
 
 const STATUS_LABELS = { active: 'Active', expiring: 'Expiring', expired: 'Expired' }
+const STREAM_LABELS = { renewal: 'Renewals due', backlog: 'Backlog', unpaid: 'Unpaid invoices', new: 'New applications' }
 const PALETTE = ['#111827', '#737373', '#0891b2', '#16a34a', '#d97706', '#7c3aed', '#be123c']
 const ANALYTICS_LOAD_TIMEOUT_MS = 18000
 
@@ -135,6 +138,7 @@ function describeExtraFilter(extraFilter) {
   if (field === 'paymentType') return `Payment type: ${value}`
   if (field === 'visitType') return `Visit type: ${value === 'walk_in' ? 'Walk-in' : 'Enforcement'}`
   if (field === 'permitOutcome') return `Outcome: ${PERMIT_OUTCOME_LABELS[value] ?? value}`
+  if (field === 'stream') return `Forecast: ${STREAM_LABELS[value] ?? value}`
   return `${field}: ${value}`
 }
 
@@ -195,7 +199,8 @@ function financeCsv(rows) {
 }
 
 function forecastCsv(rows) {
-  const headers = ['Facility', 'File No.', 'Sector', 'District', 'Expires', 'Permit No.', 'Estimated Revenue', 'Estimate Source']
+  const headers = ['Facility', 'File No.', 'Sector', 'District', 'Type of Undertaking', 'Stream', 'Permit Expiry', 'Permit No.',
+    'Processing Fee', 'Permit Fee', 'Penalty', 'Estimated Total', 'Estimate Basis', 'Act 1080 Line', 'Act 1080 Total', 'Capacity Used']
   return [
     headers.map(esc).join(','),
     ...rows.map((r) => [
@@ -203,10 +208,18 @@ function forecastCsv(rows) {
       r.fileNumber,
       sectorLabel(r.sectorPrefix),
       districtLabel(r.facilityDistrict),
-      fmtDate(r.expiry_date),
-      r.permit_number,
-      r.estimatedAmount,
-      r.estimateSource,
+      r.typeOfUndertaking,
+      STREAM_LABELS[r.stream] ?? r.stream,
+      r.expiryMs ? fmtDate(new Date(r.expiryMs)) : '',
+      r.permitNumber,
+      r.processing,
+      r.permit,
+      r.penalty,
+      r.total,
+      r.sourceLabel,
+      r.act ? `${r.act.lineId} ${r.act.lineLabel}` : '',
+      r.act?.total ?? '',
+      r.act?.qty ? `${r.act.qty.value} ${r.act.qty.unit.replace(/_/g, ' ')} (${r.act.qty.source})` : '',
     ].map(esc).join(',')),
   ].join('\n')
 }
@@ -233,7 +246,7 @@ export default function AnalyticsDashboardPage() {
   const canView = role === 'it'
 
   const [facilities, setFacilities] = useState([])
-  const [records, setRecords] = useState({ finance: [], permits: [], enforcement: [], education: [], monitoring: [], walkIns: [], enforcementVisits: [], visitOutcomes: [] })
+  const [records, setRecords] = useState({ finance: [], permits: [], enforcement: [], education: [], monitoring: [], walkIns: [], enforcementVisits: [], visitOutcomes: [], screenings: [], siteVerifications: [], feeTable: null })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [warnings, setWarnings] = useState([])
@@ -248,6 +261,8 @@ export default function AnalyticsDashboardPage() {
   const [district, setDistrict] = useState('')
   const [search, setSearch] = useState('')
   const [extraFilter, setExtraFilter] = useState(null)
+  const [includeBacklog, setIncludeBacklog] = useState(true)
+  const [includePenalty, setIncludePenalty] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -263,6 +278,9 @@ export default function AnalyticsDashboardPage() {
           permits: getCrossRecords('permits', facilityMap),
           enforcement: getCrossRecords('enforcement', facilityMap),
           monitoring: getCrossRecords('monitoring', facilityMap),
+          screenings: getCrossRecords('screenings', facilityMap),
+          siteVerifications: getCrossRecords('site_verifications', facilityMap),
+          feeTable: import('../data/act1080Fees.json').then((m) => m.default),
           education: listEnvEducation(),
           walkIns: listFieldReports(),
           enforcementVisits: listFieldReports(),
@@ -280,7 +298,7 @@ export default function AnalyticsDashboardPage() {
           Object.entries(loaders).map(([key, promise]) => withTimeout(promise, key).then((value) => [key, value]))
         )
         if (cancelled) return
-        const nextRecords = { finance: [], permits: [], enforcement: [], education: [], monitoring: [], walkIns: [], enforcementVisits: [], visitOutcomes: [] }
+        const nextRecords = { finance: [], permits: [], enforcement: [], education: [], monitoring: [], walkIns: [], enforcementVisits: [], visitOutcomes: [], screenings: [], siteVerifications: [], feeTable: null }
         const nextWarnings = []
         settled.forEach((result) => {
           if (result.status === 'fulfilled') {
@@ -517,9 +535,36 @@ export default function AnalyticsDashboardPage() {
     return scopedVisitOutcomes.filter((row) => cohortFileNumbers.has(row.fileNumber))
   }, [scopedVisitOutcomes, cohortFileNumbers])
 
+  // Fee context: capacities from screenings / site verifications, paid history and
+  // the Act 1080 table. Built from all records so medians don't shift with filters.
+  const feeCtx = useMemo(() => {
+    if (!records.feeTable) return null
+    const capacityIndex = buildCapacityIndex({
+      screenings: records.screenings,
+      siteVerifications: records.siteVerifications,
+      fieldReports: records.walkIns,
+    })
+    return buildFeeContext({ feeTable: records.feeTable, facilities, finance: records.finance, capacityIndex })
+  }, [records.feeTable, records.screenings, records.siteVerifications, records.walkIns, records.finance, facilities])
+
+  const forecast = useMemo(() => {
+    if (activeTab !== 'finance' || financeMode !== 'forecast' || !feeCtx) return null
+    const result = buildRevenueForecast({
+      facilities: filteredFacilities,
+      permits: records.permits,
+      finance: records.finance,
+      ctx: feeCtx,
+      range,
+      includeBacklog,
+      includePenalty,
+    })
+    const stream = extraFilter?.field === 'stream' ? extraFilter.value : null
+    return { ...result, stream, viewRows: stream ? result.rows.filter((r) => r.stream === stream) : result.rows }
+  }, [activeTab, financeMode, feeCtx, filteredFacilities, records.permits, records.finance, range, includeBacklog, includePenalty, extraFilter])
+
   const analytics = useMemo(
-    () => buildAnalytics(activeTab, filteredDomainRows, filteredFacilities, filteredCurrentPermits, range, financeMode, filteredWalkInRows, scopedPermitRows, filteredEnforcementVisitRows, filteredVisitOutcomes),
-    [activeTab, filteredDomainRows, filteredFacilities, filteredCurrentPermits, range, financeMode, filteredWalkInRows, scopedPermitRows, filteredEnforcementVisitRows, filteredVisitOutcomes]
+    () => buildAnalytics(activeTab, filteredDomainRows, filteredFacilities, filteredCurrentPermits, range, financeMode, filteredWalkInRows, scopedPermitRows, filteredEnforcementVisitRows, filteredVisitOutcomes, forecast),
+    [activeTab, filteredDomainRows, filteredFacilities, filteredCurrentPermits, range, financeMode, filteredWalkInRows, scopedPermitRows, filteredEnforcementVisitRows, filteredVisitOutcomes, forecast]
   )
 
   if (!canView) {
@@ -564,6 +609,21 @@ export default function AnalyticsDashboardPage() {
               {mode.label}
             </button>
           ))}
+        </div>
+      )}
+
+      {activeTab === 'finance' && financeMode === 'forecast' && (
+        <div className="forecast-toggles" role="group" aria-label="Forecast options">
+          <label className={`forecast-toggle${includeBacklog ? ' is-on' : ''}`}>
+            <input type="checkbox" checked={includeBacklog} onChange={(e) => setIncludeBacklog(e.target.checked)} />
+            <span>Include backlog</span>
+            <small>Expired permits and facilities with no permit</small>
+          </label>
+          <label className={`forecast-toggle${includePenalty ? ' is-on' : ''}${includeBacklog ? '' : ' is-disabled'}`}>
+            <input type="checkbox" checked={includePenalty} disabled={!includeBacklog} onChange={(e) => setIncludePenalty(e.target.checked)} />
+            <span>Add ×3 penalty to backlog</span>
+            <small>3 × permit fee, for operating without a valid permit</small>
+          </label>
         </div>
       )}
 
@@ -755,25 +815,12 @@ export default function AnalyticsDashboardPage() {
   )
 }
 
-function buildAnalytics(tab, rows, facilities, currentPermits, range, financeMode, walkInRows, permitRows, enforcementVisitRows, visitOutcomes) {
-  if (tab === 'finance') return buildFinanceAnalytics(rows, facilities, currentPermits, range, financeMode)
+function buildAnalytics(tab, rows, facilities, currentPermits, range, financeMode, walkInRows, permitRows, enforcementVisitRows, visitOutcomes, forecast) {
+  if (tab === 'finance') return buildFinanceAnalytics(rows, facilities, currentPermits, range, financeMode, forecast)
   if (tab === 'permits') return buildPermitAnalytics(rows, facilities, currentPermits)
   if (tab === 'enforcement') return buildEnforcementAnalytics(rows, currentPermits, walkInRows, permitRows, enforcementVisitRows, visitOutcomes)
   if (tab === 'education') return buildEducationAnalytics(rows)
   return buildMonitoringAnalytics(rows)
-}
-
-function estimateRenewal(fileNumber, financeRows) {
-  const paidRows = financeRows
-    .filter((row) => row.fileNumber === fileNumber && paymentStatus(row) === 'paid' && Number(row.amount) > 0)
-    .sort((a, b) => (recordDateMs(b, 'finance') ?? 0) - (recordDateMs(a, 'finance') ?? 0))
-  const permitFees = paidRows.filter((row) => row.payment_type === 'Permit Fee')
-  const sourceRows = permitFees.length ? permitFees : paidRows
-  const source = sourceRows[0]
-  return {
-    amount: source?.amount != null ? Number(source.amount) || 0 : 0,
-    source: source ? `${source.payment_type || 'Paid finance record'} on ${fmtDate(source.date ?? source.created_at)}` : 'No prior paid finance record',
-  }
 }
 
 function filterFinanceByRange(rows, range) {
@@ -785,86 +832,90 @@ function filterFinanceByRange(rows, range) {
   })
 }
 
-function buildFinanceAnalytics(rows, facilities, currentPermits, range, financeMode) {
+function buildFinanceAnalytics(rows, facilities, currentPermits, range, financeMode, forecast) {
   if (financeMode === 'historical') return buildHistoricalFinanceAnalytics(rows, facilities, currentPermits, range)
-  return buildForecastFinanceAnalytics(rows, facilities, currentPermits, range)
+  return buildForecastFinanceAnalytics(forecast, facilities)
 }
 
-function buildForecastFinanceAnalytics(rows, facilities, currentPermits, range) {
-  const paid = rows.filter((row) => paymentStatus(row) === 'paid')
-  const unpaid = rows.filter((row) => paymentStatus(row) === 'unpaid')
-  const paidRevenue = paid.reduce((sum, row) => sum + (Number(row.amount) || 0), 0)
-  const unpaidRevenue = unpaid.reduce((sum, row) => sum + (Number(row.amount) || 0), 0)
-  const visibleFiles = new Set(facilities.map((facility) => facility.file_number))
-  const visibleCurrentPermits = currentPermits.filter((permit) => visibleFiles.has(permit.fileNumber))
-  const expiringPermits = currentPermits.filter((permit) => {
-    if (!visibleFiles.has(permit.fileNumber)) return false
-    const expiryMs = tsToMs(permit.expiry_date)
-    if (!expiryMs) return false
-    if (range.from != null && expiryMs < range.from) return false
-    if (range.to != null && expiryMs > range.to) return false
-    return true
-  })
-  const forecastRows = expiringPermits.map((permit) => {
-    const estimate = estimateRenewal(permit.fileNumber, rows)
-    return {
-      ...permit,
-      estimatedAmount: estimate.amount,
-      estimateSource: estimate.source,
-    }
-  })
-  const estimatedRevenue = forecastRows.reduce((sum, row) => sum + row.estimatedAmount, 0)
-  const byDistrict = group(forecastRows, (row) => ({ key: row.facilityDistrict, label: districtLabel(row.facilityDistrict) }), (row) => row.estimatedAmount)
-  const bySector = group(forecastRows, (row) => ({ key: row.sectorPrefix, label: sectorLabel(row.sectorPrefix) }), (row) => row.estimatedAmount)
-  const paidByDistrict = group(paid, (row) => ({ key: row.facilityDistrict, label: districtLabel(row.facilityDistrict) }), (row) => Number(row.amount) || 0)
-  const paidBySector = group(paid, (row) => ({ key: row.sectorPrefix, label: sectorLabel(row.sectorPrefix) }), (row) => Number(row.amount) || 0)
-  const byType = group(rows, (row) => row.payment_type || 'Other', (row) => Number(row.amount) || 0)
-  const forecastByFacility = group(forecastRows, (row) => ({ key: row.fileNumber, label: row.facilityName }), (row) => row.estimatedAmount)
-  const facilitiesWithPermit = new Set(visibleCurrentPermits.map((permit) => permit.fileNumber))
-  const forecastDrill = () => ({ __route: '/permits', permitDateField: 'expiry_date' })
+function emptyForecastAnalytics() {
+  return {
+    subtitle: 'Loading the Act 1080 fee table and field records...',
+    kpis: [], answers: [],
+    primary: chart('Forecast By District', '', [], 'district'),
+    secondary: chart('Forecast By Stream', '', [], 'stream'),
+    tertiary: chart('Highest Revenue Targets', '', [], 'facility'),
+    listTitle: 'Estimate Basis', listRows: [], sourceTotals: [], exportRows: [],
+    ringValue: 0, ringLabel: '0%', ringTitle: 'Backlog', ringNote: '',
+    tableTitle: 'Revenue Targets', columns: [], tableRows: [],
+  }
+}
+
+function buildForecastFinanceAnalytics(forecast, facilities) {
+  if (!forecast) return emptyForecastAnalytics()
+  const { streams, viewRows: rows, collectionRate } = forecast
+  const ratePct = collectionRate != null ? Math.round(collectionRate * 100) : 100
+  const total = (list) => list.reduce((sum, row) => sum + row.total, 0)
+  const viewTotal = total(rows) + (!forecast.stream || forecast.stream === 'new' ? streams.new.total : 0)
+  const backlogRows = forecast.rows.filter((row) => row.stream === 'backlog')
+  const penaltyPotential = backlogRows.reduce((sum, row) => sum + row.permit, 0) * 3
+
+  const byDistrict = group(rows, (row) => ({ key: row.facilityDistrict, label: districtLabel(row.facilityDistrict) }), (row) => row.total)
+  const bySector = group(rows, (row) => ({ key: row.sectorPrefix, label: sectorLabel(row.sectorPrefix) }), (row) => row.total)
+  const byFacility = group(rows, (row) => ({ key: row.fileNumber, label: row.facilityName }), (row) => row.total)
+  const byStream = ['renewal', 'backlog', 'unpaid', 'new']
+    .map((key) => ({ key, name: STREAM_LABELS[key], value: streams[key].total }))
+    .filter((item) => item.value > 0)
+  const bySource = group(rows, (row) => SOURCE_NAMES[row.source] ?? row.source)
+  const streamState = (point) => ({ stream: point.key })
 
   return {
-    subtitle: 'Forecast possible renewal revenue from permits expiring in the selected review window',
+    subtitle: `Revenue the office can expect in the selected window: renewals due, ${streams.backlog.count ? 'the backlog of expired and unpermitted facilities, ' : ''}unpaid invoices and new applications. Estimates use what each facility paid before, else the Act 1080 fee for its type and capacity.`,
     kpis: [
-      { icon: <TrendingUp size={18} />, label: 'Possible Revenue', value: compactCurrency(estimatedRevenue), note: `${forecastRows.length} expiring permits` },
-      { icon: <Banknote size={18} />, label: 'Paid History', value: compactCurrency(paidRevenue), note: `${currency(unpaidRevenue)} outstanding` },
-      { icon: <WalletCards size={18} />, label: 'Avg Renewal Value', value: forecastRows.length ? currency(estimatedRevenue / forecastRows.length) : currency(0), note: 'from prior paid amounts' },
-      { icon: <FileText size={18} />, label: 'Permit Coverage', value: pct(facilitiesWithPermit.size, facilities.length), note: `${facilitiesWithPermit.size} facilities permitted` },
+      { icon: <TrendingUp size={18} />, label: 'Possible Revenue', value: compactCurrency(viewTotal), note: `${compactCurrency(viewTotal * ratePct / 100)} expected at the ${ratePct}% collection rate` },
+      { icon: <FileText size={18} />, label: 'Renewals Due', value: compactCurrency(streams.renewal.total), note: `${streams.renewal.count} permits expire in the window` },
+      { icon: <Gavel size={18} />, label: 'Backlog', value: compactCurrency(streams.backlog.total), note: streams.backlog.count ? `${streams.backlog.count} facilities${streams.backlog.penalty ? `, incl. ${compactCurrency(streams.backlog.penalty)} penalty` : ''}` : 'Turned off' },
+      { icon: <WalletCards size={18} />, label: 'Unpaid + New', value: compactCurrency(streams.unpaid.total + streams.new.total), note: `${compactCurrency(streams.unpaid.total)} invoiced, ${compactCurrency(streams.new.total)} new (${streams.new.perMonth}/month)` },
     ],
     answers: [
-      answer('Which district has the highest possible renewal revenue?', byDistrict[0], currency, (drill) => drill('district', byDistrict[0]?.key, forecastDrill())),
-      answer('Which sector has the highest possible renewal revenue?', bySector[0], currency, (drill) => drill('sector', bySector[0]?.key, forecastDrill())),
-      answer('Which facility is the highest-value renewal target?', forecastByFacility[0], currency, (drill) => drill('facility', forecastByFacility[0]?.key)),
-      answer('Which district has historically paid the most?', paidByDistrict[0], currency, (drill) => drill('district', paidByDistrict[0]?.key)),
+      answer('Which district has the most revenue to collect?', byDistrict[0], currency, (drill) => drill('district', byDistrict[0]?.key)),
+      answer('Which sector has the most revenue to collect?', bySector[0], currency, (drill) => drill('sector', bySector[0]?.key)),
+      answer('Which facility is the highest-value target?', byFacility[0], currency, (drill) => drill('facility', byFacility[0]?.key)),
+      {
+        question: 'What would the ×3 penalty add to the backlog?',
+        answer: backlogRows.length ? currency(penaltyPotential) : 'Backlog is turned off',
+        detail: backlogRows.length ? `3 × permit fee for ${backlogRows.length} facilities${forecast.streams.backlog.penalty ? ' (included above)' : ' (not included above)'}` : '',
+        onClick: null,
+      },
     ],
-    primary: chart('Possible Renewal Revenue By District', 'Expiring permits x prior paid value', byDistrict, 'district', (v) => `${v / 1000}K`, (v) => currency(v), forecastDrill),
-    secondary: chart('Possible Renewal Revenue By Sector', '', bySector, 'sector', null, (v) => currency(v), forecastDrill),
-    tertiary: chart('Highest Renewal Targets', '', forecastByFacility, 'facility', (v) => `${v / 1000}K`, (v) => currency(v)),
-    listTitle: 'Historical Payment Mix',
-    listRows: PAYMENT_TYPES.map((type) => {
-      const item = byType.find((row) => row.name === type)
-      return { name: type, value: item?.value ?? 0, valueLabel: currency(item?.value ?? 0), onClick: (drill) => drill(null, null, { paymentType: type }) }
-    }),
+    primary: chart('Revenue To Collect By District', 'Estimated total per facility', byDistrict, 'district', (v) => `${v / 1000}K`, (v) => currency(v)),
+    secondary: chart('Forecast By Stream', '', byStream, 'stream', null, (v) => currency(v), streamState),
+    tertiary: chart('Highest Revenue Targets', '', byFacility, 'facility', (v) => `${v / 1000}K`, (v) => currency(v)),
+    listTitle: 'Estimate Basis',
+    listRows: bySource.map((item) => ({ name: item.name, value: item.value, valueLabel: `${item.value} facilities` })),
     sourceTotals: [
-      { name: 'Expiring permits', value: forecastRows.length },
-      { name: 'Possible revenue', value: currency(estimatedRevenue) },
-      { name: 'Top historical district', value: paidByDistrict[0]?.name ?? '-' },
-      { name: 'Top historical sector', value: paidBySector[0]?.name ?? '-' },
+      { name: 'Collection rate (paid ÷ billed)', value: `${ratePct}%` },
+      { name: 'New applications', value: `${streams.new.count} at ${currency(streams.new.fee)}` },
+      { name: 'Their Act 1080 value', value: currency(forecast.actCoverage.actTotal) },
+      { name: 'Facilities with an Act 1080 line', value: forecast.actCoverage.facilities },
     ],
-    exportRows: forecastRows,
-    ringValue: facilitiesWithPermit.size ? Math.round((forecastRows.length / facilitiesWithPermit.size) * 100) : 0,
-    ringLabel: pct(forecastRows.length, facilitiesWithPermit.size),
-    ringTitle: 'Renewal exposure',
-    ringNote: `${forecastRows.length} of ${facilitiesWithPermit.size} permitted facilities expire in window`,
-    tableTitle: 'Renewal Enforcement Focus',
-    columns: ['Facility', 'File No.', 'Sector', 'District', 'Expires', 'Estimated Revenue'],
-    tableRows: forecastRows.sort((a, b) => b.estimatedAmount - a.estimatedAmount).slice(0, 10).map((item) => {
-      return {
-        key: item.fileNumber,
-        cells: [item.facilityName, fileBadge(item.fileNumber), sectorBadge(item.sectorPrefix), districtLabel(item.facilityDistrict), fmtDate(item.expiry_date), currency(item.estimatedAmount)],
-        onClick: (navigate) => navigate(facilityPath(item.fileNumber), { state: { tab: 'permits' } }),
-      }
-    }),
+    exportRows: rows,
+    ringValue: facilities.length ? Math.round((streams.backlog.count / facilities.length) * 100) : 0,
+    ringLabel: pct(streams.backlog.count, facilities.length),
+    ringTitle: 'Backlog',
+    ringNote: `${streams.backlog.count} of ${facilities.length} facilities have an expired permit or none, with no payment since`,
+    tableTitle: 'Revenue Targets',
+    columns: ['Facility', 'File No.', 'Sector', 'Stream', 'Expiry', 'Estimate', 'Basis'],
+    tableRows: [...rows].sort((a, b) => b.total - a.total).slice(0, 15).map((item) => ({
+      key: `${item.stream}-${item.fileNumber}`,
+      cells: [
+        item.facilityName, fileBadge(item.fileNumber), sectorBadge(item.sectorPrefix),
+        STREAM_LABELS[item.stream] + (item.backlogReason ? ` (${item.backlogReason})` : ''),
+        item.expiryMs ? fmtDate(new Date(item.expiryMs)) : '—',
+        currency(item.total) + (item.penalty ? ` incl. ${currency(item.penalty)} penalty` : ''),
+        item.sourceLabel + (item.act?.qty ? ` · ${item.act.qty.value} ${item.act.qty.unit.replace(/_/g, ' ')}` : ''),
+      ],
+      onClick: (navigate) => navigate(facilityPath(item.fileNumber), { state: { tab: 'finance' } }),
+    })),
   }
 }
 

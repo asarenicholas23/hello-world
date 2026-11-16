@@ -6,8 +6,9 @@ import { fmtDate } from '../../utils/records'
 import { facilityPath } from '../../utils/fileNumbers'
 import { ADMIN_ROLES, hasFullDataAccess } from '../../data/constants'
 import Spinner from '../Spinner'
+import ActFinancePanel from '../ActFinancePanel'
 
-export default function FinanceTab({ fileNumber, role, dataAccess }) {
+export default function FinanceTab({ fileNumber, role, dataAccess, facility }) {
   const navigate = useNavigate()
   const [records, setRecords] = useState([])
   const [loading, setLoading] = useState(true)
@@ -48,6 +49,8 @@ export default function FinanceTab({ fileNumber, role, dataAccess }) {
           </button>
         </div>
       )}
+
+      <ActFinancePanel facility={facility} fileNumber={fileNumber} financeRecords={records} />
 
       {records.length === 0 ? (
         <div className="tab-empty">No finance records yet.</div>

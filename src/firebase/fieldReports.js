@@ -1,6 +1,6 @@
 import {
   collection, collectionGroup, doc, addDoc, getDoc, getDocs, updateDoc, deleteDoc,
-  serverTimestamp, query, orderBy,
+  serverTimestamp, query, orderBy, where,
 } from 'firebase/firestore'
 import { db } from './config'
 import { decodeFileNumberParam } from '../utils/fileNumbers'
@@ -9,6 +9,12 @@ const COL = () => collection(db, 'field_reports')
 
 export async function listFieldReports() {
   const snap = await getDocs(query(COL(), orderBy('created_at', 'desc')))
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }))
+}
+
+// Field reports linked to one facility (their screening answers can hold capacities).
+export async function listFieldReportsForFacility(fileNumber) {
+  const snap = await getDocs(query(COL(), where('assigned_file_number', '==', fileNumber)))
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }))
 }
 

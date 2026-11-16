@@ -1,0 +1,222 @@
+// Act 1080 fee logic for the Fee Calculator page.
+// Pure functions, no React or DOM, so they can be tested with plain Node and reused
+// by scripts/build-fee-table.mjs. See docs/fee-calculator/README.md.
+const FEE = (() => {
+  const MAIN_COLS = ['Line ID','Sector','Facility / sub-sector','Phase','Group','Line item','Band from','Band to','Unit','Fee basis',
+    'Permitting: processing fee','Permitting: permit fee','Certification: processing fee','Certification: permit fee',
+    'Act pages','Check against office document','Reading confidence','Notes'];
+
+  function num(x) {
+    if (x === null || x === undefined || x === '') return null;
+    if (typeof x === 'number') return x;
+    const n = parseFloat(String(x).replace(/,/g, ''));
+    return Number.isFinite(n) ? n : null;
+  }
+
+  // A fee cell is a number (cedis), "US$ 1,000.00", "No charge", or "... 0.5% of F.O.B value in US$".
+  function parseFee(x) {
+    if (x === null || x === undefined) return null;
+    if (typeof x === 'object' && x.number !== undefined) x = x.number;
+    if (typeof x === 'number') return { cur: 'GHS', v: x };
+    const s = String(x).trim();
+    if (!s) return null;
+    if (/no charge/i.test(s)) return { cur: 'GHS', v: 0 };
+    if (/F\.?\s*O\.?\s*B/i.test(s)) {
+      const p = s.match(/(\d+(?:\.\d+)?)\s*%/);
+      return { cur: 'FOB', v: p ? parseFloat(p[1]) / 100 : 0.005 };
+    }
+    const usd = /US\s*\$|USD|\$/i.test(s);
+    const m = s.replace(/,/g, '').match(/(\d+(?:\.\d+)?)/);
+    if (!m) return null;
+    return { cur: usd ? 'USD' : 'GHS', v: parseFloat(m[1]) };
+  }
+
+  function rowToLine(r) {
+    return {
+      id: r[0], sector: r[1] || '', sub: r[2] || '', phase: r[3] || '', group: r[4] || '', label: r[5] || '',
+      bmin: num(r[6]), bmax: num(r[7]), unit: r[8] || '', basis: r[9] || 'Flat',
+      fees: { pp: parseFee(r[10]), pm: parseFee(r[11]), cp: parseFee(r[12]), cm: parseFee(r[13]) },
+      pages: String(r[14] || ''), check: r[15] || '', conf: r[16] || '', notes: r[17] || '', kind: 'main'
+    };
+  }
+
+  function stripNumbering(t) {
+    return String(t)
+      .replace(/^\s*\d{1,3}\s*\([a-z]\)\s*[.,]?\s*/, '')
+      .replace(/^\s*(?:[A-Za-z]{0,2}\s*\(?\d{0,3}[a-z]?\)?\s*(?:\([a-z]\))?)\s*[.,]\s*/, '').trim();
+  }
+
+  // A readable name for what a line is about, without its band or scale.
+  function displayStem(label) {
+    let s = stripNumbering(label);
+    s = s.replace(/\(?\s*\b(?:more|greater|less)\s+than\s+(?:or\s+equal\s+to\s+)?\d[\d,.]*[^)]*\)?/ig, ' ')
+         .replace(/\(?\s*\b(?:above|below|over|under)\s+\d[\d,.]*[^)]*\)?/ig, ' ')
+         .replace(/\(?\s*\b(?:of\s+|from\s+)?\d[\d,.]*\s*(?:to|–|-|and)\s*\d[\d,.]*[^)]*\)?/ig, ' ')
+         .replace(/^\s*(?:large|medium|small|minor|micro)\s+/i, '')
+         .replace(/\s+(?:of|from|with)\s*$/i, '')
+         .replace(/\s+/g, ' ').replace(/[\s,;:–-]+$/, '').trim();
+    return s;
+  }
+
+  const BAND_WORDS = /\b(beds?|cold|rooms?|vehicles|acres|more|than|greater|less|above|below|over|from|to|between|or|equal|of|up|under|large|medium|small|minor|micro|scale)\b/g;
+  function stem(label) {
+    return stripNumbering(label).toLowerCase()
+      .replace(/["“”'’]/g, ' ')
+      .replace(/[\d.,]+/g, ' ')
+      .replace(/[–—\-<≤≥>()/]/g, ' ')
+      .replace(BAND_WORDS, ' ')
+      .replace(/\s+/g, ' ').trim();
+  }
+
+  function isScaleGroup(g) { return /impact scale|scale prop/i.test(g); }
+
+  function familyKey(l) {
+    const g = isScaleGroup(l.group) ? '' : l.group;
+    return [l.kind, l.sector, l.sub, g, stem(l.label)].join('|');
+  }
+
+  function familyTitle(lines) {
+    const l = lines[0];
+    const parts = [];
+    if (l.sub) parts.push(l.sub);
+    const g = isScaleGroup(l.group) ? '' : l.group;
+    if (g) parts.push(stripNumbering(g));
+    const st = stem(l.label);
+    const words = st.split(' ').filter(Boolean);
+    const generic = /^(impact proposals|impact core proposals|rooms|vehicles|proposals)$/.test(st);
+    if (words.length > 1 && !generic) parts.push(displayStem(l.label) || st);
+    else if (lines.length === 1 && !/impact scale/i.test(l.label)) parts.push(stripNumbering(l.label));
+    if (!parts.length) parts.push(stripNumbering(l.label));
+    return parts.join(' › ');
+  }
+
+  function buildFamilies(lines) {
+    const map = new Map();
+    for (const l of lines) {
+      const k = familyKey(l);
+      if (!map.has(k)) map.set(k, []);
+      map.get(k).push(l);
+    }
+    const fams = [];
+    for (const [key, ls] of map) {
+      const title = familyTitle(ls);
+      const phases = [...new Set(ls.map(x => x.phase))];
+      const units = [...new Set(ls.filter(x => x.bmin !== null || x.bmax !== null).map(x => x.unit || 'units'))];
+      const text = [ls[0].sector, title, ...ls.map(x => x.label + ' ' + x.group)].join(' ').toLowerCase();
+      fams.push({ key, title, sector: ls[0].sector, kind: ls[0].kind, lines: ls, phases, units, text });
+    }
+    return fams;
+  }
+
+  function search(fams, q, sector) {
+    const toks = q.toLowerCase().split(/\s+/).filter(Boolean);
+    const out = [];
+    for (const f of fams) {
+      if (sector && f.sector !== sector) continue;
+      let score = 0, ok = true;
+      for (const t of toks) {
+        const i = f.text.indexOf(t);
+        if (i < 0) { ok = false; break; }
+        score += (f.title.toLowerCase().includes(t) ? 3 : 1);
+      }
+      if (ok) out.push({ f, score });
+    }
+    out.sort((a, b) => b.score - a.score || a.f.title.length - b.f.title.length);
+    return out.map(x => x.f);
+  }
+
+  function inBand(l, c) {
+    const lo = l.bmin, hi = l.bmax;
+    if (lo === null && hi === null) return false;
+    if (lo !== null && hi !== null) return c >= lo && c <= hi;
+    if (lo !== null) return c > lo || (c === lo && /or equal|≥/i.test(l.label));
+    return c < hi;
+  }
+
+  // Lines of a family that fit a capacity in a unit.
+  function matchBand(lines, c, unit) {
+    if (c === null || !Number.isFinite(c)) return [];
+    return lines.filter(l => (l.unit || 'units') === unit && inBand(l, c));
+  }
+
+  function isPerUnit(l) { return /^per unit/i.test(l.basis); }
+
+  function round2(x) { return Math.round(x * 100) / 100; }
+
+  // One fee: rate × quantity, converted from US$ where needed.
+  function feeAmount(fee, qty, rate, fob) {
+    if (!fee) return { status: 'none' };
+    if (fee.cur === 'FOB') {
+      if (!(fob > 0)) return { status: 'needFob', fee };
+      if (!(rate > 0)) return { status: 'needRate', fee, usd: round2(fob * fee.v) };
+      return { status: 'ok', fee, usd: round2(fob * fee.v), ghs: round2(fob * fee.v * rate) };
+    }
+    const q = qty === null ? 1 : qty;
+    if (fee.cur === 'USD') {
+      const usd = fee.v * q;
+      if (!(rate > 0)) return { status: 'needRate', fee, qty: q, usd: round2(usd) };
+      return { status: 'ok', fee, qty: q, usd: round2(usd), ghs: round2(usd * rate) };
+    }
+    return { status: 'ok', fee, qty: q, ghs: round2(fee.v * q) };
+  }
+
+  // Full bill for a main-schedule line.
+  // opts: {regime:'P'|'C', qty, rate, penalty:{on, mult, base:'permit'|'both'}}
+  function bill(line, opts) {
+    const per = isPerUnit(line);
+    const qty = per ? (opts.qty > 0 ? opts.qty : null) : null;
+    const pf = line.fees[opts.regime === 'C' ? 'cp' : 'pp'];
+    const mf = line.fees[opts.regime === 'C' ? 'cm' : 'pm'];
+    const items = [];
+    const proc = feeAmount(pf, per ? qty : null, opts.rate);
+    const perm = feeAmount(mf, per ? qty : null, opts.rate);
+    items.push({ name: 'Processing fee', ...proc });
+    items.push({ name: 'Permit fee', ...perm });
+    if (opts.penalty && opts.penalty.on) {
+      const mult = opts.penalty.mult > 0 ? opts.penalty.mult : 3;
+      const parts = opts.penalty.base === 'both' ? [proc, perm] : [perm];
+      const okParts = parts.filter(p => p.status === 'ok');
+      const missing = parts.some(p => p.status === 'needRate');
+      const base = round2(okParts.reduce((s, p) => s + p.ghs, 0));
+      items.push({ name: 'Penalty', status: missing ? 'needRate' : (okParts.length ? 'ok' : 'none'), mult, base, ghs: round2(base * mult), baseName: opts.penalty.base === 'both' ? 'processing + permit fee' : 'permit fee' });
+    }
+    const needQty = per && qty === null;
+    const total = round2(items.filter(i => i.status === 'ok').reduce((s, i) => s + i.ghs, 0));
+    const complete = !needQty && items.every(i => i.status === 'ok' || i.status === 'none');
+    return { items, total, complete, needQty, per };
+  }
+
+  function parseCSV(text) {
+    const rows = []; let row = [], cell = '', q = false;
+    for (let i = 0; i < text.length; i++) {
+      const ch = text[i];
+      if (q) {
+        if (ch === '"') { if (text[i + 1] === '"') { cell += '"'; i++; } else q = false; }
+        else cell += ch;
+      } else if (ch === '"') q = true;
+      else if (ch === ',') { row.push(cell); cell = ''; }
+      else if (ch === '\n' || ch === '\r') {
+        if (ch === '\r' && text[i + 1] === '\n') i++;
+        row.push(cell); rows.push(row); row = []; cell = '';
+      } else cell += ch;
+    }
+    if (cell !== '' || row.length) { row.push(cell); rows.push(row); }
+    return rows.filter(r => r.some(c => c.trim() !== ''));
+  }
+
+  // Rows of the Sheet's "Permits and certificates" tab, exported as CSV, to main-schedule rows.
+  function mainRowsFromCSV(text) {
+    const rows = parseCSV(text.replace(/^\uFEFF/, ''));
+    if (!rows.length) throw new Error('The file is empty.');
+    const head = rows[0].map(h => h.trim());
+    const idx = MAIN_COLS.map(c => head.indexOf(c));
+    const missing = MAIN_COLS.filter((c, i) => idx[i] < 0);
+    if (missing.length) throw new Error('This file is missing the column' + (missing.length > 1 ? 's ' : ' ') + missing.join(', ') + '. Export the "Permits and certificates" tab as CSV.');
+    return rows.slice(1).filter(r => r[idx[0]]).map(r => idx.map(i => (r[i] || '').trim()));
+  }
+
+  function money(x) { return x.toLocaleString('en-GH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+
+  return { MAIN_COLS, parseFee, rowToLine, buildFamilies, search, matchBand, inBand, isPerUnit, bill, feeAmount, stripNumbering, displayStem, stem, parseCSV, mainRowsFromCSV, money, num };
+})();
+export default FEE

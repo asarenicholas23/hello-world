@@ -39,6 +39,7 @@ import EnvEducationForm from './pages/EnvEducationForm'
 import SmsPage from './pages/SmsPage'
 import EmailPage from './pages/EmailPage'
 import ChatPage from './pages/ChatPage'
+import FeeCalculatorPage from './pages/FeeCalculatorPage'
 
 export default function App() {
   return (
@@ -102,6 +103,9 @@ export default function App() {
               <Route path="field-reports" element={<FieldReportsPage />} />
               <Route path="field-reports/new" element={<FieldReportForm />} />
               <Route path="field-reports/:id/edit" element={<FieldReportForm />} />
+
+              {/* Fee Calculator (Act 1080) — static route, so it wins over :module */}
+              <Route path="fee-calculator" element={<FeeCalculatorPage />} />
 
               {/* Top-level module overviews */}
               <Route path=":module" element={<CrossRecordsPage />} />

@@ -142,6 +142,10 @@ field_reports/{id}                    ← for unregistered facilities
 | `src/pages/Home.jsx`          | Role-specific home/dashboard             |
 | `src/App.jsx`                 | Route definitions                        |
 | `scripts/seed.cjs`            | Seeds test staff + counters (Admin SDK)  |
+| `src/pages/FeeCalculatorPage.jsx` | Act 1080 fee calculator (own sidebar tab, route `/fee-calculator`) |
+| `src/utils/feeCalc.js`        | Pure fee logic: bands, per-unit rates, US$ conversion, penalty |
+| `src/data/act1080Fees.json`   | Fee table extracted from Act 1080 (loaded on demand) |
+| `scripts/build-fee-table.mjs` | Rebuilds the fee table from the fee Sheet's CSV export |
 | `firestore.rules`             | Firestore security rules                 |
 | `DATA_MODEL.md`               | Full Firestore schema reference          |
 
@@ -168,3 +172,13 @@ node scripts/seed.cjs
 - Permit numbers are typed manually — never auto-generated or parsed by the app.
 - `.env` is gitignored — never commit Firebase credentials.
 - `scripts/serviceAccountKey.json` is gitignored — never commit.
+
+---
+
+## Fee Calculator (Act 1080)
+
+- Own sidebar tab for every role, route `/fee-calculator`. Not linked to facilities or finance records.
+- Fee table is `src/data/act1080Fees.json`, extracted from the scanned Act 1080 schedule (EPA pages 295–445) and reconciled against the Konongo office extract. To change fees, edit the fee Sheet, export the "Permits and certificates" tab as CSV and run `node scripts/build-fee-table.mjs <file.csv>`. Do not hand-edit the JSON.
+- Calculation rules (confirmed by the office): processing fee and permit fee are separate; per-unit lines are rate × number of units, with the band picked by capacity; non-compliance penalty (late renewal, operating without a permit) is 3 × the permit fee by default; no service charge.
+- Neither Act 1080 nor L.I. 2504 defines the large/medium/small/minor/micro "impact scale"; the page tells officers to use the scale assigned at screening.
+- Full notes: `docs/fee-calculator/README.md`.

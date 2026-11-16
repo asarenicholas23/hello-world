@@ -13,7 +13,7 @@ import {
   Users, ClipboardList, Activity, CheckSquare,
   LogOut, Menu, X, Upload, Flag, BarChart2, TrendingUp,
   Briefcase, LayoutList, MessageSquare, GraduationCap, BellRing, Mail, Gauge,
-  WifiOff, RefreshCw, CheckCircle2, Clock, ChevronDown, Target,
+  WifiOff, RefreshCw, CheckCircle2, Clock, ChevronDown, Target, Calculator,
 } from 'lucide-react'
 
 // Nav is organised into labelled, collapsible groups so the sidebar stays
@@ -28,6 +28,7 @@ const ADMIN_NAV = [
     { label: 'Permits',          icon: FileText,        path: '/permits' },
     { label: 'Permit Analytics', icon: BarChart2,       path: '/permit-analytics' },
     { label: 'Finance',          icon: Banknote,        path: '/finance' },
+    { label: 'Fee Calculator',   icon: Calculator,      path: '/fee-calculator' },
   ]},
   { section: 'Staff', items: [
     { label: 'Staff',            icon: Users,           path: '/staff' },
@@ -57,6 +58,7 @@ const FIELD_NAV = [
     { label: 'Monitoring',        icon: Activity,        path: '/monitoring' },
     { label: 'Site Verifications',icon: CheckSquare,     path: '/site-verifications' },
     { label: 'Field Reports',     icon: Flag,            path: '/field-reports' },
+    { label: 'Fee Calculator',    icon: Calculator,      path: '/fee-calculator' },
   ]},
   { section: 'My Work', items: [
     { label: 'My Assignments',    icon: Briefcase,       path: '/my-assignments' },
@@ -93,6 +95,7 @@ const IT_NAV = [
     { label: 'Permits',          icon: FileText,        path: '/permits' },
     { label: 'Permit Analytics', icon: BarChart2,       path: '/permit-analytics' },
     { label: 'Finance',          icon: Banknote,        path: '/finance' },
+    { label: 'Fee Calculator',   icon: Calculator,      path: '/fee-calculator' },
   ]},
   { section: 'Staff & Attendance', items: [
     { label: 'All Assignments',  icon: LayoutList,      path: '/all-assignments' },
@@ -128,6 +131,7 @@ const NAV_BY_ROLE = {
     { section: 'Facilities & Finance', items: [
       { label: 'Facilities', icon: Building2,       path: '/facilities' },
       { label: 'Finance',    icon: Banknote,        path: '/finance' },
+      { label: 'Fee Calculator', icon: Calculator,  path: '/fee-calculator' },
     ]},
     { section: 'My Work', items: [
       { label: 'Field Reports', icon: Flag,          path: '/field-reports' },

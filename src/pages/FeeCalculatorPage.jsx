@@ -127,8 +127,12 @@ export default function FeeCalculatorPage() {
   const famLines = useMemo(() => fam ? fam.lines.filter((l) => phase === null || l.phase === phase) : [], [fam, phase])
   const bandLines = useMemo(() => famLines.filter((l) => l.bmin !== null || l.bmax !== null), [famLines])
   const units = useMemo(() => [...new Set(bandLines.map((l) => l.unit || 'units'))], [bandLines])
+  // Bands with a flat fee per category (e.g. sachet water, aquaculture): the officer
+  // picks the category from the list, so no capacity box. Per-unit and "Flat – confirm"
+  // bands keep it, because the capacity also feeds the number of units.
+  const showCap = bandLines.some((l) => l.basis !== 'Flat')
   const capNum = FEE.num(cap)
-  const matches = useMemo(() => (capNum !== null && bandLines.length ? FEE.matchBand(famLines, capNum, unit) : []), [famLines, bandLines, capNum, unit])
+  const matches = useMemo(() => (capNum !== null && showCap ? FEE.matchBand(famLines, capNum, unit) : []), [famLines, showCap, capNum, unit])
 
   // The line in use: a capacity picks its band (unless the officer picked one of the
   // matching bands), otherwise the officer's choice, otherwise the first line.
@@ -290,7 +294,7 @@ export default function FeeCalculatorPage() {
                 )}
               </div>
 
-              {bandLines.length > 0 && (
+              {showCap && (
                 <div className="fc-field">
                   <label className="fc-field__label" htmlFor="fc-cap">Capacity</label>
                   <div className="fc-row">
@@ -318,7 +322,7 @@ export default function FeeCalculatorPage() {
 
               <div className="fc-field">
                 <div className="fc-row fc-row--between">
-                  <span className="fc-field__label">{bandLines.length ? 'Band' : 'Scale or line'}</span>
+                  <span className="fc-field__label">{showCap ? 'Band' : bandLines.length ? 'Category' : 'Scale or line'}</span>
                   {fam.kind === 'main' && <span className="fc-help">Processing fee, then permit fee</span>}
                 </div>
                 <div className="fc-lines" role="radiogroup" aria-label="Line">

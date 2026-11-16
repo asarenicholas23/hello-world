@@ -56,6 +56,7 @@ The EPA section is four parallel fee blocks plus extra charges:
 
 1. **Processing fee and permit fee are calculated separately.** Permit (new undertaking) uses the permitting columns; Certificate (existing undertaking) uses the certification columns.
 2. **Per-unit lines:** the capacity picks the band, and the fee is the band's rate × the number of units (e.g. hostel, 30 rooms, operation: 30 × 20 + 30 × 30).
+   Lines that are only *categorised* by capacity, with one flat fee per category, are not multiplied: sachet water (bags or boxes a day) and aquaculture (tonnes a year). For those the page shows the categories to pick from and no capacity box.
 3. **Non-compliance penalty** (late permit renewal, or operating without a permit): **3 × the permit fee** by default. The officer can change the multiplier or apply it to processing + permit. Checked against invoice 260729142239499 (Choice Clinic): 345 + 805 + 3 × 805 = 3,565.
 4. **No service charge.**
 5. **US$ amounts** ("cedi equivalent of US$ …") are converted at the rate the officer types.

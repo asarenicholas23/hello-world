@@ -284,6 +284,7 @@ async function revenue_forecast(data, args) {
   return {
     window: { from: day(range.from), to: day(range.to) },
     possible_total: fc.possible,
+    how_the_total_adds_up: 'possible_total is exactly renewals_due + backlog + unpaid_invoices + new_applications. Each facility is in at most one stream: a facility with an unpaid invoice is counted only there, never again as a renewal or backlog.',
     expected_total: fc.expected,
     collection_rate_pct: fc.collectionRate != null ? Math.round(fc.collectionRate * 100) : null,
     streams: {
@@ -431,7 +432,9 @@ exports.chatbot = functions.https.onCall({ secrets: [openrouterKey], timeoutSeco
       const calls = msg.tool_calls ?? []
       if (!calls.length) {
         console.log('chatbot answered', { uid: authContext.uid, rounds: round, tools: toolLog })
-        return { reply: msg.content || 'Sorry, I could not put an answer together. Please rephrase the question.' }
+        // The chat window shows plain text, so drop markdown emphasis and headings.
+        const reply = (msg.content || '').replace(/\*\*(.+?)\*\*/g, '$1').replace(/^#{1,6}\s+/gm, '')
+        return { reply: reply || 'Sorry, I could not put an answer together. Please rephrase the question.' }
       }
       messages.push({ role: 'assistant', content: msg.content || null, tool_calls: calls })
       for (const call of calls) {

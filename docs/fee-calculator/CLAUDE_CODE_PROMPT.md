@@ -32,6 +32,7 @@ Work through these steps, and stop and tell me if anything looks wrong:
 4. **Check it.** Run `npm run lint` and `npm run build`; fix anything in the new files. Then `npm run dev` and test `/fee-calculator` logged in as each role (test accounts are in CLAUDE.md):
    - Search "clinic", sector Health, phase Construction, Permit (new), 8 beds, turn on the penalty (×3 on permit fee). Total must be **GH¢3,565** (345 + 805 + 2,415).
    - Search "hostel", phase Operation, 30 rooms. Total must be **GH¢1,500** (30 × 20 + 30 × 30).
+   - Search "sachet", pick "Sachet Water Production (No. of Bags per Day)", Permit (new), category 4001-8000. There should be no capacity box and no multiplying: total **GH¢800** (300 + 500).
    - Search "church": it should find "Other construction proposals such as religious facilities" and show the note that the Act and L.I. 2504 don't define impact scale.
    - Check the page on a phone-sized window too.
 

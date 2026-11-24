@@ -16,9 +16,8 @@ The page stands on its own. It is not linked to facility records or finance reco
 | `src/utils/feeCalc.js` | Pure fee logic (no React): search, band matching, per-unit fees, US$ conversion, penalty, CSV parsing. |
 | `src/data/act1080Fees.json` | The fee table. Loaded on demand, so it is a separate ~27 KB (gzipped) chunk, not part of the main bundle. |
 | `src/styles/feeCalculator.css` | Page styles, scoped under `.fee-calc`, following the Studio skin. |
-| `scripts/build-fee-table.mjs` | Rebuilds the fee table from the fee Sheet's CSV export. |
+| `docs/act1080-fee-table.xlsx` (in `epa-fee-calculator`) | The fee table's source workbook. The office app copies the built JSON from there. |
 | `docs/fee-calculator/wiring.patch` | Adds the route, the sidebar item and the CLAUDE.md notes. Written against the local working copy (see "Merging" below). |
-| `docs/fee-calculator/EPA_fees_Act_1080.xlsx` | Snapshot of the extracted fee table, for reference while cross-checking. |
 
 ---
 
@@ -84,14 +83,12 @@ So for impact-scale lines the page tells officers to use the scale assigned at s
 
 ## Updating the fee table after the cross-check
 
-Do not hand-edit `src/data/act1080Fees.json`.
+Do not hand-edit `src/data/act1080Fees.json`. The single source is the Excel workbook `docs/act1080-fee-table.xlsx` in the **`epa-fee-calculator`** project (since 24 Nov 2026; the Google Sheet is no longer used).
 
-1. Correct lines in the fee Sheet ("EPA fees and charges – Act 1080"), tab **Permits and certificates**. Keep the column headers as they are.
-2. Download that tab as CSV.
-3. Run `node scripts/build-fee-table.mjs path/to/file.csv`. It refuses the file if a fee cell cannot be read, and prints a summary.
-4. `npm run build`, check the page, commit, deploy.
-
-Only the permits-and-certificates lines are replaced; other charges and product labels stay as they are.
+1. Correct lines in the workbook (tabs **Permits and certificates**, **Other Act charges**, **Product labels**). Keep tab names and column headers; Phase must be Construction, Operation or blank. The scanned Act is `FEES AND CHARGES - 2022.pdf` in that project folder (not in git).
+2. In `epa-fee-calculator`, run `npm run fee-table`. It reads all three tabs, refuses the workbook if a fee cell or phase can't be read, and prints a summary.
+3. Copy `src/data/act1080Fees.json` from `epa-fee-calculator` to `epa-permit-app`.
+4. `npm run build` in each, check the page, commit, deploy each.
 
 ---
 

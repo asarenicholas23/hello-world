@@ -145,7 +145,7 @@ field_reports/{id}                    ← for unregistered facilities
 | `src/pages/FeeCalculatorPage.jsx` | Act 1080 fee calculator (own sidebar tab, route `/fee-calculator`) |
 | `src/utils/feeCalc.js`        | Pure fee logic: bands, per-unit rates, US$ conversion, penalty |
 | `src/data/act1080Fees.json`   | Fee table extracted from Act 1080 (loaded on demand) |
-| `scripts/build-fee-table.mjs` | Rebuilds the fee table from the fee Sheet's CSV export |
+| `~/projects/epa-fee-calculator/docs/act1080-fee-table.xlsx` | Source workbook for the fee table (built there, JSON copied here) |
 | `src/utils/revenueForecast.js` | Fee estimates per facility + revenue forecast (renewals, backlog, unpaid, new) |
 | `src/utils/capacity.js`       | Reads rooms/beds/bags/tank litres etc. from screenings and site verifications |
 | `src/components/ActFinancePanel.jsx` | "Possible finance from Act 1080" (collapsed) on the facility Finance tab |
@@ -182,7 +182,7 @@ node scripts/seed.cjs
 ## Fee Calculator (Act 1080)
 
 - Own sidebar tab for every role, route `/fee-calculator`. Not linked to facilities or finance records.
-- Fee table is `src/data/act1080Fees.json`, extracted from the scanned Act 1080 schedule (EPA pages 295–445) and reconciled against the Konongo office extract. To change fees, edit the fee Sheet, export the "Permits and certificates" tab as CSV and run `node scripts/build-fee-table.mjs <file.csv>`. Do not hand-edit the JSON.
+- Fee table is `src/data/act1080Fees.json`, extracted from the scanned Act 1080 schedule (EPA pages 295–445) and reconciled against the Konongo office extract. To change fees, edit the Excel workbook `docs/act1080-fee-table.xlsx` in `~/projects/epa-fee-calculator` (the single source; the Google Sheet is no longer used), run `npm run fee-table` there, then copy `src/data/act1080Fees.json` here. Do not hand-edit the JSON.
 - Calculation rules (confirmed by the office): processing fee and permit fee are separate; per-unit lines are rate × number of units, with the band picked by capacity; non-compliance penalty (late renewal, operating without a permit) is 3 × the permit fee by default; no service charge.
 - Neither Act 1080 nor L.I. 2504 defines the large/medium/small/minor/micro "impact scale"; the page tells officers to use the scale assigned at screening.
 - Full notes: `docs/fee-calculator/README.md`.

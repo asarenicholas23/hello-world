@@ -2,8 +2,9 @@
 //
 // Every facility gets an estimate from the first source that has one:
 //   1. what the facility itself paid last time (finance records)
-//   2. the Act 1080 line for its type of undertaking, priced at its capacity
-//      (from screenings / site verifications, else the typical size of similar facilities)
+//   2. the Act 1080 line for each activity it does (whatever sector it is filed under),
+//      priced at its capacity (from screenings / site verifications, else the typical
+//      size of similar facilities) and added up
 //   3. what similar facilities paid (median)
 //   4. the sector median
 // The Act 1080 figure is also kept separately on each estimate so the app can show
@@ -44,42 +45,85 @@ export function paymentKind(type) {
 // ── Fee rules: type of undertaking → Act 1080 line(s) ───────────────────────────
 // lines: candidate line IDs (Operation phase). cap: capacity keys to read, in order.
 // Banded lines are picked by capacity; per-unit lines multiply by it.
+//
+// A facility is priced on what it does, not on the sector it is filed under: a
+// filling station filed under Infrastructure still pays the fuel-station fee.
+// A facility can do several things ("Hotel and restaurant", "Fuel and LPG station");
+// every activity found is priced and the fees are added, as on the Fee Calculator's bill.
+//
+// re: words that name the activity. weak: vaguer words ("station", "residential") that
+// count only when nothing else in the text names an activity; weakSectors limits those
+// to facilities filed under that sector. covers: activities this line already includes.
 export const FEE_RULES = [
   { id: 'hostel', label: 'Hostel (per room)', re: /\bhostel|homestel/, lines: ['L0502', 'L0503', 'L0504', 'L0505', 'L0506', 'L0507'], cap: ['rooms'] },
   { id: 'hotel', label: 'Hotel / guest house (per room)', re: /hotel|guest ?house|motel|lodge|\binn\b|resort/, lines: ['L0640'], cap: ['rooms'],
     note: 'Act 1080 has no separate guest-house line; the hotel per-room rate (5–40 rooms) is used.', noteIf: /guest|lodge|\binn\b|motel/ },
-  { id: 'lpg', label: 'LPG refilling station (per tonne of tank storage)', re: /\blpg\b|liquefied|liquified|gas refill|gas station|gas filling/, lines: ['L0172'], cap: ['tonnes', 'litres'] },
-  { id: 'fuel', label: 'Fuel service/filling station (per litre of tank storage)', re: /fuel|filling|service station|petrol|stat+ion$|\bstation\b|energy/, sectors: ['CE'], lines: ['L0173'], cap: ['litres'] },
+  { id: 'lpg', label: 'LPG refilling station (per tonne of tank storage)', re: /\blpg\b|liquefied|liquified|gas refill\w*|gas station|gas filling/, lines: ['L0172'], cap: ['tonnes', 'litres'] },
+  { id: 'fuel', label: 'Fuel service/filling station (per litre of tank storage)', re: /fuel|filling|service station|petrol|diesel/, weak: /stat+ion$|\bstation\b|energy|\boil\b/, weakSectors: ['CE'], lines: ['L0173'], cap: ['litres'] },
   { id: 'sachet', label: 'Sachet water production (bags per day)', re: /sachet|pure water/, lines: ['L0432', 'L0431', 'L0430', 'L0429'], cap: ['bags_per_day', 'production'] },
-  { id: 'maternity', label: 'Maternity home with clinic', re: /maternity/, lines: ['L0578'], cap: [] },
+  { id: 'maternity', label: 'Maternity home with clinic', re: /maternity/, lines: ['L0578'], cap: [], covers: ['hospital'] },
   { id: 'mortuary', label: 'Mortuary (cold rooms)', re: /mortuar|motuar/, lines: ['L0587', 'L0583', 'L0577', 'L0572', 'L0570'], cap: ['rooms'], defaultLine: 'L0587' },
   { id: 'hospital', label: 'Hospital / clinic (beds)', re: /hospital|clinic|chps|health (centre|center|facility)|polyclinic|herbal/, lines: ['L0581', 'L0582', 'L0573', 'L0574', 'L0575', 'L0571', 'L0569'], cap: ['beds'],
     note: 'Clinics are priced on the hospital bed bands, as on the Choice Clinic invoice (Act 1080 p.313).' },
   { id: 'lab', label: 'Diagnostic centre / laboratory', re: /laborator|diagnostic/, lines: ['L0586'], cap: [] },
-  { id: 'religious', label: 'Religious facility (Small impact scale)', re: /church|mosque|chapel|worship|religious|auditor|tabernacle|temple|pentecost|assembl(y|ies) of god/, lines: ['L0493'], cap: [],
+  { id: 'religious', label: 'Religious facility (Small impact scale)', re: /church|mosque|chapel|worship|religious|tabernacle|temple|pentecost|assembl(y|ies) of god/, weak: /auditor/, lines: ['L0493'], cap: [],
     note: 'Act 1080 and L.I. 2504 do not define impact scale. Small scale is used because it matches what churches have paid (990 + 5,000).' },
-  { id: 'apartments', label: 'Apartments (per housing unit)', re: /apartment|apartemnt|\bflats?\b|residential|real estate|housing/, lines: ['L0470'], cap: ['housing_units'] },
-  { id: 'telecom', label: 'Telecom mast', re: /\bmast\b|tower|telecom/, lines: ['L0643'], newLines: ['L0642'], cap: [] },
-  { id: 'restaurant', label: 'Restaurant / pub (per seat)', re: /restaurant|\bpub\b|\bbar\b|eatery|chop bar|drinking|lounge/, lines: ['L0641'], cap: ['seats'] },
+  { id: 'apartments', label: 'Apartments (per housing unit)', re: /apartment|apartemnt|\bflats?\b/, weak: /residential|real estate|housing/, lines: ['L0470'], cap: ['housing_units'] },
+  { id: 'telecom', label: 'Telecom mast', re: /\bmast\b|telecom/, weak: /tower/, lines: ['L0643'], newLines: ['L0642'], cap: [] },
+  { id: 'restaurant', label: 'Restaurant / pub (per seat)', re: /restaurant|\bpub\b|\bbar\b|eatery|chop ?bar|drinking (spot|bar|joint)/, weak: /drinking|lounge/, lines: ['L0641'], cap: ['seats'] },
   { id: 'events', label: 'Events centre', re: /event/, lines: ['L0485'], cap: [] },
-  { id: 'pesticide', label: 'Pesticide dealer licence (small scale)', re: /pesticid|agro ?chem|agrochem|weedicide|insecticide/, sectors: ['PP'],
+  { id: 'pesticide', label: 'Pesticide dealer licence (small scale)', re: /pesticid|agro ?chem|agrochem|weedicide|insecticide|herbicide|fungicide/,
     other: { renewal: { group: 'D2. Renewals', label: '1. Small Scale' }, new: { group: 'D1. New applications', label: '1. Small Scale' } },
     note: 'Pesticide dealer licence, Act 1080 pesticides section D (small scale): GH¢400 new, GH¢300 renewal.' },
 ]
 
-export function matchRule(facility) {
+const RULE_BY_ID = new Map(FEE_RULES.map((r) => [r.id, r]))
+export function ruleById(id) { return RULE_BY_ID.get(id) ?? null }
+
+const globalRe = (re) => new RegExp(re.source, 'g')
+
+// Activities named in one piece of text. Each match is taken out of the text before
+// later rules look at it, so "gas filling station" is LPG and not also a fuel station.
+function rulesInText(text, prefix) {
+  let rest = text
+  const found = []
+  for (const rule of FEE_RULES) {
+    if (!rule.re.test(rest)) continue
+    found.push(rule)
+    rest = rest.replace(globalRe(rule.re), ' ')
+  }
+  if (!found.length) {
+    for (const rule of FEE_RULES) {
+      if (!rule.weak?.test(rest)) continue
+      if (rule.weakSectors && !rule.weakSectors.includes(prefix)) continue
+      found.push(rule)
+      rest = rest.replace(globalRe(rule.weak), ' ')
+    }
+  }
+  return found
+}
+
+// Every activity a facility is charged for. A saved list (facility.fee_activities, set
+// on the facility's Finance tab) wins; otherwise the type of undertaking is read (the
+// name when the type is blank). The sector never rules an activity out; it only helps
+// read vague words ("station" under Energy) or an empty record (Pesticide → dealer).
+export function matchRules(facility) {
+  const saved = Array.isArray(facility?.fee_activities) ? facility.fee_activities.map(ruleById).filter(Boolean) : []
+  if (saved.length) return saved
   const t = normalizeType(facility?.type_of_undertaking)
   const name = normalizeType(facility?.name)
   const prefix = facility?.sector_prefix ?? ''
-  for (const rule of FEE_RULES) {
-    const hit = rule.re.test(t) || (!t && rule.re.test(name))
-    if (!hit) continue
-    if (rule.sectors && !rule.sectors.includes(prefix) && !(rule.id === 'pesticide' && rule.re.test(t))) continue
-    return rule
-  }
-  // Pesticide sector with no clear type still means a dealer.
-  if (prefix === 'PP') return FEE_RULES.find((r) => r.id === 'pesticide')
-  return null
+  let found = t ? rulesInText(t, prefix) : []
+  if (!found.length && !t && name) found = rulesInText(name, prefix)
+  // Nothing named at all: a file under Agrochemical & Pesticide is a dealer.
+  if (!found.length && prefix === 'PP') found = [RULE_BY_ID.get('pesticide')]
+  const covered = new Set(found.flatMap((r) => r.covers ?? []))
+  return found.filter((r) => !covered.has(r.id))
+}
+
+// First activity, for callers that need one.
+export function matchRule(facility) {
+  return matchRules(facility)[0] ?? null
 }
 
 function capacityFor(rule, caps) {
@@ -114,16 +158,17 @@ function pickBand(lines, qty) {
   return { line: nearest, clamped: true }
 }
 
-// Act 1080 estimate for one facility. Returns null when no line applies.
-export function actEstimate(facility, caps, ctx, { application = 'renewal' } = {}) {
-  const rule = matchRule(facility)
+// Act 1080 estimate for one activity of a facility. Returns null when it cannot be priced
+// (with `why` set on the optional `miss` object).
+export function actLineEstimate(rule, facility, caps, ctx, { application = 'renewal', miss } = {}) {
   if (!rule) return null
+  const fail = (why) => { if (miss) miss.why = why; return null }
 
   if (rule.other) {
     const spec = rule.other[application === 'new' ? 'new' : 'renewal']
     const row = ctx.otherRows.find((r) => r[1] === spec.group && r[3] === spec.label)
     const amount = row ? FEE.parseFee(row[4]) : null
-    if (!amount || amount.cur !== 'GHS') return null
+    if (!amount || amount.cur !== 'GHS') return fail('not in the fee table')
     return {
       ruleId: rule.id, ruleLabel: rule.label, lineId: `${spec.group} ${spec.label}`, lineLabel: `${spec.group} – ${spec.label}`,
       processing: 0, permit: amount.v, total: amount.v, pages: String(row[5] ?? ''), qty: null, note: rule.note ?? '',
@@ -132,7 +177,7 @@ export function actEstimate(facility, caps, ctx, { application = 'renewal' } = {
 
   const ids = application === 'new' && rule.newLines ? rule.newLines : rule.lines
   const lines = ids.map((id) => ctx.lineById.get(id)).filter(Boolean)
-  if (!lines.length) return null
+  if (!lines.length) return fail('not in the fee table')
 
   let capacity = capacityFor(rule, caps)
   let capacityKind = capacity ? 'recorded' : null
@@ -145,17 +190,17 @@ export function actEstimate(facility, caps, ctx, { application = 'renewal' } = {
   if (lines.length === 1) chosen = { line: lines[0], clamped: false }
   else if (capacity) chosen = pickBand(lines, capacity.value)
   else if (rule.defaultLine) chosen = { line: ctx.lineById.get(rule.defaultLine), clamped: false }
-  if (!chosen?.line) return null
+  if (!chosen?.line) return fail(rule.cap?.length ? `${rule.cap[0].replace(/_/g, ' ')} not on record` : 'no line picked')
 
   const line = chosen.line
   const perUnit = FEE.isPerUnit(line)
-  if (perUnit && !capacity) return null
+  if (perUnit && !capacity) return fail(`${(rule.cap?.[0] ?? 'capacity').replace(/_/g, ' ')} not on record`)
   if (perUnit && line.bmin != null && capacity && capacity.value < line.bmin) chosen.clamped = true
   if (perUnit && line.bmax != null && capacity && capacity.value > line.bmax) chosen.clamped = true
   const qty = perUnit ? capacity.value : 1
   const proc = cell(line, 'pp', 'cp')
   const perm = cell(line, 'pm', 'cm')
-  if (proc == null && perm == null) return null
+  if (proc == null && perm == null) return fail('both fees are blank in the Act')
   const processing = round((proc ?? 0) * qty)
   const permit = round((perm ?? 0) * qty)
 
@@ -169,6 +214,43 @@ export function actEstimate(facility, caps, ctx, { application = 'renewal' } = {
     perUnit, rate: { processing: proc, permit: perm },
     qty: capacity ? { value: capacity.value, unit: capacity.unit, source: capacityKind === 'typical' ? capacity.source : capacity.source, kind: capacityKind } : null,
     processing, permit, total: round(processing + permit), note: notes.join(' '),
+  }
+}
+
+// Act 1080 estimate for a facility: every activity it does, priced and added up.
+// The result has the same fields as one activity's estimate (labels joined with " + ")
+// plus `parts` (one per priced activity) and `unpriced` (activities that could not be
+// priced, e.g. a restaurant with no seat count). Returns null when nothing is priced.
+// opts.rules overrides the activities; opts.capsFor(rule) gives one activity its own capacities.
+export function actEstimate(facility, caps, ctx, { application = 'renewal', rules, capsFor } = {}) {
+  const list = rules ?? matchRules(facility)
+  const parts = []
+  const unpriced = []
+  for (const rule of list) {
+    const miss = {}
+    const est = actLineEstimate(rule, facility, capsFor?.(rule) ?? caps, ctx, { application, miss })
+    if (est) parts.push(est)
+    else unpriced.push({ ruleId: rule.id, ruleLabel: rule.label, why: miss.why ?? 'not priced' })
+  }
+  if (!parts.length) return null
+  if (parts.length === 1 && !unpriced.length) return { ...parts[0], parts, unpriced }
+
+  const processing = round(parts.reduce((a, p) => a + p.processing, 0))
+  const permit = round(parts.reduce((a, p) => a + p.permit, 0))
+  const notes = parts.filter((p) => p.note).map((p) => `${p.ruleLabel}: ${p.note}`)
+  if (unpriced.length) notes.push(`Not priced: ${unpriced.map((u) => `${u.ruleLabel} (${u.why})`).join('; ')}.`)
+  const one = parts.length === 1 ? parts[0] : null
+  return {
+    ruleId: parts.map((p) => p.ruleId).join('+'),
+    ruleLabel: parts.map((p) => p.ruleLabel).join(' + '),
+    lineId: parts.map((p) => p.lineId).join(' + '),
+    lineLabel: parts.map((p) => p.lineLabel).join(' + '),
+    pages: parts.map((p) => String(p.pages ?? '').split(',')[0]).filter(Boolean).join(', '),
+    perUnit: one?.perUnit ?? false, rate: one?.rate ?? null,
+    qty: one?.qty ?? null,
+    qtyText: parts.filter((p) => p.qty).map((p) => `${p.qty.value} ${p.qty.unit.replace(/_/g, ' ')}`).join(', '),
+    processing, permit, total: round(processing + permit), note: notes.join(' '),
+    parts, unpriced,
   }
 }
 
@@ -200,11 +282,15 @@ export function buildFeeContext({ feeTable, facilities = [], finance = [], capac
   const capsByRule = {}
   const groupKeyOf = new Map()
   for (const f of facilities) {
-    const rule = matchRule(f)
-    groupKeyOf.set(f.file_number, rule ? `rule:${rule.id}` : `type:${normalizeType(f.type_of_undertaking) || '-'}`)
-    if (!rule?.cap?.length) continue
-    const c = capacityFor(rule, capacityIndex[f.file_number])
-    if (c) (capsByRule[rule.id] ??= []).push(c)
+    const rules = matchRules(f)
+    // "Similar" means the same mix of activities (a hotel with a restaurant is compared
+    // with other hotels that have restaurants).
+    groupKeyOf.set(f.file_number, rules.length ? `rule:${rules.map((r) => r.id).sort().join('+')}` : `type:${normalizeType(f.type_of_undertaking) || '-'}`)
+    for (const rule of rules) {
+      if (!rule.cap?.length) continue
+      const c = capacityFor(rule, capacityIndex[f.file_number])
+      if (c) (capsByRule[rule.id] ??= []).push(c)
+    }
   }
   const typicalCapacity = {}
   for (const [ruleId, list] of Object.entries(capsByRule)) {
@@ -258,7 +344,9 @@ export function estimateFacility(facility, ctx, { application = 'renewal' } = {}
     source = 'act'
     processing = act.processing
     permit = act.permit
-    sourceLabel = act.qty?.kind === 'typical' ? 'Act 1080 at typical size' : 'Act 1080'
+    sourceLabel = act.parts.some((x) => x.qty?.kind === 'typical') ? 'Act 1080 at typical size' : 'Act 1080'
+    if (act.parts.length > 1) sourceLabel += ` (${act.parts.length} activities)`
+    if (act.unpriced.length) sourceLabel += `, ${act.unpriced.length} activit${act.unpriced.length > 1 ? 'ies' : 'y'} not priced`
   } else if (similar && similar.n >= 2) {
     source = 'similar'
     processing = similar.processing

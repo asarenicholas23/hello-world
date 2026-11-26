@@ -219,7 +219,7 @@ function forecastCsv(rows) {
       r.sourceLabel,
       r.act ? `${r.act.lineId} ${r.act.lineLabel}` : '',
       r.act?.total ?? '',
-      r.act?.qty ? `${r.act.qty.value} ${r.act.qty.unit.replace(/_/g, ' ')} (${r.act.qty.source})` : '',
+      (r.act?.parts ?? []).filter((x) => x.qty).map((x) => `${x.qty.value} ${x.qty.unit.replace(/_/g, ' ')} (${x.qty.source})`).join('; '),
     ].map(esc).join(',')),
   ].join('\n')
 }
@@ -912,7 +912,7 @@ function buildForecastFinanceAnalytics(forecast, facilities) {
         STREAM_LABELS[item.stream] + (item.backlogReason ? ` (${item.backlogReason})` : ''),
         item.expiryMs ? fmtDate(new Date(item.expiryMs)) : '—',
         currency(item.total) + (item.penalty ? ` incl. ${currency(item.penalty)} penalty` : ''),
-        item.sourceLabel + (item.act?.qty ? ` · ${item.act.qty.value} ${item.act.qty.unit.replace(/_/g, ' ')}` : ''),
+        item.sourceLabel + (item.act?.qtyText ? ` · ${item.act.qtyText}` : item.act?.qty ? ` · ${item.act.qty.value} ${item.act.qty.unit.replace(/_/g, ' ')}` : ''),
       ],
       onClick: (navigate) => navigate(facilityPath(item.fileNumber), { state: { tab: 'finance' } }),
     })),

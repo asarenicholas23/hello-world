@@ -192,6 +192,6 @@ node scripts/seed.cjs
 ## Revenue Forecast & Assistant
 
 - Analytics → Finance → Forecast (IT role) uses `buildRevenueForecast`: renewals due in the window, backlog (expired or no permit, not paid since; toggle, on by default), unpaid invoices, new applications on the last-12-months trend. ×3 penalty is a toggle, off by default. "Expected" = possible × collection rate (paid ÷ billed).
-- Each facility's estimate: own last payments → Act 1080 line for its type (`FEE_RULES`) at its capacity (or the median size of surveyed similar facilities) → similar facilities' median paid → sector median. Every row says which.
+- Each facility's estimate: own last payments → Act 1080 line for each activity it does (`FEE_RULES`, all matches summed; sector never rules a line out, only reads vague words like "station" under Energy; `fee_activities` on the facility overrides the text) at its capacity (or the median size of surveyed similar facilities) → similar facilities' median paid → sector median. Every row says which.
 - Pricing uses the Act's **permitting** columns (certification as fallback): paid invoices match them (churches 990 + 5,000; fuel 0.02 + 0.03 per litre).
 - The assistant (`functions/chatbot.js`) calls tools (search_facilities, get_facility, revenue_forecast, finance_summary, calculate_fee) and only accepts user/assistant turns from the client. It runs the same code as the app from `functions/shared/`, which `scripts/sync-functions-shared.mjs` regenerates before every functions deploy. Do not edit `functions/shared/` by hand.

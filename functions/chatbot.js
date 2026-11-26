@@ -259,7 +259,11 @@ async function get_facility(data, args) {
     capacities_on_record: caps,
     fee_estimate: clean({
       processing: est.processing, permit: est.permit, total: est.total, basis: est.sourceLabel,
-      act_1080: est.act ? clean({ line: `${est.act.lineId} ${est.act.lineLabel}`, rule: est.act.ruleLabel, processing: est.act.processing, permit: est.act.permit, total: est.act.total, capacity_used: est.act.qty ? `${est.act.qty.value} ${est.act.qty.unit} (${est.act.qty.source})` : null, pages: est.act.pages, note: est.act.note }) : 'No Act 1080 line mapped for this type of undertaking',
+      act_1080: est.act ? clean({
+        activities: est.act.parts.map((x) => clean({ activity: x.ruleLabel, line: `${x.lineId} ${x.lineLabel}`, processing: x.processing, permit: x.permit, total: x.total, capacity_used: x.qty ? `${x.qty.value} ${x.qty.unit} (${x.qty.source})` : null, pages: x.pages })),
+        not_priced: est.act.unpriced.length ? est.act.unpriced.map((u) => `${u.ruleLabel}: ${u.why}`) : null,
+        processing: est.act.processing, permit: est.act.permit, total: est.act.total, note: est.act.note,
+      }) : 'No Act 1080 line mapped for this type of undertaking',
       penalty_if_charged: cedis(est.permit * 3),
     }),
   })
@@ -392,7 +396,7 @@ You answer from the office's records using the tools. Always call a tool before 
 
 How the office's money works:
 - Every facility pays a processing fee and a permit fee under the Fees and Charges (Miscellaneous Provisions) Act, 2022 (Act 1080). Permits usually run 12–24 months.
-- Estimates come from, in order: what the facility paid before, the Act 1080 line for its type and capacity, what similar facilities paid, the sector median. Always say which basis a figure uses.
+- Estimates come from, in order: what the facility paid before, the Act 1080 line for each activity it does and its capacity (a facility doing several things, e.g. a hotel with a restaurant, pays for each, added up; the sector it is filed under does not limit this), what similar facilities paid, the sector median. Always say which basis a figure uses.
 - Capacities (rooms, beds, bags a day, tank litres) come from screenings and site verifications. When a typical size was assumed, say so.
 - Non-compliance penalty (late renewal or operating without a permit) is 3 × the permit fee. Do not include it unless the user asks; you may mention what it would add.
 - Neither Act 1080 nor the Environmental Assessment Regulations, 2025 (L.I. 2504) define large/medium/small/minor/micro impact scale; that comes from screening.

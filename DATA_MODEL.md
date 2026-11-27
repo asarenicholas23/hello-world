@@ -67,6 +67,7 @@ facilities/{file_number}
   sector              string   — e.g. "Infrastructure"
   sector_prefix       string   — e.g. "CI"
   type_of_undertaking string
+  sub_sector          string   — optional; 'gold_board' (Gold board applications, under Infrastructure) or 'none'. When empty, the app reads it from type_of_undertaking (src/utils/subSectors.js)
   fee_activities      string[] — optional; Act 1080 activities to price (FEE_RULES ids, e.g. ["hotel","restaurant"]). Set on the Finance tab; when absent they are read from type_of_undertaking
   location            string
   district            string   — e.g. "KON", "KMA", "EJI", "OBU"

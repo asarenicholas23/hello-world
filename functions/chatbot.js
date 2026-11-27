@@ -22,12 +22,13 @@ const DISTRICTS = { AAC: 'Asante Akim Central', AAS: 'Asante Akim South', AAN: '
 let sharedModules = null
 async function shared() {
   if (!sharedModules) {
-    const [fee, capacity, forecast] = await Promise.all([
+    const [fee, capacity, forecast, subSectors] = await Promise.all([
       import('./shared/feeCalc.mjs'),
       import('./shared/capacity.mjs'),
       import('./shared/revenueForecast.mjs'),
+      import('./shared/subSectors.mjs'),
     ])
-    sharedModules = { FEE: fee.default, ...capacity, ...forecast }
+    sharedModules = { FEE: fee.default, ...capacity, ...forecast, ...subSectors }
   }
   return sharedModules
 }
@@ -107,8 +108,8 @@ function permitInfo(data, fileNumber, now = Date.now()) {
   return { status, expiry: day(latest.e), permit_number: latest.p.permit_number ?? null }
 }
 
-function matchesText(f, q) {
-  const hay = [f.name, f.file_number, f.type_of_undertaking, f.location, f.contact_person, f.district, districtName(f.district)].join(' ').toLowerCase()
+function matchesText(f, q, extra = '') {
+  const hay = [f.name, f.file_number, f.type_of_undertaking, f.location, f.contact_person, f.district, districtName(f.district), extra].join(' ').toLowerCase()
   return q.toLowerCase().split(/\s+/).filter(Boolean).every((t) => hay.includes(t))
 }
 
@@ -125,6 +126,17 @@ function resolveSector(input) {
   return hit ? hit[0] : String(input).toUpperCase()
 }
 
+// "gold board", "gold trading", "GoldBod", "gold_board" → 'gold_board'.
+function resolveSubSector(input, SUB_SECTORS) {
+  if (!input) return null
+  const s = String(input).trim().toLowerCase().replace(/[_-]+/g, ' ')
+  if (/gold/.test(s)) return 'gold_board'
+  const hit = SUB_SECTORS.find((x) => x.value.replace(/_/g, ' ') === s || x.name.toLowerCase().includes(s))
+  return hit ? hit.value : '__none__'
+}
+
+const SUB_SECTOR_PARAM = { type: 'string', description: 'Sub-sector, e.g. "Gold board applications" (gold trading / gold buying offices, under Infrastructure, Tier 1 or Tier 2).' }
+
 function periodRange(args, now = Date.now()) {
   if (args.from || args.to) return { from: args.from ? ms(args.from) : null, to: args.to ? ms(`${args.to}T23:59:59`) ?? ms(args.to) : null }
   const days = { month: 30, quarter: 91, half_year: 182, year: 365 }[args.period ?? 'year'] ?? 365
@@ -138,13 +150,14 @@ const TOOLS = [
     type: 'function',
     function: {
       name: 'search_facilities',
-      description: 'Find facilities by name, file number, type of undertaking, location or contact, and/or filter by district, sector or permit status. Returns up to `limit` matches with permit status.',
+      description: 'Find facilities by name, file number, type of undertaking, location or contact, and/or filter by district, sector, sub-sector (e.g. Gold board applications) or permit status. Returns up to `limit` matches with permit status.',
       parameters: {
         type: 'object',
         properties: {
           query: { type: 'string', description: 'Words to match, e.g. "Asuo Barima", "fuel station Juaso", "CT0006".' },
           district: { type: 'string', description: 'District name or code, e.g. "Asante Akim Central" or "AAC".' },
           sector: { type: 'string', description: 'Sector name or prefix, e.g. "Hospitality" or "CT".' },
+          sub_sector: SUB_SECTOR_PARAM,
           permit_status: { type: 'string', enum: ['active', 'expiring', 'expired', 'none'], description: 'expiring = within 60 days.' },
           limit: { type: 'integer', description: 'Default 15, max 50.' },
         },
@@ -174,6 +187,7 @@ const TOOLS = [
           include_penalty: { type: 'boolean', description: 'Add 3 × permit fee to backlog facilities. Default false; only when the user asks.' },
           district: { type: 'string' },
           sector: { type: 'string' },
+          sub_sector: SUB_SECTOR_PARAM,
         },
       },
     },
@@ -191,6 +205,7 @@ const TOOLS = [
           group_by: { type: 'string', enum: ['district', 'sector', 'payment_type', 'month', 'facility'] },
           district: { type: 'string' },
           sector: { type: 'string' },
+          sub_sector: SUB_SECTOR_PARAM,
         },
       },
     },
@@ -215,24 +230,28 @@ const TOOLS = [
 ]
 
 async function search_facilities(data, args) {
+  const { SUB_SECTORS, facilitySubSector } = await shared()
   const district = resolveDistrict(args.district)
   const sector = resolveSector(args.sector)
+  const subSector = resolveSubSector(args.sub_sector, SUB_SECTORS)
   const limit = Math.min(Math.max(Number(args.limit) || 15, 1), 50)
   const now = Date.now()
   const hits = []
   for (const f of data.facilities) {
     if (district && f.district !== district) continue
     if (sector && f.sector_prefix !== sector) continue
-    if (args.query && !matchesText(f, args.query)) continue
+    const sub = facilitySubSector(f)
+    if (subSector && sub?.value !== subSector) continue
+    if (args.query && !matchesText(f, args.query, sub?.name)) continue
     const p = permitInfo(data, f.file_number, now)
     if (args.permit_status && p.status !== args.permit_status) continue
-    hits.push({ f, p })
+    hits.push({ f, p, sub })
   }
   return {
     total_matches: hits.length,
-    facilities: hits.slice(0, limit).map(({ f, p }) => clean({
+    facilities: hits.slice(0, limit).map(({ f, p, sub }) => clean({
       file_number: f.file_number, name: f.name, type: f.type_of_undertaking, district: districtName(f.district),
-      sector: sectorName(f.sector_prefix), location: f.location, permit_status: p.status, permit_expiry: p.expiry,
+      sector: sectorName(f.sector_prefix), sub_sector: sub?.name, location: f.location, permit_status: p.status, permit_expiry: p.expiry,
     })),
   }
 }
@@ -241,13 +260,13 @@ async function get_facility(data, args) {
   const fn = String(args.file_number ?? '').trim()
   const f = data.facilityByFile.get(fn) ?? data.facilities.find((x) => x.file_number.toLowerCase() === fn.toLowerCase())
   if (!f) return { error: `No facility with file number ${fn}. Use search_facilities to find it.` }
-  const { estimateFacility } = await shared()
+  const { estimateFacility, facilitySubSector } = await shared()
   const file = f.file_number
   const est = estimateFacility(f, data.ctx, { application: (data.permitsByFile.get(file) ?? []).length ? 'renewal' : 'new' })
   const caps = Object.fromEntries(Object.entries(est.capacities ?? {}).map(([k, v]) => [k, `${v.value} (from ${v.source}${v.dateMs ? `, ${day(v.dateMs)}` : ''})`]))
   const sortByDate = (list, key = 'date') => [...(list ?? [])].sort((a, b) => (ms(b[key]) ?? ms(b.created_at) ?? 0) - (ms(a[key]) ?? ms(a.created_at) ?? 0))
   return clean({
-    file_number: file, name: f.name, type: f.type_of_undertaking, sector: sectorName(f.sector_prefix), district: districtName(f.district),
+    file_number: file, name: f.name, type: f.type_of_undertaking, sector: sectorName(f.sector_prefix), sub_sector: facilitySubSector(f)?.name, district: districtName(f.district),
     location: f.location, contact: f.contact_person, phone: f.phone, email: f.email, officer: f.primary_officer_name,
     permit: permitInfo(data, file),
     permits: sortByDate(data.permitsByFile.get(file), 'issue_date').slice(0, 5).map((p) => clean({ permit_number: p.permit_number, issued: day(p.issue_date), expires: day(p.expiry_date) })),
@@ -270,10 +289,12 @@ async function get_facility(data, args) {
 }
 
 async function revenue_forecast(data, args) {
-  const { buildRevenueForecast, SOURCE_NAMES } = await shared()
+  const { buildRevenueForecast, SOURCE_NAMES, SUB_SECTORS, facilitySubSector } = await shared()
   const district = resolveDistrict(args.district)
   const sector = resolveSector(args.sector)
-  const facilities = data.facilities.filter((f) => (!district || f.district === district) && (!sector || f.sector_prefix === sector))
+  const subSector = resolveSubSector(args.sub_sector, SUB_SECTORS)
+  const facilities = data.facilities.filter((f) => (!district || f.district === district) && (!sector || f.sector_prefix === sector)
+    && (!subSector || facilitySubSector(f)?.value === subSector))
   const range = periodRange(args)
   const fc = buildRevenueForecast({
     facilities, permits: data.permits, finance: data.finance, ctx: data.ctx, range,
@@ -310,15 +331,17 @@ async function revenue_forecast(data, args) {
 }
 
 async function finance_summary(data, args) {
-  const { paymentKind } = await shared()
+  const { paymentKind, SUB_SECTORS, facilitySubSector } = await shared()
   const district = resolveDistrict(args.district)
   const sector = resolveSector(args.sector)
+  const subSector = resolveSubSector(args.sub_sector, SUB_SECTORS)
   const from = args.from ? ms(args.from) : null
   const to = args.to ? ms(`${args.to}T23:59:59`) ?? ms(args.to) : null
   const rows = data.finance.filter((r) => {
     const f = data.facilityByFile.get(r.fileNumber)
     if (district && f?.district !== district) return false
     if (sector && f?.sector_prefix !== sector) return false
+    if (subSector && (!f || facilitySubSector(f)?.value !== subSector)) return false
     const t = ms(r.date) ?? ms(r.created_at)
     if (from != null && (!t || t < from)) return false
     if (to != null && (!t || t > to)) return false
@@ -397,6 +420,7 @@ You answer from the office's records using the tools. Always call a tool before 
 How the office's money works:
 - Every facility pays a processing fee and a permit fee under the Fees and Charges (Miscellaneous Provisions) Act, 2022 (Act 1080). Permits usually run 12–24 months.
 - Estimates come from, in order: what the facility paid before, the Act 1080 line for each activity it does and its capacity (a facility doing several things, e.g. a hotel with a restaurant, pays for each, added up; the sector it is filed under does not limit this), what similar facilities paid, the sector median. Always say which basis a figure uses.
+- Gold board applications are a sub-sector of Infrastructure: offices for the sale of gold (gold trading, gold buying). Their fees are office practice, not in Act 1080: Tier 1 processing GH¢2,000 + permit GH¢10,000; Tier 2 processing GH¢5,000 + permit GH¢15,000. Use sub_sector "Gold board applications" to find or total them.
 - Capacities (rooms, beds, bags a day, tank litres) come from screenings and site verifications. When a typical size was assumed, say so.
 - Non-compliance penalty (late renewal or operating without a permit) is 3 × the permit fee. Do not include it unless the user asks; you may mention what it would add.
 - Neither Act 1080 nor the Environmental Assessment Regulations, 2025 (L.I. 2504) define large/medium/small/minor/micro impact scale; that comes from screening.

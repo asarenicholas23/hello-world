@@ -11,7 +11,7 @@ import '../styles/feeCalculator.css'
 // The app's own sectors, mapped to the sections of the Act 1080 schedule.
 const SECTOR_GROUPS = [
   { key: 'CU', name: 'Manufacturing', act: ['Manufacturing'] },
-  { key: 'CI', name: 'Infrastructure', act: ['General construction', 'Transportation', 'Telecommunication', 'Urban tree cover'] },
+  { key: 'CI', name: 'Infrastructure', act: ['General construction', 'Transportation', 'Telecommunication', 'Urban tree cover', 'Gold board applications'] },
   { key: 'CH', name: 'Health', act: ['Health'] },
   { key: 'CT', name: 'Hospitality', act: ['Tourism and hospitality'] },
   { key: 'CE', name: 'Energy', act: ['Energy (power generation)', 'Downstream petroleum', 'Oil and gas (upstream)'] },
@@ -26,6 +26,7 @@ const RATE_KEY = 'epa_fee_calc_usd_rate'
 // Words officers use that the Act does not, so a search for "church" finds
 // "Other construction proposals such as religious facilities".
 const SEARCH_ALIASES = [
+  [/gold trading/i, 'goldbod gold buying gold buyer gold sale gold office gold dealer'],
   [/religious/i, 'church mosque temple chapel worship prayer centre'],
   [/hostel/i, 'student accommodation'],
   [/tourism|hotel|room hotel/i, 'guest house lodge motel'],
@@ -195,7 +196,7 @@ export default function FeeCalculatorPage() {
     }
     out.push(result.complete ? `Total: GH¢ ${money(result.total)}` : `Total so far: GH¢ ${money(result.total)} (incomplete)`)
     if (rateNum && result.items.some((i) => i.fee && (i.fee.cur === 'USD' || i.fee.cur === 'FOB'))) out.push(`Exchange rate used: US$ 1 = GH¢ ${rate}`)
-    out.push(`Source: Act 1080, page ${line.pages}, line ${line.id}`)
+    out.push(line.pages ? `Source: Act 1080, page ${line.pages}, line ${line.id}` : `Source: office practice (not in Act 1080), line ${line.id}`)
     return out.join('\n')
   }
 
@@ -218,6 +219,7 @@ export default function FeeCalculatorPage() {
     if (line.check === 'Differs from office document') badges.push(['yellow', 'Act differs from office extract'])
     else if (line.check === 'Check') badges.push(['yellow', 'Not found in the Act scan'])
     else if (line.check === 'Not in office document') badges.push(['blue', 'From the Act only'])
+    else if (line.check === 'Office practice') badges.push(['blue', 'Office practice, not in Act 1080'])
     else if (line.check) badges.push(['green', 'Matches office extract'])
     if (line.conf === 'Medium') badges.push(['yellow', 'Machine-read, verify'])
     if (line.basis === 'Flat – confirm') badges.push(['yellow', 'Flat or per unit? Confirm'])
@@ -435,7 +437,9 @@ export default function FeeCalculatorPage() {
               </div>
               {badges.length > 0 && <div className="fc-badges">{badges.map(([c, t]) => <span key={t} className={`badge badge--${c}`}>{t}</span>)}</div>}
               {line.notes && <div className="fc-notice fc-notice--warn">{line.notes}</div>}
-              <p className="fc-source">Act 1080, page{line.pages.includes(',') ? 's' : ''} <b>{line.pages}</b></p>
+              {line.pages
+                ? <p className="fc-source">Act 1080, page{line.pages.includes(',') ? 's' : ''} <b>{line.pages}</b></p>
+                : <p className="fc-source">Office practice, not in Act 1080</p>}
               <div className="fc-row">
                 <button type="button" className="btn btn--primary" onClick={copySummary}>
                   {copied ? <><Check size={14} /> Copied</> : <><Copy size={14} /> Copy summary</>}
@@ -448,7 +452,7 @@ export default function FeeCalculatorPage() {
 
       <p className="fc-foot">
         Estimates for officers. The Ghana.gov invoice from the EPA client portal is the bill.
-        Amounts come from the Act 1080 schedule, pages 295–445; page 294 is missing from the scan the table was built from.
+        Amounts come from the Act 1080 schedule, pages 295–445; page 294 is missing from the scan the table was built from. Gold Board application fees (gold trading, Tier 1 and Tier 2, under Infrastructure) are office practice and are not in the Act.
         {lines.length > 0 && ` ${lines.length} fee lines loaded.`}
       </p>
     </div>

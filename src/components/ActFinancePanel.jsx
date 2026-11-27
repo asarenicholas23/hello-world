@@ -193,7 +193,7 @@ export default function ActFinancePanel({ facility, fileNumber, financeRecords }
                         <button type="button" className="act-finance__remove" onClick={() => removeRule(rule.id)} aria-label={`Remove ${rule.label}`} title="Remove this activity"><X size={14} /></button>
                       ) : null}
                     </div>
-                    {part && <small>{part.lineLabel} · Act 1080 p.{String(part.pages).split(',')[0]}</small>}
+                    {part && <small>{part.lineLabel} · {part.pages ? `Act 1080 p.${String(part.pages).split(',')[0]}` : 'Office practice, not in Act 1080'}</small>}
                     {capRow(rule)}
                     {part ? (
                       <div className="act-finance__lines">

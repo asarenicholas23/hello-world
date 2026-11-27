@@ -6,6 +6,7 @@ import { useSync } from '../context/SyncContext'
 import { useGPS } from '../hooks/useGPS'
 import { createFacility, updateFacility, getFacility, renameFacilityFileNumber } from '../firebase/facilities'
 import { SECTORS, DISTRICTS, REGION } from '../data/constants'
+import { SUB_SECTOR_NONE, facilitySubSector, subSectorsFor } from '../utils/subSectors'
 import { decodeFileNumberParam, facilityPath } from '../utils/fileNumbers'
 import Spinner from '../components/Spinner'
 import GPSField from '../components/GPSField'
@@ -14,6 +15,7 @@ const EMPTY_FORM = {
   name: '',
   sector: '',
   sector_prefix: '',
+  sub_sector: '',
   type_of_undertaking: '',
   location: '',
   district: '',
@@ -54,6 +56,7 @@ export default function FacilityForm() {
           name: rest.name ?? '',
           sector: rest.sector ?? '',
           sector_prefix: rest.sector_prefix ?? '',
+          sub_sector: rest.sub_sector ?? '',
           type_of_undertaking: rest.type_of_undertaking ?? '',
           location: rest.location ?? '',
           district: rest.district ?? '',
@@ -83,6 +86,8 @@ export default function FacilityForm() {
       ...prev,
       sector: name,
       sector_prefix: sector?.prefix ?? '',
+      // A sub-sector belongs to one sector; drop it when the sector changes.
+      sub_sector: subSectorsFor(sector?.prefix).some((x) => x.value === prev.sub_sector) || prev.sub_sector === SUB_SECTOR_NONE ? prev.sub_sector : '',
     }))
   }
 
@@ -246,6 +251,23 @@ export default function FacilityForm() {
                 placeholder="e.g. Water Treatment, Manufacturing Plant, Hospital"
               />
             </div>
+
+            {subSectorsFor(formData.sector_prefix).length > 0 && (() => {
+              const detected = !formData.sub_sector ? facilitySubSector({ ...formData, sub_sector: '' }) : null
+              return (
+                <div className="form-group">
+                  <label>Sub-sector</label>
+                  <select className="select" name="sub_sector" value={formData.sub_sector} onChange={handleChange}>
+                    <option value="">{detected ? `From type of undertaking (${detected.name})` : 'None / from type of undertaking'}</option>
+                    {subSectorsFor(formData.sector_prefix).map((x) => <option key={x.value} value={x.value}>{x.name}</option>)}
+                    <option value={SUB_SECTOR_NONE}>None (not in any sub-sector)</option>
+                  </select>
+                  <small style={{ color: '#6b7280', fontSize: 12 }}>
+                    Gold board applications are offices for the sale of gold (gold trading), charged Tier 1 or Tier 2 Gold Board fees.
+                  </small>
+                </div>
+              )
+            })()}
           </div>
         </div>
 

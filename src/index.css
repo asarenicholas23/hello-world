@@ -707,6 +707,7 @@ body {
 }
 
 /* ── Facility sector badge (inline in cards / header) ─── */
+.sub-sector-tag { display: inline-block; margin-left: 6px; padding: 1px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; background: #fef3c7; color: #92400e; white-space: nowrap; vertical-align: middle; }
 .facility-sector-badge {
   display: inline-flex;
   align-items: center;

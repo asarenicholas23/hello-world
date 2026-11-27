@@ -56,6 +56,13 @@ export function paymentKind(type) {
 // count only when nothing else in the text names an activity; weakSectors limits those
 // to facilities filed under that sector. covers: activities this line already includes.
 export const FEE_RULES = [
+  // Gold Board applications (offices for the sale of gold): office practice, not in Act 1080
+  // (lines L0650/L0651 in the workbook). Tier 2 only when the record says so.
+  { id: 'gold2', label: 'Gold trading, Gold Board application (Tier 2)', re: /gold.*\btier ?(2|ii|two)\b|\btier ?(2|ii|two)\b.*gold/, lines: ['L0651'], cap: [],
+    note: 'Gold Board application fees are office practice, not in Act 1080.' },
+  { id: 'gold1', label: 'Gold trading, Gold Board application (Tier 1)', re: /gold ?(trad\w*|buy\w*|deal\w*|sales?|sell\w*|board|bod|office|shop|merchant\w*|exchange)|goldbod|\b(buy\w*|sell\w*|sales?|trad\w*|deal\w*)( and \w+)?( of)? gold\b/, weak: /\bgold\b(?! ?min)/, weakSectors: ['CI'], lines: ['L0650'], cap: [],
+    note: 'Gold Board application fees are office practice, not in Act 1080.',
+    assumedNote: 'Tier is not on the record, so Tier 1 is used; change it to Tier 2 on the Finance tab if that applies.', assumedUnless: /\btier\b/ },
   { id: 'hostel', label: 'Hostel (per room)', re: /\bhostel|homestel/, lines: ['L0502', 'L0503', 'L0504', 'L0505', 'L0506', 'L0507'], cap: ['rooms'] },
   { id: 'hotel', label: 'Hotel / guest house (per room)', re: /hotel|guest ?house|motel|lodge|\binn\b|resort/, lines: ['L0640'], cap: ['rooms'],
     note: 'Act 1080 has no separate guest-house line; the hotel per-room rate (5–40 rooms) is used.', noteIf: /guest|lodge|\binn\b|motel/ },
@@ -118,6 +125,8 @@ export function matchRules(facility) {
   if (!found.length && !t && name) found = rulesInText(name, prefix)
   // Nothing named at all: a file under Agrochemical & Pesticide is a dealer.
   if (!found.length && prefix === 'PP') found = [RULE_BY_ID.get('pesticide')]
+  // Tagged as a Gold board application but the text names no tier or trading: Tier 1.
+  if (facility?.sub_sector === 'gold_board' && !found.some((r) => r.id === 'gold1' || r.id === 'gold2')) found = [RULE_BY_ID.get('gold1'), ...found]
   const covered = new Set(found.flatMap((r) => r.covers ?? []))
   return found.filter((r) => !covered.has(r.id))
 }
@@ -207,6 +216,7 @@ export function actLineEstimate(rule, facility, caps, ctx, { application = 'rene
 
   const notes = []
   if (rule.note && (!rule.noteIf || rule.noteIf.test(normalizeType(facility.type_of_undertaking)))) notes.push(rule.note)
+  if (rule.assumedNote && !(facility.fee_activities?.length) && !rule.assumedUnless.test(normalizeType(`${facility.type_of_undertaking ?? ''} ${facility.name ?? ''}`))) notes.push(rule.assumedNote)
   if (chosen.clamped) notes.push(`Capacity is outside the Act's band for this line (${line.bmin ?? '…'}–${line.bmax ?? '…'} ${line.unit}); the nearest band is used.`)
   if (proc == null || perm == null) notes.push('One of the two fees is blank in the Act for this line.')
 

@@ -25,6 +25,7 @@ import EnforcementTab from '../components/tabs/EnforcementTab'
 import FacilityComplianceCard from '../components/FacilityComplianceCard'
 import ScheduleModal from '../components/ScheduleModal'
 import { decodeFileNumberParam, facilityPath } from '../utils/fileNumbers'
+import { facilitySubSector } from '../utils/subSectors'
 
 const SUB_RECORD_TABS = [
   { key: 'permits',            label: 'Permits',            icon: FileText },
@@ -205,6 +206,11 @@ export default function FacilityDetail() {
             >
               {facility.sector}
             </span>
+            {facilitySubSector(facility) && (
+              <span className="sub-sector-tag" style={{ marginLeft: 0 }} title={facilitySubSector(facility).detected ? 'Read from the type of undertaking' : undefined}>
+                {facilitySubSector(facility).name}
+              </span>
+            )}
             <span className="badge badge--gray">{districtName(facility.district)}</span>
             <span className="badge badge--gray">{facility.region}</span>
           </div>

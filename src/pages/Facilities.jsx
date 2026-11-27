@@ -8,6 +8,7 @@ import { listFacilities, deleteFacility } from '../firebase/facilities'
 import { getPermitDetailsMap, getPermitReadySet } from '../firebase/dashboard'
 import { SECTORS, DISTRICTS, SECTOR_COLORS, ADMIN_ROLES } from '../data/constants'
 import { facilityPath } from '../utils/fileNumbers'
+import { SUB_SECTORS, facilitySubSector, subSectorName } from '../utils/subSectors'
 import Spinner from '../components/Spinner'
 
 // The mobile app defaults to cards (the table needs a wide screen) and keeps its
@@ -112,6 +113,7 @@ export default function Facilities() {
   const [search, setSearch]                 = useState('')
   const [searchField, setSearchField]       = useState('')
   const [sectorFilter, setSectorFilter]     = useState('')
+  const [subSectorFilter, setSubSectorFilter] = useState(location.state?.subSector ?? '')
   const [districtFilter, setDistrictFilter] = useState('')
   const [permitFilter, setPermitFilter]     = useState(location.state?.permitFilter ?? '')
   const [officerFilter, setOfficerFilter]   = useState(location.state?.officerUid ?? '')
@@ -192,11 +194,18 @@ export default function Facilities() {
     return [...fields].sort((a, b) => a.localeCompare(b))
   }, [facilities])
 
+  // Sub-sector per facility: the saved sub_sector, or read from what it does.
+  const subSectorByFile = useMemo(
+    () => new Map(facilities.map((f) => [f.file_number, facilitySubSector(f)])),
+    [facilities],
+  )
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
     const base = facilities.filter((f) => {
       const matchesSearch = !q || searchableText(f, searchField).includes(q)
       const matchesSector   = !sectorFilter   || f.sector_prefix === sectorFilter
+      const matchesSubSector = !subSectorFilter || subSectorByFile.get(f.file_number)?.value === subSectorFilter
       const matchesDistrict = !districtFilter || f.district       === districtFilter
       const matchesOfficer  = !officerFilter  || f.primary_officer === officerFilter
       let matchesPermit = true
@@ -206,12 +215,12 @@ export default function Facilities() {
         matchesPermit = status === permitFilter
       }
       const matchesReady = !readyFilter || (permitReadySet !== null && permitReadySet.has(f.file_number))
-      return matchesSearch && matchesSector && matchesDistrict && matchesPermit && matchesOfficer && matchesReady
+      return matchesSearch && matchesSector && matchesSubSector && matchesDistrict && matchesPermit && matchesOfficer && matchesReady
     })
     return sortFacilities(base, sort)
-  }, [facilities, search, searchField, sectorFilter, districtFilter, permitFilter, officerFilter, permitStatusMap, sort, readyFilter, permitReadySet])
+  }, [facilities, search, searchField, sectorFilter, subSectorFilter, subSectorByFile, districtFilter, permitFilter, officerFilter, permitStatusMap, sort, readyFilter, permitReadySet])
 
-  const activeFilters = [search.trim(), searchField, sectorFilter, districtFilter, permitFilter, officerFilter, readyFilter ? 'ready' : ''].filter(Boolean).length
+  const activeFilters = [search.trim(), searchField, sectorFilter, subSectorFilter, districtFilter, permitFilter, officerFilter, readyFilter ? 'ready' : ''].filter(Boolean).length
   const canBulkManage = ADMIN_ROLES.has(role)
   const selectedIdSet = useMemo(() => new Set(selectedIds), [selectedIds])
   const visibleFacilityIds = filtered.map((f) => f.file_number)
@@ -225,11 +234,13 @@ export default function Facilities() {
     }
 
     const permitFields = ['permit_status', 'permit_number', 'permit_issue_date', 'permit_effective_date', 'permit_expiry_date']
-    const fields = [...(databaseFields.length > 0 ? databaseFields : ['file_number', 'name']), ...permitFields]
+    const baseFields = databaseFields.length > 0 ? databaseFields : ['file_number', 'name']
+    const fields = [...baseFields, ...(baseFields.includes('sub_sector') ? [] : ['sub_sector']), ...permitFields]
     const rows = filtered.map((facility) => {
       const entry = permitMap[String(facility.file_number ?? '').trim()]
       return {
         ...facility,
+        sub_sector:             subSectorByFile.get(facility.file_number)?.name ?? '',
         permit_status:          entry?.status ?? 'none',
         permit_number:          entry?.permit_number ?? '',
         permit_issue_date:      entry?.issue_date ?? null,
@@ -377,6 +388,15 @@ export default function Facilities() {
         </div>
 
         <div className="filter-group">
+          <select className="select" value={subSectorFilter} onChange={(e) => setSubSectorFilter(e.target.value)} aria-label="Filter by sub-sector">
+            <option value="">All sub-sectors</option>
+            {SUB_SECTORS.map((s) => (
+              <option key={s.value} value={s.value}>{s.name} ({SECTORS.find((x) => x.prefix === s.sector)?.name ?? s.sector})</option>
+            ))}
+          </select>
+        </div>
+
+        <div className="filter-group">
           <select className="select" value={districtFilter} onChange={(e) => setDistrictFilter(e.target.value)}>
             <option value="">All districts</option>
             {DISTRICTS.map((d) => (
@@ -460,6 +480,12 @@ export default function Facilities() {
               <button onClick={() => setSectorFilter('')}>✕</button>
             </span>
           )}
+          {subSectorFilter && (
+            <span className="filter-pill">
+              Sub-sector: {subSectorName(subSectorFilter)}
+              <button onClick={() => setSubSectorFilter('')}>✕</button>
+            </span>
+          )}
           {districtFilter && (
             <span className="filter-pill">
               District: {DISTRICTS.find((d) => d.code === districtFilter)?.name}
@@ -482,7 +508,7 @@ export default function Facilities() {
           )}
           <button
             className="btn btn--ghost btn--xs"
-            onClick={() => { setSectorFilter(''); setDistrictFilter(''); setPermitFilter(''); setOfficerFilter(''); setSearch(''); setSearchField(''); setReadyFilter(false) }}
+            onClick={() => { setSectorFilter(''); setSubSectorFilter(''); setDistrictFilter(''); setPermitFilter(''); setOfficerFilter(''); setSearch(''); setSearchField(''); setReadyFilter(false) }}
           >
             Clear all
           </button>
@@ -633,6 +659,7 @@ function FacilityTable({
             {facilities.map((f) => {
               const colors   = SECTOR_COLORS[f.sector_prefix] ?? { bg: '#f3f4f6', text: '#374151' }
               const district = DISTRICTS.find((d) => d.code === f.district)
+              const sub      = facilitySubSector(f)
               return (
                 <tr
                   key={f.file_number}
@@ -655,7 +682,10 @@ function FacilityTable({
                       {f.sector_prefix}
                     </span>
                   </td>
-                  <td>{f.type_of_undertaking || <span style={{ color: '#9ca3af' }}>—</span>}</td>
+                  <td>
+                    {f.type_of_undertaking || <span style={{ color: '#9ca3af' }}>—</span>}
+                    {sub && <span className="sub-sector-tag">{sub.name}</span>}
+                  </td>
                   <td>{f.location || <span style={{ color: '#9ca3af' }}>—</span>}</td>
                   <td>{district?.name ?? f.district ?? <span style={{ color: '#9ca3af' }}>—</span>}</td>
                   <td>{f.contact_person || <span style={{ color: '#9ca3af' }}>—</span>}</td>
@@ -673,6 +703,7 @@ function FacilityTable({
 function FacilityCard({ facility: f, onClick, selectable, selected, onToggleSelect }) {
   const colors = SECTOR_COLORS[f.sector_prefix] ?? { bg: '#f3f4f6', text: '#374151' }
   const district = DISTRICTS.find((d) => d.code === f.district)
+  const sub = facilitySubSector(f)
 
   return (
     <div className={`firm-card${selected ? ' firm-card--selected' : ''}`} onClick={onClick}>
@@ -685,6 +716,7 @@ function FacilityCard({ facility: f, onClick, selectable, selected, onToggleSele
           >
             {f.sector}
           </span>
+          {sub && <span className="sub-sector-tag">{sub.name}</span>}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           {selectable && (

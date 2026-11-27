@@ -3725,6 +3725,7 @@ body {
 .act-finance__row > span { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: #64748b; font-weight: 700; }
 .act-finance__row small { color: #64748b; font-size: 12px; }
 .act-finance__cap { display: flex; align-items: center; gap: 8px; }
+.act-finance__cap select { padding: 6px 8px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 14px; background: #fff; }
 .act-finance__cap input { width: 120px; max-width: 50%; padding: 6px 8px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 14px; }
 .act-finance__cap em { font-style: normal; color: #374151; font-size: 13px; }
 .act-finance__lines { display: grid; gap: 4px; border-top: 1px solid #f1f5f9; padding-top: 8px; }
@@ -3744,5 +3745,14 @@ body {
 .act-finance__remove:hover { background: #e5e7eb; color: #111827; }
 .act-finance__cap { flex-wrap: wrap; }
 .act-finance__cap small { flex-basis: 100%; color: #64748b; font-size: 12px; }
+.act-finance__search { display: flex; align-items: center; gap: 6px; border: 1px solid #d1d5db; border-radius: 8px; padding: 4px 8px; background: #fff; color: #64748b; }
+.act-finance__search input { border: 0; outline: 0; flex: 1; min-width: 0; font-size: 14px; padding: 2px 0; background: transparent; }
+.act-finance__family { display: grid; gap: 4px; padding: 6px 0; border-bottom: 1px solid #f1f5f9; }
+.act-finance__family > small { color: #374151; font-weight: 600; }
+.act-finance__line-pick { display: flex; align-items: center; gap: 6px; text-align: left; border: 1px solid #e5e7eb; background: #fafafa; border-radius: 8px; padding: 5px 8px; font-size: 12.5px; color: #111827; cursor: pointer; }
+.act-finance__line-pick:hover:not(:disabled) { background: #f1f5f9; }
+.act-finance__line-pick:disabled { opacity: .5; cursor: default; }
+.act-finance__line-pick span { flex: 1; min-width: 0; }
+.act-finance__line-pick em { font-style: normal; color: #64748b; white-space: nowrap; }
 .act-finance__edit { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .act-finance__edit select { flex: 1 1 200px; min-width: 0; padding: 6px 8px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 13px; background: #fff; }

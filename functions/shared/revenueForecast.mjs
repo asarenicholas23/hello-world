@@ -55,6 +55,22 @@ export function paymentKind(type) {
 // re: words that name the activity. weak: vaguer words ("station", "residential") that
 // count only when nothing else in the text names an activity; weakSectors limits those
 // to facilities filed under that sector. covers: activities this line already includes.
+// Impact scale. Neither Act 1080 nor L.I. 2504 defines it; the office assigns it at
+// screening. Lines priced by scale use the facility's `impact_scale` (set on the Finance
+// tab) and Small when none is saved.
+export const IMPACT_SCALES = ['Large', 'Medium', 'Small', 'Minor', 'Micro']
+export const DEFAULT_SCALE = 'Small'
+function scaleLines(...ids) { return Object.fromEntries(ids.map((id, i) => [IMPACT_SCALES[i], id])) }
+const OTHER_CONSTRUCTION = scaleLines('L0491', 'L0492', 'L0493', 'L0494', 'L0495')
+
+// The scale's line, or the nearest scale the Act lists for that activity.
+function lineForScale(rule, scale) {
+  const order = IMPACT_SCALES.indexOf(scale)
+  const listed = IMPACT_SCALES.filter((s) => rule.scale[s])
+  const pick = listed.sort((a, b) => Math.abs(IMPACT_SCALES.indexOf(a) - order) - Math.abs(IMPACT_SCALES.indexOf(b) - order))[0]
+  return { scale: pick, id: rule.scale[pick] }
+}
+
 export const FEE_RULES = [
   // Gold Board applications (offices for the sale of gold): office practice, not in Act 1080
   // (lines L0650/L0651 in the workbook). Tier 2 only when the record says so.
@@ -64,29 +80,133 @@ export const FEE_RULES = [
     note: 'Gold Board application fees are office practice, not in Act 1080.',
     assumedNote: 'Tier is not on the record, so Tier 1 is used; change it to Tier 2 on the Finance tab if that applies.', assumedUnless: /\btier\b/ },
   { id: 'hostel', label: 'Hostel (per room)', re: /\bhostel|homestel/, lines: ['L0502', 'L0503', 'L0504', 'L0505', 'L0506', 'L0507'], cap: ['rooms'] },
-  { id: 'hotel', label: 'Hotel / guest house (per room)', re: /hotel|guest ?house|motel|lodge|\binn\b|resort/, lines: ['L0640'], cap: ['rooms'],
+  { id: 'hotel', label: 'Hotel / guest house (per room)', re: /hotel|guest ?house|gu?e?st ?house|geust ?house|guset ?house|motel|lodge|\binn\b|resort/, lines: ['L0640'], cap: ['rooms'],
     note: 'Act 1080 has no separate guest-house line; the hotel per-room rate (5–40 rooms) is used.', noteIf: /guest|lodge|\binn\b|motel/ },
   { id: 'lpg', label: 'LPG refilling station (per tonne of tank storage)', re: /\blpg\b|liquefied|liquified|gas refill\w*|gas station|gas filling/, lines: ['L0172'], cap: ['tonnes', 'litres'] },
   { id: 'fuel', label: 'Fuel service/filling station (per litre of tank storage)', re: /fuel|filling|service station|petrol|diesel/, weak: /stat+ion$|\bstation\b|energy|\boil\b/, weakSectors: ['CE'], lines: ['L0173'], cap: ['litres'] },
-  { id: 'sachet', label: 'Sachet water production (bags per day)', re: /sachet|pure water/, lines: ['L0432', 'L0431', 'L0430', 'L0429'], cap: ['bags_per_day', 'production'] },
+  { id: 'sachet', label: 'Sachet water production (bags per day)', re: /sachet|pure water/, lines: ['L0432', 'L0431', 'L0430', 'L0429'], cap: ['bags_per_day', 'production'],
+    covers: ['bottled_water'], fallback: 'bottled_water' },
   { id: 'maternity', label: 'Maternity home with clinic', re: /maternity/, lines: ['L0578'], cap: [], covers: ['hospital'] },
   { id: 'mortuary', label: 'Mortuary (cold rooms)', re: /mortuar|motuar/, lines: ['L0587', 'L0583', 'L0577', 'L0572', 'L0570'], cap: ['rooms'], defaultLine: 'L0587' },
-  { id: 'hospital', label: 'Hospital / clinic (beds)', re: /hospital|clinic|chps|health (centre|center|facility)|polyclinic|herbal/, lines: ['L0581', 'L0582', 'L0573', 'L0574', 'L0575', 'L0571', 'L0569'], cap: ['beds'],
+  { id: 'hospital', label: 'Hospital / clinic (beds)', re: /hospital|clinic|chps|health (centre|center|facility)|medical (centre|center)|polyclinic|herbal/, lines: ['L0581', 'L0582', 'L0573', 'L0574', 'L0575', 'L0571', 'L0569'], cap: ['beds'],
     note: 'Clinics are priced on the hospital bed bands, as on the Choice Clinic invoice (Act 1080 p.313).' },
-  { id: 'lab', label: 'Diagnostic centre / laboratory', re: /laborator|diagnostic/, lines: ['L0586'], cap: [] },
-  { id: 'religious', label: 'Religious facility (Small impact scale)', re: /church|mosque|chapel|worship|religious|tabernacle|temple|pentecost|assembl(y|ies) of god/, weak: /auditor/, lines: ['L0493'], cap: [],
-    note: 'Act 1080 and L.I. 2504 do not define impact scale. Small scale is used because it matches what churches have paid (990 + 5,000).' },
+  { id: 'lab', label: 'Diagnostic centre / laboratory', re: /laborator|diagnos|daignos|scan (centre|center)/, lines: ['L0586'], cap: [] },
+  { id: 'religious', label: 'Religious facility', re: /church|mosque|chapel|worship|religious|tabernacle|temple|pentecost|assembl(y|ies) of god|ministr(y|ies) int|\bministries\b/, weak: /auditor/, scale: OTHER_CONSTRUCTION, cap: [],
+    scaleNote: 'Small matches what churches have paid (990 + 5,000).' },
   { id: 'apartments', label: 'Apartments (per housing unit)', re: /apartment|apartemnt|\bflats?\b/, weak: /residential|real estate|housing/, lines: ['L0470'], cap: ['housing_units'] },
   { id: 'telecom', label: 'Telecom mast', re: /\bmast\b|telecom/, weak: /tower/, lines: ['L0643'], newLines: ['L0642'], cap: [] },
   { id: 'restaurant', label: 'Restaurant / pub (per seat)', re: /restaurant|\bpub\b|\bbar\b|eatery|chop ?bar|drinking (spot|bar|joint)/, weak: /drinking|lounge/, lines: ['L0641'], cap: ['seats'] },
   { id: 'events', label: 'Events centre', re: /event/, lines: ['L0485'], cap: [] },
+  // ── Act 1080 sub-sectors priced by impact scale or floor area ──
+  { id: 'charcoal', label: 'Charcoal production and briquettes', re: /charcoal|briquet/, scale: scaleLines('L0425', 'L0426', 'L0427', 'L0428') },
+  { id: 'wood', label: 'Wood processing (sawmill, timber)', re: /saw ?mill|wood (process\w*|work\w*|pole\w*)|timber|lumber|plywood|veneer/, scale: scaleLines('L0303', 'L0304', 'L0305', 'L0306', 'L0307') },
+  { id: 'concrete_batching', label: 'Concrete batching plant', re: /concrete batching|batching plant/, scale: scaleLines('L0313', 'L0314', 'L0315', 'L0316', 'L0317') },
+  { id: 'blocks', label: 'Cement/concrete products (blocks, culverts, pavement blocks)', re: /\bblocks? ?(factory|making|production|manufactur\w*|moulding|industry)|culvert|pavement block|paving (stone|block)|concrete products/, scale: scaleLines('L0318', 'L0319', 'L0320', 'L0321', 'L0322') },
+  { id: 'waste_oil', label: 'Waste oil recycling / lube', re: /(used|waste) oil (recycl\w*|refin\w*|process\w*)|lube (oil )?(blend\w*|production|plant)|lubricant (blend\w*|production|manufactur\w*)/, scale: scaleLines('L0343', 'L0344', 'L0345', 'L0346', 'L0347') },
+  { id: 'oil_fat', label: 'Oil and fat processing (cooking oil, palm oil, shea)', re: /cooking oil|palm (kernel )?oil|vegetable oil|oil mill|oil and fat|kernel oil|shea/, scale: scaleLines('L0293', 'L0294', 'L0295', 'L0296', 'L0297') },
+  { id: 'bottled_water', label: 'Bottled water (with or without sachet)', re: /bottled water|mineral water|water (production|manufactur\w*|factory|bottling|processing)/, scale: scaleLines('L0308', 'L0309', 'L0310', 'L0311', 'L0312') },
+  { id: 'brewery', label: 'Brewery', re: /brewer/, scale: scaleLines('L0268', 'L0269', 'L0270', 'L0271', 'L0272') },
+  { id: 'beverages', label: 'Alcoholic and non-alcoholic beverages', re: /beverage (production|manufactur\w*|factory|processing)|fruit juice|soft drink|distill|akpeteshie|gin (production|distill)/, scale: scaleLines('L0366', 'L0367', 'L0368', 'L0369', 'L0370') },
+  { id: 'cocoa_processing', label: 'Cocoa processing', re: /cocoa process/, scale: scaleLines('L0357', 'L0358', 'L0359', 'L0360', 'L0361') },
+  { id: 'fish_processing', label: 'Fish processing', re: /fish (process\w*|smok\w*)/, scale: scaleLines('L0376', 'L0377', 'L0378', 'L0379') },
+  { id: 'meat_processing', label: 'Meat processing / abattoir', re: /slaughter|abattoir|meat (process\w*|company|compay|factory|plant)/, scale: scaleLines('L0380', 'L0381', 'L0382', 'L0383') },
+  { id: 'food', label: 'Food processing (cassava, rice mill, bakery)', re: /food (process\w*|production|manufactur\w*|factory)|cassava|\bgari\b|(rice|corn|maize|grain|flour) ?mill\w*|bakery|bread|cereal process|milling/, scale: scaleLines('L0400', 'L0401', 'L0402', 'L0403', 'L0404') },
+  { id: 'pharma', label: 'Pharmaceutical manufacturing', re: /pharmaceutical (manufactur\w*|production|factory)|drug manufactur/, scale: scaleLines('L0348', 'L0349', 'L0350', 'L0351', 'L0352') },
+  { id: 'agrochem_formulation', label: 'Agrochemical formulation (fertiliser manufacturing)', re: /fertili[sz]er (manufactur\w*|production|blending|formulat\w*|factory)|agro ?chemical formulat/, scale: scaleLines('L0283', 'L0284', 'L0285', 'L0286', 'L0287') },
+  { id: 'paints', label: 'Paints / chemicals production (incl. soap)', re: /paint (production|manufactur\w*|factory)|soap|detergent|chemical (production|manufactur\w*)/, scale: scaleLines('L0371', 'L0372', 'L0373', 'L0374', 'L0375') },
+  { id: 'battery', label: 'Lead acid battery production and recycling', re: /batter(y|ies) (recycl\w*|production|manufactur\w*)|lead acid/, scale: scaleLines('L0328', 'L0329', 'L0330', 'L0331', 'L0332') },
+  { id: 'plastic_recycling', label: 'Plastic recycling (incl. collection)', re: /(plastic|plactic)\w* (recycl\w*|collect\w*)|(recycl\w*|collect\w*) of (plastic|plactic)/, scale: scaleLines('L0288', 'L0289', 'L0290', 'L0291', 'L0292') },
+  { id: 'plastic_products', label: 'Plastic products manufacturing', re: /plastic (products|manufactur\w*|factory)/, scale: scaleLines('L0396', 'L0397', 'L0398', 'L0399') },
+  { id: 'metal_recycling', label: 'Metal smelting / recycling (incl. steel)', re: /smelt|metal recycl|steel (manufactur\w*|production|mill|rolling)|iron rod/, scale: scaleLines('L0298', 'L0299', 'L0300', 'L0301', 'L0302') },
+  { id: 'scrap', label: 'Scrap collection (metal recycling line)', re: /scraps?\b/, scale: scaleLines('L0298', 'L0299', 'L0300', 'L0301', 'L0302'), defaultScale: 'Micro',
+    scaleNote: 'Scrap collection is priced on the metal smelting/recycling line at Micro scale unless another scale is set.' },
+  { id: 'metal_fabrication', label: 'Metal fabrication (incl. nails, roofing sheets)', re: /metal fabricat|fabrication|welding|\bnails?\b|roofing sheet/, scale: scaleLines('L0362', 'L0363', 'L0364', 'L0365') },
+  { id: 'paper', label: 'Paper and paper recycling', re: /paper (mill|recycl\w*|manufactur\w*|production)|tissue paper/, scale: scaleLines('L0384', 'L0385', 'L0386', 'L0387') },
+  { id: 'printing', label: 'General / commercial printing', re: /printing/, scale: scaleLines('L0323', 'L0324', 'L0325', 'L0326', 'L0327') },
+  { id: 'textiles', label: 'Textiles', re: /textile|garment/, scale: scaleLines('L0273', 'L0274', 'L0275', 'L0276', 'L0277') },
+  { id: 'asphalt', label: 'Asphalt / bitumen batching plant', re: /asphalt|bitumen/, scale: scaleLines('L0421', 'L0422', 'L0423', 'L0424') },
+  { id: 'vehicle_assembly', label: 'Vehicle assembly', re: /vehicle assembl/, scale: scaleLines('L0388', 'L0389', 'L0390', 'L0391') },
+  { id: 'automobile', label: 'Automobile sales and servicing', re: /automobile|car (sales|dealer\w*|showroom)|vehicle (sales|dealer\w*)/, scale: scaleLines('L0392', 'L0393', 'L0394', 'L0395') },
+  { id: 'vulcanizing', label: 'Vulcanizing shop', re: /vulcani[sz]\w*( shop)?/, lines: ['L0175'], cap: [] },
+  { id: 'washing_bay', label: 'Washing bay (1–3 ramps)', re: /washing bay|car wash\w*/, lines: ['L0176'], cap: [],
+    note: 'For operation the Act gives only the processing fee for a washing bay (1–3 ramps); 4–6 ramps is GH¢100.' },
+  { id: 'vehicle_inspection', label: 'Vehicle inspection centre', re: /vehicle (inspection|testing)|roadworth/, lines: ['L0484'], cap: [] },
+  { id: 'garage', label: 'Vehicle servicing garage (fitting, spraying)', re: /garage|(spraying|fitting|mechanic\w*|repair) ?(shop|booth)?|servicing of (excavators|vehicles|cars|machines)|vehicle (repair|servicing)/, scale: { Large: 'L0481', Medium: 'L0482', Small: 'L0483' } },
+  { id: 'quarry', label: 'Quarry', re: /quarr/, lines: ['L0005'], cap: [] },
+  { id: 'poultry', label: 'Poultry production', re: /poultry|layers? farm|broiler|\bbirds?\b farm/, scale: scaleLines('L0530', 'L0531', 'L0532', 'L0533', 'L0534'),
+    scaleNote: 'The Act bands poultry by number of birds (Small = 5,001–10,000).' },
+  { id: 'piggery', label: 'Piggery production', re: /pig(gery|grey|gery)?\b|swine/, scale: scaleLines('L0541', 'L0542', 'L0543', 'L0544') },
+  { id: 'aquaculture', label: 'Aquaculture (fish farm)', re: /aquacultur|fish (farm|pond|cage)|tilapia|catfish/, scale: scaleLines('L0522', 'L0523', 'L0524', 'L0525') },
+  { id: 'forestry', label: 'Wildlife and forestry (plantation forestry)', re: /forestr|afforest|reforest|tree plant/, scale: scaleLines('L0621', 'L0622', 'L0623', 'L0624', 'L0625') },
+  { id: 'irrigation', label: 'Irrigation', re: /irrigat/, scale: { Large: 'L0518', Medium: 'L0519', Small: 'L0520', Minor: 'L0521' } },
+  { id: 'plantation', label: 'Plantation / crop farming', re: /plantation|crop farm|cultivat\w*|oil palm|cashew|cocoa farm/, weak: /\bfarm\w*/, scale: scaleLines('L0509', 'L0510', 'L0511', 'L0512', 'L0513') },
+  { id: 'school', label: 'School / educational facility (other construction proposals)', re: /school|classroom|college|universit|educational|dormitor/, scale: OTHER_CONSTRUCTION,
+    scaleNote: 'Act 1080 has no school line; "Other construction proposals" (as for religious facilities) is used.' },
+  { id: 'other_health', label: 'Other health-related undertaking', weak: /health|pharmac/, scale: scaleLines('L0593', 'L0594', 'L0595', 'L0596', 'L0597') },
+  { id: 'office', label: 'Office / bank (per m² of floor area)', re: /bank\w*|savings and loans|credit union|micro ?financ\w*|micro ?credit|insurance|\boffices?\b|forex/, lines: ['L0479'], cap: ['floor_area'] },
+  { id: 'warehouse', label: 'Warehouse for general goods (per m² of floor area)', re: /warehouse|cold store|cold room|storage facility/, lines: ['L0472'], cap: ['floor_area'] },
+  { id: 'shop', label: 'Shop / store (per m² of floor area)', re: /\bstores?\b|\bshops?\b|showroom|retail|\bmart\b|supermarket|boutique|pharmacy/, lines: ['L0480'], cap: ['floor_area'] },
+  { id: 'other_manufacturing', label: 'Other manufacturing', weak: /manufactur\w*|factory|production|processing|recycl\w*|industr\w*/, scale: scaleLines('L0437', 'L0438', 'L0439', 'L0440', 'L0441'),
+    scaleNote: 'No specific Act line found for this product; "Other manufacturing industry" is used.' },
   { id: 'pesticide', label: 'Pesticide dealer licence (small scale)', re: /pesticid|agro ?chem|agrochem|weedicide|insecticide|herbicide|fungicide/,
+    covers: ['shop'],
     other: { renewal: { group: 'D2. Renewals', label: '1. Small Scale' }, new: { group: 'D1. New applications', label: '1. Small Scale' } },
     note: 'Pesticide dealer licence, Act 1080 pesticides section D (small scale): GH¢400 new, GH¢300 renewal.' },
 ]
 
 const RULE_BY_ID = new Map(FEE_RULES.map((r) => [r.id, r]))
-export function ruleById(id) { return RULE_BY_ID.get(id) ?? null }
+
+// Any line of the fee table can be an activity too: id "line:L0425" (picked from the
+// fee table on the Finance tab). Its label and capacity come from the line itself.
+const LINE_RULES = new Map()
+export function ruleById(id) {
+  if (RULE_BY_ID.has(id)) return RULE_BY_ID.get(id)
+  const m = /^line:(L\d+)$/.exec(String(id ?? ''))
+  if (!m) return null
+  if (!LINE_RULES.has(id)) LINE_RULES.set(id, { id, lineRef: m[1], label: `Act 1080 line ${m[1]}`, lines: [m[1]], cap: [] })
+  return LINE_RULES.get(id)
+}
+
+// Capacity key for a per-unit line's unit ("rooms", "m²", "housing units" …).
+export function capKeyForLine(line) {
+  if (!line || !FEE.isPerUnit(line)) return null
+  const u = String(line.unit ?? '').toLowerCase()
+  if (/room/.test(u)) return 'rooms'
+  if (/bed/.test(u)) return 'beds'
+  if (/housing/.test(u)) return 'housing_units'
+  if (/m²|m2|sq/.test(u)) return 'floor_area'
+  if (/seat/.test(u)) return 'seats'
+  if (/litre|liter/.test(u)) return 'litres'
+  if (/tonne|ton\b/.test(u)) return 'tonnes'
+  if (/bag/.test(u)) return 'bags_per_day'
+  return `units_${line.id}`
+}
+
+export function lineTitle(line) {
+  if (!line) return ''
+  return [line.sub && FEE.stripNumbering(line.sub), line.group && FEE.stripNumbering(line.group), FEE.stripNumbering(line.label)].filter(Boolean).join(' – ')
+}
+
+// A rule with what the fee table adds for "line:" activities (label, capacity key).
+export function resolveRule(rule, lineById) {
+  if (!rule?.lineRef) return rule
+  const line = lineById?.get(rule.lineRef)
+  if (!line) return rule
+  const key = capKeyForLine(line)
+  return { ...rule, label: lineTitle(line), cap: key ? [key] : [] }
+}
+
+// Capacities an officer typed and saved on the facility (Finance tab) win over field records.
+export function withSavedCapacities(facility, caps) {
+  const saved = facility?.fee_capacities
+  if (!saved || typeof saved !== 'object') return caps ?? {}
+  const out = { ...(caps ?? {}) }
+  for (const [k, v] of Object.entries(saved)) {
+    const n = Number(v)
+    if (Number.isFinite(n) && n > 0) out[k] = { value: n, source: 'entered by an officer', dateMs: null }
+  }
+  return out
+}
 
 const globalRe = (re) => new RegExp(re.source, 'g')
 
@@ -96,7 +216,7 @@ function rulesInText(text, prefix) {
   let rest = text
   const found = []
   for (const rule of FEE_RULES) {
-    if (!rule.re.test(rest)) continue
+    if (!rule.re?.test(rest)) continue
     found.push(rule)
     rest = rest.replace(globalRe(rule.re), ' ')
   }
@@ -172,6 +292,7 @@ function pickBand(lines, qty) {
 // (with `why` set on the optional `miss` object).
 export function actLineEstimate(rule, facility, caps, ctx, { application = 'renewal', miss } = {}) {
   if (!rule) return null
+  rule = resolveRule(rule, ctx.lineById)
   const fail = (why) => { if (miss) miss.why = why; return null }
 
   if (rule.other) {
@@ -185,7 +306,14 @@ export function actLineEstimate(rule, facility, caps, ctx, { application = 'rene
     }
   }
 
-  const ids = application === 'new' && rule.newLines ? rule.newLines : rule.lines
+  let scaleUsed = null
+  let ids = application === 'new' && rule.newLines ? rule.newLines : rule.lines
+  if (rule.scale) {
+    const wanted = IMPACT_SCALES.includes(facility?.impact_scale) ? facility.impact_scale : (rule.defaultScale ?? DEFAULT_SCALE)
+    const picked = lineForScale(rule, wanted)
+    scaleUsed = { wanted, used: picked.scale, saved: IMPACT_SCALES.includes(facility?.impact_scale) }
+    ids = [picked.id]
+  }
   const lines = ids.map((id) => ctx.lineById.get(id)).filter(Boolean)
   if (!lines.length) return fail('not in the fee table')
 
@@ -216,12 +344,18 @@ export function actLineEstimate(rule, facility, caps, ctx, { application = 'rene
 
   const notes = []
   if (rule.note && (!rule.noteIf || rule.noteIf.test(normalizeType(facility.type_of_undertaking)))) notes.push(rule.note)
+  if (scaleUsed) {
+    if (!scaleUsed.saved) notes.push(`Impact scale is not on the record, so ${scaleUsed.used} is used (Act 1080 and L.I. 2504 leave it to screening); set it on the Finance tab.${rule.scaleNote ? ` ${rule.scaleNote}` : ''}`)
+    else if (scaleUsed.used !== scaleUsed.wanted) notes.push(`The Act has no ${scaleUsed.wanted} scale for this activity; ${scaleUsed.used} is used.`)
+    else if (rule.scaleNote && /Act 1080 has no|No specific/.test(rule.scaleNote)) notes.push(rule.scaleNote)
+  }
   if (rule.assumedNote && !(facility.fee_activities?.length) && !rule.assumedUnless.test(normalizeType(`${facility.type_of_undertaking ?? ''} ${facility.name ?? ''}`))) notes.push(rule.assumedNote)
   if (chosen.clamped) notes.push(`Capacity is outside the Act's band for this line (${line.bmin ?? '…'}–${line.bmax ?? '…'} ${line.unit}); the nearest band is used.`)
   if (proc == null || perm == null) notes.push('One of the two fees is blank in the Act for this line.')
 
   return {
-    ruleId: rule.id, ruleLabel: rule.label, lineId: line.id, lineLabel: FEE.stripNumbering(line.label), pages: line.pages,
+    ruleId: rule.id, ruleLabel: scaleUsed ? `${rule.label} (${scaleUsed.used} impact scale)` : rule.label, lineId: line.id, lineLabel: FEE.stripNumbering(line.label), pages: line.pages,
+    scale: scaleUsed?.used ?? null,
     perUnit, rate: { processing: proc, permit: perm },
     qty: capacity ? { value: capacity.value, unit: capacity.unit, source: capacityKind === 'typical' ? capacity.source : capacity.source, kind: capacityKind } : null,
     processing, permit, total: round(processing + permit), note: notes.join(' '),
@@ -233,13 +367,22 @@ export function actLineEstimate(rule, facility, caps, ctx, { application = 'rene
 // plus `parts` (one per priced activity) and `unpriced` (activities that could not be
 // priced, e.g. a restaurant with no seat count). Returns null when nothing is priced.
 // opts.rules overrides the activities; opts.capsFor(rule) gives one activity its own capacities.
-export function actEstimate(facility, caps, ctx, { application = 'renewal', rules, capsFor } = {}) {
-  const list = rules ?? matchRules(facility)
+export function actEstimate(facility, caps, ctx, { application = 'renewal', rules, capsFor, fillGaps = false } = {}) {
+  const list = (rules ?? matchRules(facility)).map((r) => resolveRule(r, ctx.lineById))
   const parts = []
   const unpriced = []
   for (const rule of list) {
     const miss = {}
-    const est = actLineEstimate(rule, facility, capsFor?.(rule) ?? caps, ctx, { application, miss })
+    let est = actLineEstimate(rule, facility, capsFor?.(rule) ?? caps, ctx, { application, miss })
+    // e.g. sachet water with no bags-a-day count: the Act's bottled water (with/without sachet) scale line.
+    if (!est && rule.fallback) {
+      const fb = RULE_BY_ID.get(rule.fallback)
+      est = actLineEstimate(fb, facility, capsFor?.(fb) ?? caps, ctx, { application })
+      if (est) est = { ...est, forRule: rule.id, note: [`${rule.label}: ${miss.why}, so ${fb.label} is used.`, est.note].filter(Boolean).join(' ') }
+    }
+    // Forecasts only: an activity with nothing to price it on takes what facilities doing
+    // the same thing paid, else the office-wide average of priced activities.
+    if (!est && fillGaps) est = averageFor(rule, ctx, miss.why)
     if (est) parts.push(est)
     else unpriced.push({ ruleId: rule.id, ruleLabel: rule.label, why: miss.why ?? 'not priced' })
   }
@@ -262,6 +405,20 @@ export function actEstimate(facility, caps, ctx, { application = 'renewal', rule
     qtyText: parts.filter((p) => p.qty).map((p) => `${p.qty.value} ${p.qty.unit.replace(/_/g, ' ')}`).join(', '),
     processing, permit, total: round(processing + permit), note: notes.join(' '),
     parts, unpriced,
+  }
+}
+
+function averageFor(rule, ctx, why) {
+  const own = ctx.paidByActivity?.[rule.id]
+  const avg = own?.n ? { ...own, kind: 'activity', text: `median paid by ${own.n} facilit${own.n > 1 ? 'ies' : 'y'} doing this` }
+    : ctx.generalAverage?.n ? { ...ctx.generalAverage, kind: 'office', text: ctx.generalAverage.basis === 'paid' ? `the office-wide median paid (${ctx.generalAverage.n} facilities)` : `the office-wide median of ${ctx.generalAverage.n} priced activities` }
+      : null
+  if (!avg) return null
+  return {
+    ruleId: rule.id, ruleLabel: rule.label, lineId: '', lineLabel: avg.kind === 'activity' ? 'Average of similar facilities' : 'Office-wide average',
+    pages: '', perUnit: false, rate: null, qty: null, averaged: avg.kind,
+    processing: round(avg.processing), permit: round(avg.permit), total: round(avg.processing + avg.permit),
+    note: `${why ? `${why[0].toUpperCase()}${why.slice(1)}; ` : ''}${avg.text} is used for the forecast. Enter it on the Finance tab to price this facility.`,
   }
 }
 
@@ -293,13 +450,13 @@ export function buildFeeContext({ feeTable, facilities = [], finance = [], capac
   const capsByRule = {}
   const groupKeyOf = new Map()
   for (const f of facilities) {
-    const rules = matchRules(f)
+    const rules = matchRules(f).map((r) => resolveRule(r, lineById))
     // "Similar" means the same mix of activities (a hotel with a restaurant is compared
     // with other hotels that have restaurants).
     groupKeyOf.set(f.file_number, rules.length ? `rule:${rules.map((r) => r.id).sort().join('+')}` : `type:${normalizeType(f.type_of_undertaking) || '-'}`)
     for (const rule of rules) {
       if (!rule.cap?.length) continue
-      const c = capacityFor(rule, capacityIndex[f.file_number])
+      const c = capacityFor(rule, withSavedCapacities(f, capacityIndex[f.file_number]))
       if (c) (capsByRule[rule.id] ??= []).push(c)
     }
   }
@@ -328,18 +485,52 @@ export function buildFeeContext({ feeTable, facilities = [], finance = [], capac
   const similar = Object.fromEntries(Object.entries(groupPaid).map(([k, b]) => [k, summarise(b)]))
   const sector = Object.fromEntries(Object.entries(sectorPaid).map(([k, b]) => [k, summarise(b)]))
 
-  return {
+  const ctx = {
     lineById, otherRows, paidByFile, typicalCapacity, similar, sector, groupKeyOf, capacityIndex,
     collectionRate: billed.total > 0 ? billed.paid / billed.total : null,
   }
+
+  // Averages for forecasting activities that cannot be priced: what facilities doing only
+  // that activity paid, and the office-wide median of every activity the Act prices.
+  const byActivity = {}
+  const general = { processing: [], permit: [] }
+  for (const f of facilities) {
+    const rules = matchRules(f)
+    const entry = paidByFile.get(f.file_number)
+    if (rules.length === 1 && entry) {
+      const b = (byActivity[rules[0].id] ??= { processing: [], permit: [], n: 0 })
+      if (entry.processing) b.processing.push(entry.processing.amount)
+      if (entry.permit) b.permit.push(entry.permit.amount)
+      b.n += 1
+    }
+    const act = actEstimate(f, withSavedCapacities(f, capacityIndex[f.file_number]), ctx, { application: 'renewal' })
+    for (const part of act?.parts ?? []) {
+      general.processing.push(part.processing)
+      general.permit.push(part.permit)
+    }
+  }
+  ctx.paidByActivity = Object.fromEntries(Object.entries(byActivity).map(([k, b]) => [k, { processing: median(b.processing) ?? 0, permit: median(b.permit) ?? 0, n: b.n }]))
+  // Office-wide: what facilities actually paid (any activity); the Act prices of all
+  // priced activities only when there are no payments on record.
+  const paidAll = { processing: [], permit: [] }
+  for (const entry of paidByFile.values()) {
+    if (entry.processing) paidAll.processing.push(entry.processing.amount)
+    if (entry.permit) paidAll.permit.push(entry.permit.amount)
+  }
+  ctx.generalAverage = paidAll.permit.length
+    ? { processing: median(paidAll.processing) ?? 0, permit: median(paidAll.permit) ?? 0, n: paidByFile.size, basis: 'paid' }
+    : general.permit.length
+      ? { processing: median(general.processing) ?? 0, permit: median(general.permit) ?? 0, n: general.permit.length, basis: 'act' }
+      : null
+  return ctx
 }
 
 // ── One facility ────────────────────────────────────────────────────────────────
 
 export function estimateFacility(facility, ctx, { application = 'renewal' } = {}) {
   const fileNumber = facility.file_number
-  const caps = ctx.capacityIndex?.[fileNumber] ?? {}
-  const act = actEstimate(facility, caps, ctx, { application })
+  const caps = withSavedCapacities(facility, ctx.capacityIndex?.[fileNumber])
+  const act = actEstimate(facility, caps, ctx, { application, fillGaps: true })
   const paid = ctx.paidByFile.get(fileNumber)
   const groupKey = ctx.groupKeyOf.get(fileNumber)
   const similar = groupKey ? ctx.similar[groupKey] : null
@@ -355,8 +546,13 @@ export function estimateFacility(facility, ctx, { application = 'renewal' } = {}
     source = 'act'
     processing = act.processing
     permit = act.permit
-    sourceLabel = act.parts.some((x) => x.qty?.kind === 'typical') ? 'Act 1080 at typical size' : 'Act 1080'
-    if (act.parts.length > 1) sourceLabel += ` (${act.parts.length} activities)`
+    const averaged = act.parts.filter((x) => x.averaged).length
+    if (averaged === act.parts.length) source = 'average'
+    sourceLabel = averaged === act.parts.length
+      ? (act.parts.every((x) => x.averaged === 'activity') ? 'Average paid by facilities doing the same'
+        : act.parts.every((x) => x.averaged === 'office') ? 'Office-wide average (nothing to price it on)' : 'Averages (no capacity on record)')
+      : act.parts.some((x) => x.qty?.kind === 'typical') ? 'Act 1080 at typical size' : 'Act 1080'
+    if (act.parts.length > 1) sourceLabel += ` (${act.parts.length} activities${averaged && averaged < act.parts.length ? `, ${averaged} averaged` : ''})`
     if (act.unpriced.length) sourceLabel += `, ${act.unpriced.length} activit${act.unpriced.length > 1 ? 'ies' : 'y'} not priced`
   } else if (similar && similar.n >= 2) {
     source = 'similar'
@@ -383,6 +579,7 @@ export function estimateFacility(facility, ctx, { application = 'renewal' } = {}
 export const SOURCE_NAMES = {
   paid: 'Facility paid before',
   act: 'Act 1080 schedule',
+  average: 'Average paid (capacity not on record)',
   similar: 'Similar facilities paid',
   sector: 'Sector median',
   invoice: 'Unpaid invoice',
@@ -478,10 +675,12 @@ export function buildRevenueForecast({
   const rate = ctx.collectionRate ?? 1
   const sourceCounts = {}
   rows.forEach((r) => { sourceCounts[SOURCE_NAMES[r.source] ?? r.source] = (sourceCounts[SOURCE_NAMES[r.source] ?? r.source] ?? 0) + 1 })
-  const actRows = rows.filter((r) => r.act)
+  // Only parts actually priced from the Act (not averages standing in for missing capacity).
+  const actPart = (r) => (r.act?.parts ?? []).filter((p) => !p.averaged)
+  const actRows = rows.filter((r) => actPart(r).length)
   return {
     rows, streams, possible, expected: round(possible * rate), collectionRate: ctx.collectionRate,
     sourceCounts,
-    actCoverage: { facilities: actRows.length, actTotal: round(actRows.reduce((a, r) => a + r.act.total, 0)), estimateTotal: round(actRows.reduce((a, r) => a + r.processing + r.permit, 0)) },
+    actCoverage: { facilities: actRows.length, actTotal: round(actRows.reduce((a, r) => a + actPart(r).reduce((b, p) => b + p.total, 0), 0)), estimateTotal: round(actRows.reduce((a, r) => a + r.processing + r.permit, 0)) },
   }
 }

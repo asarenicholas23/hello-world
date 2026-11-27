@@ -279,7 +279,7 @@ async function get_facility(data, args) {
     fee_estimate: clean({
       processing: est.processing, permit: est.permit, total: est.total, basis: est.sourceLabel,
       act_1080: est.act ? clean({
-        activities: est.act.parts.map((x) => clean({ activity: x.ruleLabel, line: `${x.lineId} ${x.lineLabel}`, processing: x.processing, permit: x.permit, total: x.total, capacity_used: x.qty ? `${x.qty.value} ${x.qty.unit} (${x.qty.source})` : null, pages: x.pages })),
+        activities: est.act.parts.map((x) => clean({ activity: x.ruleLabel, line: x.averaged ? null : `${x.lineId} ${x.lineLabel}`, basis: x.averaged ? (x.averaged === 'activity' ? 'average paid by facilities doing the same (no capacity on record)' : 'office-wide average paid (nothing to price it on)') : 'Act 1080', processing: x.processing, permit: x.permit, total: x.total, capacity_used: x.qty ? `${x.qty.value} ${x.qty.unit} (${x.qty.source})` : null, pages: x.pages })),
         not_priced: est.act.unpriced.length ? est.act.unpriced.map((u) => `${u.ruleLabel}: ${u.why}`) : null,
         processing: est.act.processing, permit: est.act.permit, total: est.act.total, note: est.act.note,
       }) : 'No Act 1080 line mapped for this type of undertaking',
@@ -423,7 +423,7 @@ How the office's money works:
 - Gold board applications are a sub-sector of Infrastructure: offices for the sale of gold (gold trading, gold buying). Their fees are office practice, not in Act 1080: Tier 1 processing GH¢2,000 + permit GH¢10,000; Tier 2 processing GH¢5,000 + permit GH¢15,000. Use sub_sector "Gold board applications" to find or total them.
 - Capacities (rooms, beds, bags a day, tank litres) come from screenings and site verifications. When a typical size was assumed, say so.
 - Non-compliance penalty (late renewal or operating without a permit) is 3 × the permit fee. Do not include it unless the user asks; you may mention what it would add.
-- Neither Act 1080 nor the Environmental Assessment Regulations, 2025 (L.I. 2504) define large/medium/small/minor/micro impact scale; that comes from screening.
+- Neither Act 1080 nor the Environmental Assessment Regulations, 2025 (L.I. 2504) define large/medium/small/minor/micro impact scale; that comes from screening. Activities the Act prices by impact scale (e.g. charcoal production, wood processing, block factories, food processing, plantations) use the facility's saved impact scale, else Small; say which scale was used. Offices, banks, shops and warehouses are priced per m² of floor area and need the area. When a capacity or area is missing, forecasts use what facilities doing the same thing paid, else the office-wide median paid; say so when that is the basis. Capacities officers save on the Finance tab (fee_capacities) count as recorded.
 - These are estimates. The Ghana.gov invoice from the EPA client portal is the bill.
 - "Expected" revenue applies the office's historical collection rate (paid ÷ billed) to the possible total.
 

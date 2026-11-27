@@ -67,8 +67,10 @@ facilities/{file_number}
   sector              string   — e.g. "Infrastructure"
   sector_prefix       string   — e.g. "CI"
   type_of_undertaking string
+  fee_capacities      map      — optional; capacities an officer saved on the Finance tab, e.g. { floor_area: 150, rooms: 20 }; win over screening/site-verification figures
+  impact_scale        string   — optional; 'Large'|'Medium'|'Small'|'Minor'|'Micro', as assigned at screening. Set on the Finance tab; used for Act 1080 lines priced by scale (Small when empty)
   sub_sector          string   — optional; 'gold_board' (Gold board applications, under Infrastructure) or 'none'. When empty, the app reads it from type_of_undertaking (src/utils/subSectors.js)
-  fee_activities      string[] — optional; Act 1080 activities to price (FEE_RULES ids, e.g. ["hotel","restaurant"]). Set on the Finance tab; when absent they are read from type_of_undertaking
+  fee_activities      string[] — optional; Act 1080 activities to price (FEE_RULES ids, e.g. ["hotel","restaurant"], or any fee-table line as "line:L0425"). Set on the Finance tab; when absent they are read from type_of_undertaking
   location            string
   district            string   — e.g. "KON", "KMA", "EJI", "OBU"
   region              string   — Hardcoded "Ashanti"

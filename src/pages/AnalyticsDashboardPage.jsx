@@ -6,7 +6,7 @@ import {
 } from 'recharts'
 import {
   ArrowLeft, Banknote, BookOpen, Building2, CalendarDays, Download, FileText,
-  Gavel, Search, ShieldCheck, TrendingUp, WalletCards,
+  Gavel, Plus, RefreshCw, Search, ShieldCheck, TrendingUp, WalletCards,
 } from 'lucide-react'
 import { buildFacilityMap, getCrossRecords } from '../firebase/dashboard'
 import { listEnvEducation } from '../firebase/envEducation'
@@ -563,8 +563,8 @@ export default function AnalyticsDashboardPage() {
   }, [activeTab, financeMode, feeCtx, filteredFacilities, records.permits, records.finance, range, includeBacklog, includePenalty, extraFilter])
 
   const analytics = useMemo(
-    () => buildAnalytics(activeTab, filteredDomainRows, filteredFacilities, filteredCurrentPermits, range, financeMode, filteredWalkInRows, scopedPermitRows, filteredEnforcementVisitRows, filteredVisitOutcomes, forecast),
-    [activeTab, filteredDomainRows, filteredFacilities, filteredCurrentPermits, range, financeMode, filteredWalkInRows, scopedPermitRows, filteredEnforcementVisitRows, filteredVisitOutcomes, forecast]
+    () => buildAnalytics(activeTab, filteredDomainRows, filteredFacilities, filteredCurrentPermits, range, financeMode, filteredWalkInRows, scopedPermitRows, filteredEnforcementVisitRows, filteredVisitOutcomes, forecast, records.permits),
+    [activeTab, filteredDomainRows, filteredFacilities, filteredCurrentPermits, range, financeMode, filteredWalkInRows, scopedPermitRows, filteredEnforcementVisitRows, filteredVisitOutcomes, forecast, records.permits]
   )
 
   if (!canView) {
@@ -815,9 +815,9 @@ export default function AnalyticsDashboardPage() {
   )
 }
 
-function buildAnalytics(tab, rows, facilities, currentPermits, range, financeMode, walkInRows, permitRows, enforcementVisitRows, visitOutcomes, forecast) {
+function buildAnalytics(tab, rows, facilities, currentPermits, range, financeMode, walkInRows, permitRows, enforcementVisitRows, visitOutcomes, forecast, allPermits = []) {
   if (tab === 'finance') return buildFinanceAnalytics(rows, facilities, currentPermits, range, financeMode, forecast)
-  if (tab === 'permits') return buildPermitAnalytics(rows, facilities, currentPermits)
+  if (tab === 'permits') return buildPermitAnalytics(rows, facilities, currentPermits, allPermits)
   if (tab === 'enforcement') return buildEnforcementAnalytics(rows, currentPermits, walkInRows, permitRows, enforcementVisitRows, visitOutcomes)
   if (tab === 'education') return buildEducationAnalytics(rows)
   return buildMonitoringAnalytics(rows)
@@ -978,7 +978,29 @@ function buildHistoricalFinanceAnalytics(rows, facilities, currentPermits, range
   }
 }
 
-function buildPermitAnalytics(rows, facilities, currentPermits) {
+// A permit is a renewal when the facility already had a permit issued before it (from
+// the facility's whole permit history, not only the selected period); otherwise it is new.
+function classifyPermits(rows, allPermits) {
+  const earliest = new Map()
+  for (const p of allPermits) {
+    const ms = recordDateMs(p, 'permits')
+    if (ms == null) continue
+    const list = earliest.get(p.fileNumber) ?? []
+    list.push({ ms, id: p.id })
+    earliest.set(p.fileNumber, list)
+  }
+  return rows.map((row) => {
+    const ms = recordDateMs(row, 'permits')
+    const history = earliest.get(row.fileNumber) ?? []
+    const earlier = ms != null && history.some((h) => h.id !== row.id && h.ms < ms)
+    return { ...row, permit_kind: earlier ? 'Renewal' : 'New' }
+  })
+}
+
+function buildPermitAnalytics(periodRows, facilities, currentPermits, allPermits = []) {
+  const rows = classifyPermits(periodRows, allPermits)
+  const renewed = rows.filter((row) => row.permit_kind === 'Renewal').length
+  const fresh = rows.length - renewed
   const visibleFiles = new Set(facilities.map((facility) => facility.file_number))
   const visibleCurrentPermits = currentPermits.filter((row) => visibleFiles.has(row.fileNumber))
   const byDistrict = group(rows, (row) => ({ key: row.facilityDistrict, label: districtLabel(row.facilityDistrict) }))
@@ -987,14 +1009,16 @@ function buildPermitAnalytics(rows, facilities, currentPermits) {
   const permittedFacilities = new Set(visibleCurrentPermits.map((row) => row.fileNumber))
 
   return {
-    subtitle: 'Permit volume and coverage from facility permit records',
+    subtitle: 'Permits issued in the period, new against renewed, and coverage',
     kpis: [
-      { icon: <FileText size={18} />, label: 'Permits', value: rows.length, note: `${permittedFacilities.size} facilities with permits` },
-      { icon: <ShieldCheck size={18} />, label: 'Coverage', value: pct(permittedFacilities.size, facilities.length), note: `${facilities.length - permittedFacilities.size} without permit` },
-      { icon: <TrendingUp size={18} />, label: 'Active', value: visibleCurrentPermits.filter((row) => permitStatus(row.expiry_date) === 'active').length, note: 'current facility permits' },
+      { icon: <FileText size={18} />, label: 'Permits issued', value: rows.length, note: `${fresh} new · ${renewed} renewed` },
+      { icon: <Plus size={18} />, label: 'New permits', value: fresh, note: `${pct(fresh, rows.length)} of issued · first permit for the facility` },
+      { icon: <RefreshCw size={18} />, label: 'Renewals', value: renewed, note: `${pct(renewed, rows.length)} of issued · facility had an earlier permit` },
       { icon: <CalendarDays size={18} />, label: 'Expired', value: visibleCurrentPermits.filter((row) => permitStatus(row.expiry_date) === 'expired').length, note: 'need renewal attention' },
     ],
     answers: [
+      answer('New or renewed: which is more of the period\'s permits?', { name: renewed >= fresh ? 'Renewals' : 'New permits', value: Math.max(renewed, fresh) }, (v) => `${v} of ${rows.length} permits`),
+      answer('What share of facilities has a permit?', { name: pct(permittedFacilities.size, facilities.length), value: permittedFacilities.size }, (v) => `${v} facilities · ${facilities.length - permittedFacilities.size} without`),
       answer('Which district has the most permits?', byDistrict[0], (v) => `${v} permits`, (drill) => drill('district', byDistrict[0]?.key)),
       answer('Which sector has the most permits?', bySector[0], (v) => `${v} permits`, (drill) => drill('sector', bySector[0]?.key)),
       answer('How many facilities have at least one permit?', { name: `${permittedFacilities.size} facilities`, value: permittedFacilities.size }, (v) => `${v} total`),
@@ -1006,6 +1030,9 @@ function buildPermitAnalytics(rows, facilities, currentPermits) {
     listRows: status.map((item) => ({ ...item, valueLabel: `${item.value}`, onClick: (drill) => drill(null, null, { statusFilter: item.key }) })),
     sourceTotals: [
       { name: 'Permit records', value: rows.length },
+      { name: 'New permits', value: fresh },
+      { name: 'Renewals', value: renewed },
+      { name: 'Active (current)', value: visibleCurrentPermits.filter((row) => permitStatus(row.expiry_date) === 'active').length },
       { name: 'Permitted facilities', value: permittedFacilities.size },
       { name: 'Facilities in scope', value: facilities.length },
       { name: 'Without permit', value: Math.max(facilities.length - permittedFacilities.size, 0) },

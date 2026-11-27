@@ -1,5 +1,5 @@
 // Reads facility capacities (rooms, beds, bags a day, fuel tank litres, LPG tonnes,
-// seats, housing units) out of screening and site-verification records, so fee
+// seats, housing units, floor area in m²) out of screening and site-verification records, so fee
 // estimates can use the facility's real size. Pure functions: used by the app and
 // copied into functions/shared for the assistant (see scripts/sync-functions-shared.mjs).
 
@@ -86,6 +86,18 @@ function fromCapacityText(text) {
   return out
 }
 
+// Total floor area in m² written in free text; null when none is given.
+export function floorArea(text) {
+  if (!text) return null
+  const s = String(text).toLowerCase().replace(/(\d),(\d{3})/g, '$1$2')
+  let total = 0
+  for (const m of s.matchAll(/(\d+(?:\.\d+)?)\s*(?:m2|m²|sq\.?\s?m\b|sqm|square met\w*)(\s*each)?(?:\D{0,12}?(?:x|×|\*)\s*(\d+))?/g)) {
+    const v = Number(m[1]) * (m[3] ? Number(m[3]) : 1)
+    if (v > 0) total += v
+  }
+  return total > 0 ? Math.round(total) : null
+}
+
 // Capacities from one record (a screening, site verification, or a field report's
 // embedded screening). Returns { rooms: 20, litres: 90000, ... }.
 export function capacitiesFromRecord(rec) {
@@ -120,6 +132,12 @@ export function capacitiesFromRecord(rec) {
       // LPG tanks recorded in kg/litres: 1 tonne of LPG is roughly 1,960 litres.
       if (l) set('tonnes', Math.round((l / 1960) * 10) / 10)
     }
+  }
+
+  // Floor area for offices, shops and warehouses: "120 m2", "30 sq m each x 4".
+  for (const t of [rec.capacity, rec.facility_capacity, rec.components, rec.screening?.capacity, rec.screening?.components]) {
+    const area = floorArea(t)
+    if (area) { set('floor_area', area); break }
   }
 
   const textSources = [rec.capacity, rec.facility_capacity, rec.screening?.capacity]

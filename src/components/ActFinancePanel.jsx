@@ -1,19 +1,24 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ChevronDown, ChevronRight, Calculator, Info, X } from 'lucide-react'
+import { ChevronDown, ChevronRight, Calculator, Info, X, Search, Plus } from 'lucide-react'
 import { listSubRecords } from '../firebase/subrecords'
 import { listFieldReportsForFacility } from '../firebase/fieldReports'
 import { buildCapacityIndex } from '../utils/capacity'
 import { updateFacility } from '../firebase/facilities'
 import { useAuth } from '../context/AuthContext'
 import { FIELD_ROLES, hasFullDataAccess } from '../data/constants'
-import { FEE_RULES, actEstimate, buildFeeContext, matchRules, paymentKind, ruleById } from '../utils/revenueForecast'
+import {
+  FEE_RULES, IMPACT_SCALES, actEstimate, buildFeeContext, lineTitle, matchRules, paymentKind, resolveRule, ruleById, withSavedCapacities,
+} from '../utils/revenueForecast'
+import FEE from '../utils/feeCalc'
 import { fmtDate } from '../utils/records'
 import Spinner from './Spinner'
 
+const unitLabel = (key) => UNIT_LABEL[key] ?? (key?.startsWith('units_') ? 'units' : key)
+
 const UNIT_LABEL = {
   rooms: 'rooms', beds: 'beds', bags_per_day: 'bags a day', boxes_per_day: 'boxes a day', production: 'bags a day',
-  litres: 'litres of tank storage', tonnes: 'tonnes of tank storage', seats: 'seats', housing_units: 'housing units',
+  litres: 'litres of tank storage', tonnes: 'tonnes of tank storage', seats: 'seats', housing_units: 'housing units', floor_area: 'm² of floor area',
 }
 
 function cedis(x) {
@@ -34,6 +39,11 @@ export default function ActFinancePanel({ facility, fileNumber, financeRecords }
   // Activity ids being priced; null = what the facility record says.
   const [chosen, setChosen] = useState(null)
   const [savedList, setSavedList] = useState(null)
+  // Impact scale being priced; null = what the facility record says.
+  const [scaleChoice, setScaleChoice] = useState(null)
+  const [savedScale, setSavedScale] = useState(null)
+  const [savedCaps, setSavedCaps] = useState(null)
+  const [tableQuery, setTableQuery] = useState('')
   const [saving, setSaving] = useState(false)
   const [saveMsg, setSaveMsg] = useState('')
 
@@ -56,37 +66,69 @@ export default function ActFinancePanel({ facility, fileNumber, financeRecords }
   }, [open, data, fileNumber])
 
   // The facility as last saved here (the page's copy does not refresh after a save).
-  const current = useMemo(
-    () => (facility ? (savedList ? { ...facility, fee_activities: savedList } : facility) : null),
-    [facility, savedList],
-  )
-  const recordRules = useMemo(() => (current ? matchRules(current) : []), [current])
+  const current = useMemo(() => {
+    if (!facility) return null
+    let f = facility
+    if (savedList) f = { ...f, fee_activities: savedList }
+    if (savedScale != null) f = { ...f, impact_scale: savedScale }
+    if (savedCaps) f = { ...f, fee_capacities: savedCaps }
+    return f
+  }, [facility, savedList, savedScale, savedCaps])
+  const recordScale = IMPACT_SCALES.includes(current?.impact_scale) ? current.impact_scale : ''
+  const scaleChanged = scaleChoice != null && scaleChoice !== recordScale
+  const ctx = useMemo(() => (data ? buildFeeContext({
+    feeTable: data.feeTable, facilities: [], finance: [], capacityIndex: { [fileNumber]: data.caps },
+  }) : null), [data, fileNumber])
+  const lineById = ctx?.lineById
+
+  const recordRules = useMemo(() => (current ? matchRules(current).map((r) => resolveRule(r, lineById)) : []), [current, lineById])
   const savedOnRecord = Array.isArray(current?.fee_activities) && current.fee_activities.length > 0
   const rules = useMemo(
-    () => (chosen ? chosen.map(ruleById).filter(Boolean) : recordRules),
-    [chosen, recordRules],
+    () => (chosen ? chosen.map(ruleById).filter(Boolean).map((r) => resolveRule(r, lineById)) : recordRules),
+    [chosen, recordRules, lineById],
   )
   const changed = chosen != null && chosen.join('+') !== recordRules.map((r) => r.id).join('+')
   const canSave = FIELD_ROLES.has(role) || role === 'finance' || hasFullDataAccess(role, dataAccess)
 
-  const ctx = useMemo(() => (data ? buildFeeContext({
-    feeTable: data.feeTable, facilities: [], finance: [], capacityIndex: { [fileNumber]: data.caps },
-  }) : null), [data, fileNumber])
+  // Field-record capacities, with what officers saved on the facility on top.
+  const baseCaps = useMemo(() => (data ? withSavedCapacities(current, data.caps) : {}), [data, current])
+
+  // Capacities typed here, by capacity key (rooms, floor_area …), for saving.
+  const typedCaps = useMemo(() => {
+    const out = {}
+    for (const rule of rules) {
+      const key = rule.cap?.[0]
+      const n = Number(capInput[rule.id])
+      if (key && capInput[rule.id] && Number.isFinite(n) && n > 0) out[key] = n
+    }
+    return out
+  }, [rules, capInput])
+  const capsChanged = Object.entries(typedCaps).some(([k, v]) => Number(current?.fee_capacities?.[k]) !== v)
 
   // Capacities for one activity: what is on record, or what was typed for it here.
   const capsFor = useCallback((rule) => {
     const typed = Number(capInput[rule.id])
     if (capInput[rule.id] && Number.isFinite(typed) && typed > 0 && rule.cap?.length) {
-      return { ...data.caps, [rule.cap[0]]: { value: typed, source: 'entered here' } }
+      return { ...baseCaps, [rule.cap[0]]: { value: typed, source: 'entered here' } }
     }
-    return data.caps
-  }, [capInput, data])
+    return baseCaps
+  }, [capInput, baseCaps])
+
+  // The whole Act 1080 fee table, searchable, to add any line as an activity.
+  const families = useMemo(() => (data ? FEE.buildFamilies(data.feeTable.main.map(FEE.rowToLine)) : []), [data])
+  const tableHits = useMemo(() => {
+    const q = tableQuery.trim()
+    if (q.length < 2) return []
+    return FEE.search(families, q, '').slice(0, 6)
+  }, [families, tableQuery])
 
   const application = data?.hasPermit ? 'renewal' : 'new'
+  const usesScale = rules.some((r) => r.scale || ruleById(r.fallback)?.scale)
   const result = useMemo(() => {
     if (!ctx || !current || !rules.length) return null
-    return actEstimate(current, data.caps, ctx, { application, rules, capsFor })
-  }, [ctx, current, rules, data, application, capsFor])
+    const priced = scaleChoice != null ? { ...current, impact_scale: scaleChoice } : current
+    return actEstimate(priced, baseCaps, ctx, { application, rules, capsFor })
+  }, [ctx, current, rules, baseCaps, application, capsFor, scaleChoice])
 
   const lastPaid = useMemo(() => {
     const out = {}
@@ -104,20 +146,28 @@ export default function ActFinancePanel({ facility, fileNumber, financeRecords }
   const actTotal = result ? result.total + penaltyAmount : 0
   const paidTotal = (lastPaid.processing?.amount ?? 0) + (lastPaid.permit?.amount ?? 0)
   const unpricedById = new Map((result?.unpriced ?? []).map((u) => [u.ruleId, u]))
-  const partById = new Map((result?.parts ?? []).map((p) => [p.ruleId, p]))
+  const partById = new Map((result?.parts ?? []).map((p) => [p.forRule ?? p.ruleId, p]))
   const addable = FEE_RULES.filter((r) => !rules.some((x) => x.id === r.id))
 
   function setList(ids) { setChosen(ids); setSaveMsg('') }
   function removeRule(id) { setList(rules.map((r) => r.id).filter((x) => x !== id)) }
   function addRule(id) { if (id) setList([...rules.map((r) => r.id), id]) }
 
-  async function save(ids) {
+  // Saves what changed: the activity list (ids; [] = read from the type again), the scale,
+  // and capacities typed here (so forecasts use them).
+  async function save(ids, scale, caps) {
     setSaving(true); setSaveMsg('')
+    const update = {}
+    if (ids) update.fee_activities = ids
+    if (scale != null) update.impact_scale = scale
+    const nextCaps = caps && Object.keys(caps).length ? { ...(current?.fee_capacities ?? {}), ...caps } : null
+    if (nextCaps) update.fee_capacities = nextCaps
     try {
-      await updateFacility(fileNumber, { fee_activities: ids }, user?.uid ?? null)
-      setSavedList(ids)
-      setChosen(null)
-      setSaveMsg(ids.length ? 'Saved. Forecasts will price these activities.' : 'Saved. Activities are read from the type of undertaking again.')
+      await updateFacility(fileNumber, update, user?.uid ?? null)
+      if (ids) { setSavedList(ids); setChosen(null) }
+      if (scale != null) { setSavedScale(scale); setScaleChoice(null) }
+      if (nextCaps) { setSavedCaps(nextCaps); setCapInput({}) }
+      setSaveMsg(ids && !ids.length ? 'Saved. Activities are read from the type of undertaking again.' : 'Saved. Forecasts will use this.')
     } catch {
       setSaveMsg('Could not save. Check your connection and try again.')
     } finally { setSaving(false) }
@@ -129,6 +179,7 @@ export default function ActFinancePanel({ facility, fileNumber, financeRecords }
     const part = partById.get(rule.id)
     const typed = capInput[rule.id] ?? ''
     const recorded = typed === '' && part?.qty?.kind === 'recorded' ? part.qty : null
+    const savedHere = recorded?.source === 'entered by an officer'
     const typical = typed === '' && part?.qty?.kind === 'typical' ? part.qty : null
     const dateMs = recorded ? Object.values(data?.caps ?? {}).find((c) => recorded.source.startsWith(c.source))?.dateMs : null
     return (
@@ -138,14 +189,15 @@ export default function ActFinancePanel({ facility, fileNumber, financeRecords }
           value={typed}
           placeholder={recorded || typical ? String((recorded ?? typical).value) : 'Enter'}
           onChange={(e) => setCapInput((c) => ({ ...c, [rule.id]: e.target.value }))}
-          aria-label={`${rule.label}: capacity in ${UNIT_LABEL[capKey] ?? capKey}`}
+          aria-label={`${rule.label}: capacity in ${unitLabel(capKey)}`}
         />
-        <em>{UNIT_LABEL[capKey] ?? capKey}</em>
+        <em>{unitLabel(capKey)}</em>
         <small>
-          {typed !== '' ? 'Entered here (not saved)'
-            : recorded ? `From ${recorded.source}${dateMs ? `, ${fmtDate(new Date(dateMs))}` : ''}`
-              : typical ? `Not on record; ${typical.source}`
-                : 'Not on any screening or site verification. Enter it to price this activity.'}
+          {typed !== '' ? (canSave ? 'Entered here; save it so forecasts use it' : 'Entered here (not saved)')
+            : savedHere ? 'Saved on this facility by an officer'
+              : recorded ? `From ${recorded.source}${dateMs ? `, ${fmtDate(new Date(dateMs))}` : ''}`
+                : typical ? `Not on record; ${typical.source}`
+                  : 'Not on any screening or site verification. Enter it to price this activity; until then forecasts use what similar facilities paid.'}
         </small>
       </div>
     )
@@ -188,7 +240,7 @@ export default function ActFinancePanel({ facility, fileNumber, financeRecords }
                 return (
                   <div key={rule.id} className="act-finance__activity">
                     <div className="act-finance__activity-head">
-                      <strong>{rule.label}</strong>
+                      <strong>{part?.ruleLabel && rule.lineRef ? part.ruleLabel : rule.label}</strong>
                       {rules.length > 1 || chosen ? (
                         <button type="button" className="act-finance__remove" onClick={() => removeRule(rule.id)} aria-label={`Remove ${rule.label}`} title="Remove this activity"><X size={14} /></button>
                       ) : null}
@@ -208,16 +260,64 @@ export default function ActFinancePanel({ facility, fileNumber, financeRecords }
                 )
               })}
 
+              {usesScale && (
+                <div className="act-finance__row">
+                  <span>Impact scale</span>
+                  <div className="act-finance__cap">
+                    <select
+                      value={scaleChoice ?? recordScale}
+                      onChange={(e) => { setScaleChoice(e.target.value); setSaveMsg('') }}
+                      aria-label="Impact scale"
+                    >
+                      <option value="">Not set (Small, or the activity’s usual scale)</option>
+                      {IMPACT_SCALES.map((x) => <option key={x} value={x}>{x}</option>)}
+                    </select>
+                    <small>Use the scale assigned at screening. Act 1080 and L.I. 2504 do not define it.</small>
+                  </div>
+                </div>
+              )}
+
+              <div className="act-finance__row">
+                <span>Find in the Act 1080 fee table</span>
+                <div className="act-finance__search">
+                  <Search size={14} />
+                  <input
+                    type="search" value={tableQuery} onChange={(e) => setTableQuery(e.target.value)}
+                    placeholder="e.g. charcoal, warehouse, poultry" aria-label="Search the Act 1080 fee table"
+                  />
+                </div>
+                {tableHits.map((fam) => (
+                  <div key={fam.key} className="act-finance__family">
+                    <small>{fam.sector} › {fam.title}</small>
+                    {fam.lines.filter((l) => l.phase !== 'Construction').slice(0, 8).map((l) => {
+                      const id = `line:${l.id}`
+                      const on = rules.some((r) => r.id === id)
+                      const pp = l.fees.pp ?? l.fees.cp
+                      const pm = l.fees.pm ?? l.fees.cm
+                      const fee = (f) => (f ? (f.cur === 'GHS' ? cedis(f.v) : f.cur === 'USD' ? `US$ ${f.v}` : 'FOB %') : '—')
+                      return (
+                        <button key={l.id} type="button" className="act-finance__line-pick" disabled={on} onClick={() => { addRule(id); setTableQuery('') }}>
+                          <Plus size={12} />
+                          <span>{FEE.stripNumbering(l.label) || lineTitle(l)}{l.phase ? ` (${l.phase})` : ''}</span>
+                          <em>{fee(pp)} + {fee(pm)}{FEE.isPerUnit(l) ? ` per ${l.unit || 'unit'}` : ''}</em>
+                        </button>
+                      )
+                    })}
+                  </div>
+                ))}
+                {tableQuery.trim().length >= 2 && !tableHits.length && <small>Nothing in the fee table matches “{tableQuery.trim()}”.</small>}
+              </div>
+
               <div className="act-finance__edit">
                 <select value="" onChange={(e) => addRule(e.target.value)} aria-label="Add an activity">
                   <option value="">+ Add an activity…</option>
                   {addable.map((r) => <option key={r.id} value={r.id}>{r.label}</option>)}
                 </select>
-                {chosen && (
-                  <button type="button" className="btn btn--ghost btn--sm" onClick={() => setList(null)}>Undo changes</button>
+                {(chosen || scaleChoice != null || Object.keys(capInput).some((k) => capInput[k] !== '')) && (
+                  <button type="button" className="btn btn--ghost btn--sm" onClick={() => { setList(null); setScaleChoice(null); setCapInput({}) }}>Undo changes</button>
                 )}
-                {canSave && changed && (
-                  <button type="button" className="btn btn--primary btn--sm" disabled={saving || !rules.length} onClick={() => save(rules.map((r) => r.id))}>
+                {canSave && (changed || scaleChanged || capsChanged) && (
+                  <button type="button" className="btn btn--primary btn--sm" disabled={saving || !rules.length} onClick={() => save(changed ? rules.map((r) => r.id) : null, scaleChanged ? scaleChoice : null, capsChanged ? typedCaps : null)}>
                     {saving ? 'Saving…' : 'Save to facility'}
                   </button>
                 )}
